@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Headers } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { WatchlistService } from './watchlist.service';
+import { WatchlistService, Watchlist } from './watchlist.service';
 import { AuthService } from '../auth/auth.service';
 
 @ApiTags('Watchlist')

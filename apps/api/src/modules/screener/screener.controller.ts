@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { ScreenerService } from './screener.service';
+import { ScreenerService, ScreenerResult } from './screener.service';
 import type { ScreenerFilter, ScreenerSortField, ExchangeId } from '@crypto-screener/shared';
 
 @ApiTags('Screener')

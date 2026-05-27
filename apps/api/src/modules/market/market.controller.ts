@@ -1,6 +1,6 @@
 import { Controller, Get, Query, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { MarketService } from './market.service';
+import { MarketService, TickerWithMeta } from './market.service';
 import type { ExchangeId, Timeframe } from '@crypto-screener/shared';
 import { ALL_EXCHANGES, TIMEFRAMES } from '@crypto-screener/shared';
 
