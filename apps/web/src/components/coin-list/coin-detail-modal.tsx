@@ -102,7 +102,7 @@ export function CoinDetailModal() {
             </div>
           )}
 
-          {activeTab === 'orderbook' && orderBook && (
+          {activeTab === 'orderbook' && !!orderBook && (
             <div className="grid grid-cols-2 gap-4">
               {/* Bids */}
               <div>
