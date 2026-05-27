@@ -222,7 +222,7 @@ export class BinanceConnector extends BaseExchangeConnector {
 
     const data = await fetch(url).then(r => r.json()) as unknown[];
 
-    return data.map((k: unknown[]): Candle => ({
+    return (data as unknown[][]).map((k: unknown[]): Candle => ({
       timestamp: k[0] as number,
       open: parseFloat(k[1] as string),
       high: parseFloat(k[2] as string),

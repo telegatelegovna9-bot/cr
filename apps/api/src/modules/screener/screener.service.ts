@@ -3,7 +3,7 @@ import { MarketService } from '../market/market.service';
 import type { ScreenerFilter, ScreenerSortField, ExchangeId } from '@crypto-screener/shared';
 import { SCREENER_DEFAULT_PAGE_SIZE } from '@crypto-screener/shared';
 
-interface ScreenerResult {
+export interface ScreenerResult {
   symbol: string;
   exchange: ExchangeId;
   price: number;
@@ -63,8 +63,8 @@ export class ScreenerService {
     const sortBy = params.sortBy || 'quoteVolume24h';
     const dir = params.sortDirection || 'desc';
     results.sort((a, b) => {
-      const aVal = (a as Record<string, number>)[sortBy] || 0;
-      const bVal = (b as Record<string, number>)[sortBy] || 0;
+      const aVal = (a as unknown as Record<string, number>)[sortBy] || 0;
+      const bVal = (b as unknown as Record<string, number>)[sortBy] || 0;
       return dir === 'asc' ? aVal - bVal : bVal - aVal;
     });
 
@@ -79,7 +79,7 @@ export class ScreenerService {
   }
 
   private applyFilter(item: ScreenerResult, filter: ScreenerFilter): boolean {
-    const value = (item as Record<string, number>)[filter.field];
+    const value = (item as unknown as Record<string, number>)[filter.field];
     if (value === undefined) return true;
 
     switch (filter.operator) {

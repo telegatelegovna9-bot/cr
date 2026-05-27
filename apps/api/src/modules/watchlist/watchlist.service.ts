@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { generateId } from '@crypto-screener/shared';
 
-interface Watchlist {
+export interface Watchlist {
   id: string;
   userId: string;
   name: string;

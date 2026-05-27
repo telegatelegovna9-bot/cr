@@ -57,7 +57,7 @@ async function bootstrap() {
   }
 
   // Health check
-  app.use('/health', (_req, res) => {
+  app.use('/health', (_req: any, res: any) => {
     res.json({ status: 'ok', timestamp: Date.now(), uptime: process.uptime() });
   });
 

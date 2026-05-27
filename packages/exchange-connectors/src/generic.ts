@@ -431,7 +431,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
     const rawList = (data as { data?: unknown[] }).data || (data as unknown[]);
 
     if (this.id === 'kucoin') {
-      const tickers = (rawList as { ticker: Record<string, unknown>[] }).ticker;
+      const tickers = (rawList as unknown as { ticker: Record<string, unknown>[] }).ticker;
       return tickers
         .filter((t: Record<string, unknown>) => {
           const sym = t.symbol as string;

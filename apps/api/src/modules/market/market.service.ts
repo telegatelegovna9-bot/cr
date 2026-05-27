@@ -17,7 +17,7 @@ import {
 } from '@crypto-screener/shared';
 import { DatabaseService } from '../../database/database.service';
 
-interface TickerWithMeta extends Ticker {
+export interface TickerWithMeta extends Ticker {
   volatility: number;
   atr: number;
 }
