@@ -4,10 +4,14 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "./dist",
-    "rootDir": "./src",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "target": "ES2022"
+    "target": "ES2022",
+    "paths": {
+      "@crypto-screener/shared": ["../../packages/shared/src"],
+      "@crypto-screener/exchange-connectors": ["../../packages/exchange-connectors/src"]
+    },
+    "baseUrl": "."
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "../../packages/shared/src/**/*", "../../packages/exchange-connectors/src/**/*"]
 }

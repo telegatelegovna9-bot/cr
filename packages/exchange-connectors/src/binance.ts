@@ -148,11 +148,13 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   private handleDepthUpdate(data: Record<string, unknown>): void {
-    const bids = (data.bids || data.b as [string, string][])?.map(([p, q]: [string, string]) => ({
+    const bidsRaw = (data.bids || data.b) as [string, string][] | undefined;
+    const bids = bidsRaw?.map(([p, q]: [string, string]) => ({
       price: parseFloat(p),
       quantity: parseFloat(q),
     })) || [];
-    const asks = (data.asks || data.a as [string, string][])?.map(([p, q]: [string, string]) => ({
+    const asksRaw = (data.asks || data.a) as [string, string][] | undefined;
+    const asks = asksRaw?.map(([p, q]: [string, string]) => ({
       price: parseFloat(p),
       quantity: parseFloat(q),
     })) || [];

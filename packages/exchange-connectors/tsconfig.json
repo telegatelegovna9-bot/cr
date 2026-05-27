@@ -2,7 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "paths": {
+      "@crypto-screener/shared": ["../../packages/shared/src"]
+    },
+    "baseUrl": "."
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "../shared/src/**/*"]
 }

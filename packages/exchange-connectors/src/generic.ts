@@ -7,9 +7,9 @@ import { BaseExchangeConnector } from './base';
 
 interface ExchangeEndpoints {
   tickers: string;
-  candles: string;
-  orderbook: string;
-  parseTicker: (data: Record<string, unknown>, symbol: string) => Ticker;
+  candles: string | ((symbol: string, tf: string) => string);
+  orderbook: string | ((symbol: string) => string);
+  parseTicker: (data: Record<string, unknown>, symbol: string) => Ticker | Ticker[];
   parseCandles: (data: unknown) => Candle[];
   parseOrderBook: (data: unknown, symbol: string) => OrderBook;
 }
@@ -118,7 +118,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
     candles: (symbol: string, tf: string) => `/api/v4/spot/candlesticks?currency_pair=${symbol}&interval=${tf}`,
     orderbook: (symbol: string) => `/api/v4/spot/order_book?currency_pair=${symbol}&limit=50`,
     parseTicker: (data, symbol) => {
-      const d = data as Record<string, unknown>[];
+      const d = (data as unknown) as Record<string, unknown>[];
       const t = d.find((x: Record<string, unknown>) => x.currency_pair === symbol);
       if (!t) throw new Error('Symbol not found');
       return {
@@ -166,7 +166,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
     candles: (symbol: string, tf: string) => `/api/v3/klines?symbol=${symbol}&interval=${tf}`,
     orderbook: (symbol: string) => `/api/v3/depth?symbol=${symbol}&limit=50`,
     parseTicker: (data, symbol) => {
-      const d = data as Record<string, unknown>[];
+      const d = (data as unknown) as Record<string, unknown>[];
       const t = d.find((x: Record<string, unknown>) => x.symbol === symbol);
       if (!t) throw new Error('Symbol not found');
       return {
@@ -214,7 +214,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
     candles: (symbol: string, tf: string) => `/products/${symbol}/candles?granularity=${tf}`,
     orderbook: (symbol: string) => `/products/${symbol}/book?level=2`,
     parseTicker: (data, symbol) => {
-      const d = data as Record<string, unknown>[];
+      const d = (data as unknown) as Record<string, unknown>[];
       const t = d.find((x: Record<string, unknown>) => x.id === symbol);
       if (!t) throw new Error('Symbol not found');
       const price = parseFloat(t.price as string);
@@ -422,7 +422,8 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
   async fetchTickers(symbols?: string[]): Promise<Ticker[]> {
     if (this.id === 'hyperliquid') {
       const data = await this.fetch<Record<string, unknown>>(`${this.endpoints.tickers}?type=metaAndAssetCtxs`);
-      const all = this.endpoints.parseTicker(data, '');
+      const result = this.endpoints.parseTicker(data, '');
+      const all = Array.isArray(result) ? result : [result];
       return symbols ? all.filter(t => symbols.includes(t.symbol)) : all;
     }
 

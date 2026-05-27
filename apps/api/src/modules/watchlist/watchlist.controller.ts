@@ -58,7 +58,7 @@ export class WatchlistController {
   @ApiOperation({ summary: 'Remove symbol from watchlist' })
   async removeSymbol(@Param('id') id: string, @Param('symbol') symbol: string) {
     await this.watchlistService.removeSymbol(id, symbol);
-    return { success: true, detail: true });
+    return { success: true, detail: true };
   }
 
   @Delete(':id')
