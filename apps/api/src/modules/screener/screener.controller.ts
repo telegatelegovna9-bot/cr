@@ -53,7 +53,7 @@ export class ScreenerController {
 
     const result = this.screenerService.screen({
       filters,
-      sortBy: preset === 'top_gainers' || preset === 'volatile' ? 'change' : 'volume',
+      sortBy: preset === 'top_gainers' || preset === 'volatile' ? 'priceChange24h' : 'volume24h',
       sortDirection: preset === 'top_losers' ? 'asc' : 'desc',
       exchange,
       page: page ? parseInt(page) : 1,

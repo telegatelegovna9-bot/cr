@@ -60,20 +60,11 @@ export class ScreenerService {
     }
 
     // Sort
-    const sortBy = params.sortBy || 'volume';
+    const sortBy = params.sortBy || 'volume24h';
     const dir = params.sortDirection || 'desc';
-    const sortFieldMap: Record<string, string> = {
-      price: 'price',
-      change: 'change24h',
-      volume: 'volume24h',
-      trades: 'trades24h',
-      funding: 'fundingRate',
-      openInterest: 'openInterest',
-    };
-    const sortField = sortFieldMap[sortBy] || sortBy;
     results.sort((a, b) => {
-      const aVal = (a as unknown as Record<string, number>)[sortField] || 0;
-      const bVal = (b as unknown as Record<string, number>)[sortField] || 0;
+      const aVal = (a as unknown as Record<string, number>)[sortBy] || 0;
+      const bVal = (b as unknown as Record<string, number>)[sortBy] || 0;
       return dir === 'asc' ? aVal - bVal : bVal - aVal;
     });
 
