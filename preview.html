@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoScreener Pro - Terminal Preview</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a2e;
+            --border-color: #2a2a3e;
+            --text-primary: #e0e0ff;
+            --text-muted: #6b6b8a;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --price-up: #22c55e;
+            --price-down: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            height: 48px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 16px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            color: var(--accent);
+            font-size: 16px;
+        }
+
+        .logo-icon { font-size: 20px; }
+
+        .nav-items {
+            display: flex;
+            gap: 4px;
+        }
+
+        .nav-item {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            color: var(--text-muted);
+            position: relative;
+        }
+
+        .nav-item:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .nav-item.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .nav-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: var(--price-down);
+            color: white;
+            font-size: 10px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .spacer { flex: 1; }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--price-up);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .current-symbol {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            background: var(--bg-card);
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+
+        /* Main Layout */
+        .main-layout {
+            display: flex;
+            height: calc(100vh - 48px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 12px;
+            outline: none;
+            margin-bottom: 8px;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent);
+        }
+
+        .exchange-select {
+            width: 100%;
+            padding: 6px 10px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 4px;
+        }
+
+        .filter-tab {
+            flex: 1;
+            padding: 6px;
+            text-align: center;
+            font-size: 11px;
+            border-radius: 4px;
+            cursor: pointer;
+            background: var(--bg-card);
+            color: var(--text-muted);
+            transition: all 0.15s;
+        }
+
+        .filter-tab.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .coin-list-header {
+            display: grid;
+            grid-template-columns: 1fr 80px 70px 70px;
+            padding: 8px 12px;
+            font-size: 11px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .coin-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .coin-item {
+            display: grid;
+            grid-template-columns: 1fr 80px 70px 70px;
+            padding: 10px 12px;
+            font-size: 12px;
+            border-bottom: 1px solid rgba(42,42,62,0.5);
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .coin-item:hover {
+            background: rgba(255,255,255,0.03);
+        }
+
+        .coin-name {
+            font-weight: 500;
+        }
+
+        .coin-exchange {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .coin-price {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .coin-change {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .coin-volume {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+        }
+
+        .price-up { color: var(--price-up); }
+        .price-down { color: var(--price-down); }
+        .bg-up { background: rgba(34,197,94,0.15); }
+        .bg-down { background: rgba(239,68,68,0.15); }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Mode Tabs */
+        .mode-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .mode-tab {
+            padding: 8px 16px;
+            font-size: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+            color: var(--text-muted);
+        }
+
+        .mode-tab.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Chart Grid */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            padding: 8px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+
+        .chart-card:hover {
+            border-color: var(--accent);
+        }
+
+        .chart-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .chart-symbol {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .chart-exchange {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-left: 8px;
+        }
+
+        .chart-change {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .chart-price {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .chart-canvas {
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(180deg, rgba(34,197,94,0.1) 0%, rgba(239,68,68,0.1) 100%);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-line {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60%;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(99,102,241,0.3) 20%, 
+                rgba(99,102,241,0.5) 50%, 
+                rgba(99,102,241,0.3) 80%, 
+                transparent 100%
+            );
+            clip-path: polygon(0% 80%, 10% 60%, 20% 70%, 30% 40%, 40% 50%, 50% 20%, 60% 30%, 70% 10%, 80% 25%, 90% 15%, 100% 35%, 100% 100%, 0% 100%);
+        }
+
+        .chart-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 11px;
+        }
+
+        .chart-stat-label {
+            color: var(--text-muted);
+        }
+
+        .chart-stat-value {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Alert Toast */
+        .alert-toast {
+            position: fixed;
+            top: 60px;
+            right: 16px;
+            width: 320px;
+            z-index: 100;
+        }
+
+        .alert-item {
+            background: var(--bg-card);
+            border-left: 4px solid var(--accent);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .alert-icon { font-size: 18px; }
+
+        .alert-title {
+            font-weight: 600;
+            font-size: 13px;
+            flex: 1;
+            margin-left: 8px;
+        }
+
+        .alert-time {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .alert-message {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .alert-symbol {
+            display: inline-block;
+            margin-top: 6px;
+            padding: 2px 8px;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .chart-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <span class="logo-icon">◈</span>
+            <span>CryptoScreener</span>
+        </div>
+
+        <nav class="nav-items">
+            <div class="nav-item active">📊 Terminal</div>
+            <div class="nav-item">🔍 Screener</div>
+            <div class="nav-item">🔥 Heatmap</div>
+            <div class="nav-item">📐 Patterns</div>
+            <div class="nav-item">
+                🔔 Alerts
+                <span class="nav-badge">3</span>
+            </div>
+            <div class="nav-item">⚙️ Settings</div>
+        </nav>
+
+        <div class="spacer"></div>
+
+        <div class="connection-status">
+            <div class="status-dot"></div>
+            <span>Live</span>
+        </div>
+
+        <div class="current-symbol">
+            <span>BTC/USDT</span>
+            <span style="color: var(--text-muted)">@</span>
+            <span style="color: var(--text-muted)">binance</span>
+        </div>
+
+        <div style="padding: 8px; cursor: pointer;">☰</div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="main-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">Market</div>
+                <input type="text" class="search-input" placeholder="Search symbol...">
+                <select class="exchange-select">
+                    <option>All Exchanges</option>
+                    <option>Binance</option>
+                    <option>Bybit</option>
+                    <option>OKX</option>
+                    <option>KuCoin</option>
+                    <option>Bitget</option>
+                </select>
+                <div class="filter-tabs">
+                    <div class="filter-tab active">All</div>
+                    <div class="filter-tab">Gainers</div>
+                    <div class="filter-tab">Losers</div>
+                    <div class="filter-tab">Volume</div>
+                </div>
+            </div>
+
+            <div class="coin-list-header">
+                <span>Symbol</span>
+                <span style="text-align:right">Price</span>
+                <span style="text-align:right">24h%</span>
+                <span style="text-align:right">Vol</span>
+            </div>
+
+            <div class="coin-list">
+                <!-- Coin items will be here -->
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Mode Tabs -->
+            <div class="mode-tabs">
+                <div class="mode-tab active">🔥 Top Gainers</div>
+                <div class="mode-tab">📉 Top Losers</div>
+                <div class="mode-tab">📊 Top Volume</div>
+                <div class="mode-tab">⚡ Top Trades</div>
+            </div>
+
+            <!-- Chart Grid -->
+            <div class="chart-grid">
+                <!-- Charts will be here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Alert Toasts -->
+    <div class="alert-toast">
+        <!-- Alerts will be here -->
+    </div>
+
+    <script>
+        // Generate mock data
+        const exchanges = ['binance', 'bybit', 'okx', 'kucoin', 'bitget'];
+        const symbols = [
+            'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT',
+            'DOGE/USDT', 'ADA/USDT', 'AVAX/USDT', 'DOT/USDT', 'LINK/USDT',
+            'MATIC/USDT', 'UNI/USDT', 'ATOM/USDT', 'LTC/USDT', 'ETC/USDT',
+            'FIL/USDT', 'APT/USDT', 'ARB/USDT', 'OP/USDT', 'INJ/USDT'
+        ];
+
+        function generateTicker(symbol) {
+            const basePrice = symbol.startsWith('BTC') ? 65000 : 
+                             symbol.startsWith('ETH') ? 3500 :
+                             symbol.startsWith('SOL') ? 150 :
+                             symbol.startsWith('BNB') ? 600 :
+                             Math.random() * 100 + 1;
+            
+            const change = (Math.random() - 0.4) * 20;
+            const volume = Math.random() * 500000000 + 10000000;
+            
+            return {
+                symbol,
+                exchange: exchanges[Math.floor(Math.random() * exchanges.length)],
+                price: basePrice * (1 + change / 100),
+                change: change,
+                volume: volume,
+                high: basePrice * 1.05,
+                low: basePrice * 0.95
+            };
+        }
+
+        // Generate tickers
+        const tickers = symbols.map(s => generateTicker(s));
+
+        // Populate coin list
+        const coinList = document.querySelector('.coin-list');
+        tickers.sort((a, b) => b.volume - a.volume).forEach(ticker => {
+            const item = document.createElement('div');
+            item.className = 'coin-item';
+            item.innerHTML = `
+                <div>
+                    <div class="coin-name">${ticker.symbol.split('/')[0]}</div>
+                    <div class="coin-exchange">${ticker.exchange}</div>
+                </div>
+                <div class="coin-price">$${ticker.price.toFixed(2)}</div>
+                <div class="coin-change ${ticker.change >= 0 ? 'price-up bg-up' : 'price-down bg-down'}">
+                    ${ticker.change >= 0 ? '+' : ''}${ticker.change.toFixed(2)}%
+                </div>
+                <div class="coin-volume">$${(ticker.volume / 1000000).toFixed(1)}M</div>
+            `;
+            coinList.appendChild(item);
+        });
+
+        // Populate chart grid
+        const chartGrid = document.querySelector('.chart-grid');
+        const topCoins = tickers.filter(t => t.change > 0).sort((a, b) => b.change - a.change).slice(0, 4);
+        
+        topCoins.forEach(ticker => {
+            const card = document.createElement('div');
+            card.className = 'chart-card';
+            card.innerHTML = `
+                <div class="chart-card-header">
+                    <div>
+                        <span class="chart-symbol">${ticker.symbol}</span>
+                        <span class="chart-exchange">${ticker.exchange}</span>
+                    </div>
+                    <div class="chart-change ${ticker.change >= 0 ? 'price-up bg-up' : 'price-down bg-down'}">
+                        ${ticker.change >= 0 ? '+' : ''}${ticker.change.toFixed(2)}%
+                    </div>
+                </div>
+                <div class="chart-price">$${ticker.price.toFixed(2)}</div>
+                <div class="chart-canvas">
+                    <div class="chart-line"></div>
+                </div>
+                <div class="chart-stats">
+                    <div>
+                        <span class="chart-stat-label">Vol: </span>
+                        <span class="chart-stat-value">$${(ticker.volume / 1000000).toFixed(1)}M</span>
+                    </div>
+                    <div>
+                        <span class="chart-stat-label">H/L: </span>
+                        <span class="chart-stat-value">$${ticker.high.toFixed(2)}/$${ticker.low.toFixed(2)}</span>
+                    </div>
+                </div>
+            `;
+            chartGrid.appendChild(card);
+        });
+
+        // Populate alerts
+        const alertToast = document.querySelector('.alert-toast');
+        const alerts = [
+            { icon: '🚀', title: 'Breakout Alert', message: 'BTC/USDT broke above resistance at $65,000', symbol: 'BTC/USDT', time: '2m ago' },
+            { icon: '📊', title: 'Volume Spike', message: 'SOL/USDT volume increased 350% in last 5 minutes', symbol: 'SOL/USDT', time: '5m ago' },
+            { icon: '🟢', title: 'Pump Detected', message: 'DOGE/USDT +15% in last hour', symbol: 'DOGE/USDT', time: '12m ago' }
+        ];
+
+        alerts.forEach(alert => {
+            const item = document.createElement('div');
+            item.className = 'alert-item';
+            item.innerHTML = `
+                <div class="alert-header">
+                    <span class="alert-icon">${alert.icon}</span>
+                    <span class="alert-title">${alert.title}</span>
+                    <span class="alert-time">${alert.time}</span>
+                </div>
+                <div class="alert-message">${alert.message}</div>
+                <div class="alert-symbol">${alert.symbol}</div>
+            `;
+            alertToast.appendChild(item);
+        });
+
+        // Auto-update prices
+        setInterval(() => {
+            document.querySelectorAll('.coin-price').forEach(el => {
+                const current = parseFloat(el.textContent.replace('$', ''));
+                const change = (Math.random() - 0.5) * current * 0.001;
+                el.textContent = '$' + (current + change).toFixed(2);
+            });
+        }, 2000);
+    </script>
+</body>
+</html>

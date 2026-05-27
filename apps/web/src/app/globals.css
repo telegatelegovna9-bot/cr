@@ -1,0 +1,288 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   PREMIUM CRYPTO TERMINAL — Midnight Aurora 2026
+   ============================================================ */
+
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-bg-primary text-text-primary font-sans;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 40% at 80% 50%, rgba(139, 92, 246, 0.04) 0%, transparent 50%);
+    min-height: 100vh;
+  }
+
+  /* Premium scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 100px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  /* Selection color */
+  ::selection {
+    background: rgba(99, 102, 241, 0.3);
+    color: #fff;
+  }
+}
+
+@layer components {
+  /* ---- Glass Card ---- */
+  .glass-card {
+    background: rgba(22, 22, 42, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .glass-card:hover {
+    border-color: rgba(99, 102, 241, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 30px rgba(99, 102, 241, 0.08);
+  }
+
+  /* ---- Glass Panel (header, sidebar) ---- */
+  .glass-panel {
+    background: rgba(18, 18, 30, 0.85);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* ---- Glow Button ---- */
+  .glow-btn {
+    @apply relative overflow-hidden rounded-xl px-5 py-2.5 font-medium text-sm transition-all duration-300;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+  }
+  .glow-btn:hover {
+    box-shadow: 0 4px 30px rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px);
+  }
+  .glow-btn:active {
+    transform: translateY(0);
+  }
+
+  /* ---- Ghost Button ---- */
+  .ghost-btn {
+    @apply rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .ghost-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* ---- Aurora Gradient Text ---- */
+  .gradient-text {
+    background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c4b5fd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ---- Subtle ambient glow behind elements ---- */
+  .ambient-glow::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.1), transparent);
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    filter: blur(12px);
+  }
+  .ambient-glow:hover::before {
+    opacity: 1;
+  }
+
+  /* ---- Premium Table Row ---- */
+  .table-row-premium {
+    @apply transition-all duration-200 cursor-pointer;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  }
+  .table-row-premium:hover {
+    background: rgba(99, 102, 241, 0.04);
+  }
+
+  /* ---- Price Flash Animation ---- */
+  @keyframes price-flash-up {
+    0% { background-color: rgba(34, 197, 94, 0.2); }
+    100% { background-color: transparent; }
+  }
+  @keyframes price-flash-down {
+    0% { background-color: rgba(239, 68, 68, 0.2); }
+    100% { background-color: transparent; }
+  }
+  .price-flash-up {
+    animation: price-flash-up 0.6s ease-out;
+  }
+  .price-flash-down {
+    animation: price-flash-down 0.6s ease-out;
+  }
+
+  /* ---- Premium Toggle ---- */
+  .toggle-premium {
+    @apply relative w-11 h-6 rounded-full transition-all duration-300 cursor-pointer;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .toggle-premium::after {
+    content: '';
+    @apply absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-all duration-300;
+    background: #6B6B8A;
+  }
+  .toggle-premium.active {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+  }
+  .toggle-premium.active::after {
+    transform: translateX(20px);
+    background: #fff;
+  }
+
+  /* ---- Premium Input ---- */
+  .input-premium {
+    @apply w-full rounded-xl px-4 py-3 text-sm transition-all duration-200 outline-none;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: #E8E8F0;
+  }
+  .input-premium::placeholder {
+    color: #6B6B8A;
+  }
+  .input-premium:focus {
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  /* ---- Badge / Pill ---- */
+  .badge-premium {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .badge-positive {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+  }
+  .badge-negative {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+  }
+
+  /* ---- Connection dot pulse ---- */
+  .connection-dot {
+    @apply w-2 h-2 rounded-full;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .connection-dot.connected {
+    @apply bg-positive;
+    color: #22c55e;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+  .connection-dot.disconnected {
+    @apply bg-text-muted;
+    color: #6B6B8A;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.6; box-shadow: 0 0 4px currentColor; }
+    50% { opacity: 1; box-shadow: 0 0 10px currentColor; }
+  }
+
+  /* ---- Noise texture overlay ---- */
+  .noise-overlay::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.015;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  }
+
+  /* ---- Premium select dropdown ---- */
+  .select-premium {
+    @apply rounded-xl px-4 py-2.5 text-sm transition-all duration-200 outline-none cursor-pointer appearance-none;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: #E8E8F0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B6B8A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+  .select-premium:focus {
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  }
+}
+
+@layer utilities {
+  /* Gradient borders */
+  .border-gradient {
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    position: relative;
+  }
+  .border-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.1), transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Glow underline for tabs */
+  .tab-glow {
+    position: relative;
+  }
+  .tab-glow::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    border-radius: 1px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  }
+  .tab-glow:hover::after,
+  .tab-glow.active::after {
+    width: 100%;
+  }
+}
