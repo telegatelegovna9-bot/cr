@@ -14,7 +14,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  user-scalable: false,
+  userScalable: false,
   themeColor: '#0a0a0f',
 };
 
@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script src="https://telegram.org/js/telegram-web-app.js" async />
       </head>
-      <body className="min-h-screen bg-terminal-bg">
+      <body className="min-h-screen bg-bg-primary">
         {children}
       </body>
     </html>
