@@ -325,29 +325,6 @@ export interface NormalizedSymbol {
 }
 
 // ============================================================
-// PATTERN SCAN RESULT
-// ============================================================
-
-export interface PatternScanResult {
-  symbol: string;
-  exchange: ExchangeId;
-  pattern: {
-    type: PatternType;
-    direction: 'bullish' | 'bearish' | 'neutral';
-    strength: number;
-    confidence: number;
-    entry: number;
-    target: number;
-    stopLoss: number;
-    riskReward: number;
-    timeframe: Timeframe;
-    description: string;
-  };
-  confidence: number;
-  timestamp: number;
-}
-
-// ============================================================
 // ALERT CONFIG
 // ============================================================
 
