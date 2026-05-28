@@ -55,6 +55,13 @@ export function ChartGrid() {
     chartDataCache.current.set(symbol, data);
   }, []);
 
+  const [modalReady, setModalReady] = useState(false);
+
+  // Reset modal readiness when symbol changes so animation triggers on re-open
+  useEffect(() => {
+    if (expandedSymbol) setModalReady(false);
+  }, [expandedSymbol]);
+
   const sortedSymbols = useMemo(() => {
     if (sortMode === 'default') return ALL_SYMBOLS.slice(0, chartGridSize);
 
@@ -156,14 +163,17 @@ export function ChartGrid() {
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className="w-full max-w-5xl h-[80vh]"
               onClick={(e) => e.stopPropagation()}
+              onAnimationComplete={() => setModalReady(true)}
             >
-              <ChartCard
-                symbol={expandedSymbol}
-                index={0}
-                onExpand={() => setExpandedSymbol(null)}
-                isModal
-                initialData={chartDataCache.current.get(expandedSymbol)}
-              />
+              {modalReady && (
+                <ChartCard
+                  symbol={expandedSymbol}
+                  index={0}
+                  onExpand={() => setExpandedSymbol(null)}
+                  isModal
+                  initialData={chartDataCache.current.get(expandedSymbol)}
+                />
+              )}
             </motion.div>
           </motion.div>
         )}

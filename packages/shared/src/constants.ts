@@ -86,9 +86,10 @@ export const DEFAULT_SYMBOLS = [
   'PEPE/USDT', 'FLOKI/USDT', 'BONK/USDT', 'SHIB/USDT', '1000SATS/USDT',
 ];
 
-export const WS_RECONNECT_DELAY = 3000;
-export const WS_MAX_RECONNECT_ATTEMPTS = 10;
+export const WS_RECONNECT_DELAY = 5000;
+export const WS_MAX_RECONNECT_ATTEMPTS = 20;
 export const WS_HEARTBEAT_INTERVAL = 30000;
+export const WS_STABILITY_THRESHOLD = 30000; // ms before resetting reconnect counter
 
 export const CANDLE_CHUNK_SIZE = 500;
 export const MAX_CANDLES_IN_MEMORY = 5000;

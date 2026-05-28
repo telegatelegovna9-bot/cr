@@ -76,7 +76,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
   const ticker = useMarketStore(state => state.tickers.get(`${state.selectedExchange}:${symbol}`));
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialData || initialData.length === 0);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
 
@@ -171,6 +172,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
     oldestTimeRef.current = null;
     allRawRef.current = [];
     loadingMoreRef.current = false;
+    setLoadingHistory(false);
 
     if (chartRef.current) {
       chartRef.current.remove();
@@ -180,9 +182,11 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
     }
 
     let cancelled = false;
+    let readyTimer: ReturnType<typeof setTimeout> | null = null;
 
     const initChart = async () => {
-      setLoading(true);
+      const hasInitialData = initialData && initialData.length > 0;
+      if (!hasInitialData) setLoading(true);
 
       const chart = createChart(containerRef.current!, {
         layout: {
@@ -261,23 +265,25 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
 
       if (cancelled) return;
       setLoading(false);
-      setTimeout(() => { readyRef.current = true; }, 200);
+      readyTimer = setTimeout(() => { readyRef.current = true; }, 200);
 
       const handleRangeChange = async (range: any) => {
         if (!range || !readyRef.current || loadingMoreRef.current || !oldestTimeRef.current) return;
-        if (range.from > 5) return;
+        // Trigger when user scrolls within 30 bars of the left edge
+        if (range.from > 30) return;
 
         loadingMoreRef.current = true;
+        setLoadingHistory(true);
         try {
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
           const resp = await fetch(
             `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300&endTime=${endTime}`
           );
-          if (!resp.ok) { loadingMoreRef.current = false; return; }
+          if (!resp.ok) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 
           const data = await resp.json();
           const older: any[] = data.data || [];
-          if (!older.length) { loadingMoreRef.current = false; return; }
+          if (!older.length) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 
           const previousRange = chart.timeScale().getVisibleLogicalRange();
           const previousLength = buildCandles(allRawRef.current).candles.length;
@@ -299,6 +305,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
           // silent
         }
         loadingMoreRef.current = false;
+        setLoadingHistory(false);
       };
 
       chart.timeScale().subscribeVisibleLogicalRangeChange(handleRangeChange);
@@ -309,6 +316,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
     return () => {
       cancelled = true;
       readyRef.current = false;
+      if (readyTimer) { clearTimeout(readyTimer); readyTimer = null; }
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
@@ -393,6 +401,12 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/50 z-10">
             <Loader2 className="w-6 h-6 text-accent animate-spin" />
+          </div>
+        )}
+        {loadingHistory && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 bg-bg-primary/80 border border-border rounded-full px-3 py-1 text-[10px] text-text-muted">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Loading history...
           </div>
         )}
         <div ref={containerRef} className="w-full h-full" />

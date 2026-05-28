@@ -16,6 +16,7 @@ import {
   WS_RECONNECT_DELAY,
   WS_MAX_RECONNECT_ATTEMPTS,
   WS_HEARTBEAT_INTERVAL,
+  WS_STABILITY_THRESHOLD,
 } from '@crypto-screener/shared';
 
 export interface ExchangeConnectorOptions {
@@ -37,6 +38,7 @@ export abstract class BaseExchangeConnector extends EventEmitter {
   protected connected = false;
   protected subscriptions = new Set<string>();
   private reconnectBlocked = false;
+  private stabilityTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Rate limiting
   private requestTimes: number[] = [];
@@ -103,10 +105,13 @@ export abstract class BaseExchangeConnector extends EventEmitter {
 
     ws.on('open', () => {
       this.connected = true;
-      this.reconnectAttempts = 0;
       this.reconnectBlocked = false;
       this.emit('connected');
       this.startHeartbeat();
+      // Only reset reconnect counter after connection is stable for a while
+      this.stabilityTimer = setTimeout(() => {
+        this.reconnectAttempts = 0;
+      }, WS_STABILITY_THRESHOLD);
     });
 
     ws.on('message', (data: Buffer) => {
@@ -122,6 +127,10 @@ export abstract class BaseExchangeConnector extends EventEmitter {
       this.connected = false;
       this.subscriptions.clear();
       this.stopHeartbeat();
+      if (this.stabilityTimer) {
+        clearTimeout(this.stabilityTimer);
+        this.stabilityTimer = null;
+      }
       this.emit('disconnected');
       this.scheduleReconnect();
     });
@@ -141,9 +150,11 @@ export abstract class BaseExchangeConnector extends EventEmitter {
 
   private startHeartbeat(): void {
     this.stopHeartbeat();
+    const ping = this.getPingMessage();
+    if (ping === null) return; // exchange handles ping/pong natively
     this.heartbeatTimer = setInterval(() => {
       if (this.ws && this.connected) {
-        this.send(this.getPingMessage());
+        this.send(ping);
       }
     }, WS_HEARTBEAT_INTERVAL);
   }
@@ -166,7 +177,11 @@ export abstract class BaseExchangeConnector extends EventEmitter {
       return;
     }
 
-    const delay = WS_RECONNECT_DELAY * Math.min(this.reconnectAttempts + 1, 5);
+    // Exponential backoff with jitter: 5s, 10s, 20s, 40s, 80s ... capped at 120s
+    const base = WS_RECONNECT_DELAY * Math.pow(2, Math.min(this.reconnectAttempts, 6));
+    const capped = Math.min(base, 120_000);
+    const jitter = Math.random() * capped * 0.2; // up to 20% jitter
+    const delay = Math.floor(capped + jitter);
     this.reconnectAttempts++;
 
     setTimeout(() => {
@@ -198,6 +213,10 @@ export abstract class BaseExchangeConnector extends EventEmitter {
 
   disconnect(): void {
     this.stopHeartbeat();
+    if (this.stabilityTimer) {
+      clearTimeout(this.stabilityTimer);
+      this.stabilityTimer = null;
+    }
     if (this.ws) {
       this.ws.removeAllListeners();
       this.ws.close();

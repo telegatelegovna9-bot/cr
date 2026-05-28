@@ -24,6 +24,7 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   async connectWS(): Promise<void> {
+    if (this.connected || this.ws) return; // prevent duplicate connections
     const ws = new WebSocket(this.wsUrl);
     this.setupWebSocket(ws);
     const spotReady = new Promise<void>((resolve, reject) => {
@@ -384,6 +385,13 @@ export class BinanceConnector extends BaseExchangeConnector {
     if (this.futuresWs && this.futuresConnected) {
       this.futuresWs.send(JSON.stringify(data));
     }
+  }
+
+  protected getPingMessage(): null {
+    // Binance market-data streams handle WebSocket ping/pong at the protocol
+    // level — the `ws` library auto-responds to server ping frames.
+    // Sending a custom JSON ping causes Binance to close the connection.
+    return null;
   }
 
   disconnect(): void {
