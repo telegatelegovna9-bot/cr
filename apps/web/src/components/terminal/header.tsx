@@ -13,7 +13,7 @@ import {
   Activity,
 } from 'lucide-react';
 
-const EXCHANGES: ExchangeId[] = ['binance', 'bybit', 'okx', 'bitget', 'bingx', 'mexc'];
+const EXCHANGES: ExchangeId[] = ['binance', 'bybit', 'okx', 'bitget', 'mexc'];
 const VIEW_MODES: { id: ViewMode; label: string; icon: typeof BarChart3 }[] = [
   { id: 'terminal', label: 'Terminal', icon: Activity },
   { id: 'screener', label: 'Screener', icon: BarChart3 },
