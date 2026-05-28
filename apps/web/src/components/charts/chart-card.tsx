@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
-import { io, Socket } from 'socket.io-client';
 import { useMarketStore } from '@/stores';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
@@ -15,20 +14,24 @@ interface ChartCardProps {
   isModal?: boolean;
 }
 
-interface CandleState {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
+// Convert unified symbol to Binance stream symbol: "BTC/USDT" → "btcusdt"
+function toBinanceSymbol(symbol: string): string {
+  return symbol.split('/')[0].toLowerCase() + symbol.split('/')[1]?.split(':')[0]?.toLowerCase();
 }
 
-// Map API timeframe string to Binance kline interval string
-const TF_MAP: Record<string, string> = {
-  '1m': '1m', '5m': '5m', '15m': '15m',
-  '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1w',
-};
+// Is this a futures symbol? "BTC/USDT:USDT" → true
+function isFutures(symbol: string): boolean {
+  return symbol.includes(':');
+}
+
+// Binance WS URL for kline stream
+function binanceWsUrl(symbol: string, timeframe: string): string {
+  const s = toBinanceSymbol(symbol);
+  const base = isFutures(symbol)
+    ? 'wss://fstream.binance.com/ws'
+    : 'wss://stream.binance.com:9443/ws';
+  return `${base}/${s}@kline_${timeframe}`;
+}
 
 function isValidCandle(k: any): boolean {
   return (
@@ -41,7 +44,6 @@ function isValidCandle(k: any): boolean {
 }
 
 function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: HistogramData[] } {
-  // Filter, sort by timestamp, deduplicate
   const seen = new Set<number>();
   const valid = raw
     .filter(isValidCandle)
@@ -69,14 +71,11 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
-  const lastCandleRef = useRef<CandleState | null>(null);
   const oldestTimeRef = useRef<number | null>(null);
   const allRawRef = useRef<any[]>([]);
   const loadingMoreRef = useRef(false);
   const readyRef = useRef(false);
-  const socketRef = useRef<Socket | null>(null);
-  // Only true after a WS candle has arrived — prevents ticker from spiking REST candles
-  const wsEstablishedRef = useRef(false);
+  const wsRef = useRef<WebSocket | null>(null);
 
   const { selectedExchange, selectedTimeframe, getTicker } = useMarketStore();
   const [loading, setLoading] = useState(true);
@@ -90,11 +89,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     if (!containerRef.current) return;
 
     readyRef.current = false;
-    lastCandleRef.current = null;
     oldestTimeRef.current = null;
     allRawRef.current = [];
     loadingMoreRef.current = false;
-    wsEstablishedRef.current = false;
 
     if (chartRef.current) {
       chartRef.current.remove();
@@ -146,7 +143,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
       chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
       volumeSeriesRef.current = volumeSeries;
 
-      // Load initial 300 candles via REST
+      // Load initial history via REST
       try {
         const resp = await fetch(
           `/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
@@ -160,15 +157,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
             if (candles.length > 0) {
               candleSeries.setData(candles);
               volumeSeries.setData(volumes);
+              oldestTimeRef.current = raw[0].timestamp / 1000;
 
               const lastRaw = raw[raw.length - 1];
-              lastCandleRef.current = {
-                time: lastRaw.timestamp / 1000,
-                open: lastRaw.open, high: lastRaw.high,
-                low: lastRaw.low, close: lastRaw.close,
-                volume: lastRaw.volume ?? 0,
-              };
-              oldestTimeRef.current = raw[0].timestamp / 1000;
               setCurrentPrice(lastRaw.close);
               if (raw.length > 1) {
                 setPriceChange(((lastRaw.close - raw[0].open) / raw[0].open) * 100);
@@ -177,7 +168,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
           }
         }
       } catch (err) {
-        console.error('Failed to fetch candles:', err);
+        console.error('[Chart] Failed to fetch candles:', err);
       }
 
       if (cancelled) return;
@@ -185,7 +176,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
       chart.timeScale().fitContent();
       setLoading(false);
 
-      // Delay before enabling historical scroll to avoid firing on initial render
+      // Enable historical scroll after a short delay
       setTimeout(() => { readyRef.current = true; }, 600);
 
       // Historical scroll: load older candles when user scrolls to left edge
@@ -205,7 +196,6 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
           const older: any[] = data.data || [];
           if (!older.length) { loadingMoreRef.current = false; return; }
 
-          // Prepend older candles and re-render full dataset
           allRawRef.current = [...older, ...allRawRef.current];
           const { candles, volumes } = buildCandles(allRawRef.current);
           if (candleSeriesRef.current && volumeSeriesRef.current && candles.length > 0) {
@@ -247,102 +237,86 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     return () => observer.disconnect();
   }, []);
 
-  // ── Socket.IO: real-time candle updates via WS ─────────────
-  // Subscribe with symbol only → joins room candle:${symbol}:*:*
-  // Server broadcasts to that room with timeframe in the payload
-  // Client filters by timeframe here
+  // ── Direct Binance WebSocket kline stream ──────────────────
+  // Industry-standard approach: connect directly to Binance WS from browser.
+  // Binance kline stream sends updates every 2s with current candle OHLCV.
+  // k.x === true means the candle is closed (finalized).
   useEffect(() => {
-    const socket = io('/market', {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionAttempts: Infinity,
-    });
-    socketRef.current = socket;
+    // Only connect to Binance for binance exchange
+    if (selectedExchange !== 'binance') return;
 
-    const tfInterval = TF_MAP[selectedTimeframe] || selectedTimeframe;
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let destroyed = false;
 
-    const doSubscribe = () => {
-      // Subscribe with symbol only — joins candle:${symbol}:*:* room
-      socket.emit('subscribe', {
-        channel: 'candle',
-        symbol,
-        exchange: selectedExchange,
-        timeframe: selectedTimeframe,
-      });
+    const connect = () => {
+      if (destroyed) return;
+      const url = binanceWsUrl(symbol, selectedTimeframe);
+      ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log(`[WS] Binance kline connected: ${symbol} ${selectedTimeframe}`);
+      };
+
+      ws.onmessage = (event) => {
+        if (destroyed) return;
+        try {
+          const data = JSON.parse(event.data);
+          const k = data.k;
+          if (!k) return;
+
+          const open = parseFloat(k.o);
+          const high = parseFloat(k.h);
+          const low = parseFloat(k.l);
+          const close = parseFloat(k.c);
+          const volume = parseFloat(k.v);
+          const time = (k.t / 1000) as Time;
+
+          if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
+          if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return;
+
+          // Update candlestick series — lightweight-charts handles new vs existing candle
+          if (candleSeriesRef.current) {
+            candleSeriesRef.current.update({ time, open, high, low, close });
+          }
+          if (volumeSeriesRef.current) {
+            volumeSeriesRef.current.update({
+              time,
+              value: volume,
+              color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+            });
+          }
+
+          setCurrentPrice(close);
+        } catch {
+          // ignore parse errors
+        }
+      };
+
+      ws.onclose = (event) => {
+        if (destroyed) return;
+        console.log(`[WS] Binance kline closed (${event.code}), reconnecting in 3s...`);
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
     };
 
-    socket.on('connect', doSubscribe);
-
-    socket.on('candle', (candle: any) => {
-      if (candle.symbol !== symbol) return;
-      // Filter by timeframe — candle.timeframe is the Binance interval string e.g. "1h"
-      if (candle.timeframe && candle.timeframe !== tfInterval) return;
-      if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
-      if (!isValidCandle(candle)) return;
-
-      const candleTime = candle.timestamp / 1000;
-      try {
-        candleSeriesRef.current.update({
-          time: candleTime as Time,
-          open: candle.open, high: candle.high, low: candle.low, close: candle.close,
-        });
-        volumeSeriesRef.current.update({
-          time: candleTime as Time,
-          value: candle.volume ?? 0,
-          color: candle.close >= candle.open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
-        });
-        if (!lastCandleRef.current || candleTime >= lastCandleRef.current.time) {
-          lastCandleRef.current = {
-            time: candleTime,
-            open: candle.open, high: candle.high, low: candle.low, close: candle.close,
-            volume: candle.volume ?? 0,
-          };
-          wsEstablishedRef.current = true; // WS candle received — ticker updates now safe
-          setCurrentPrice(candle.close);
-        }
-      } catch {
-        // chart may be transitioning
-      }
-    });
+    connect();
 
     return () => {
-      socket.emit('unsubscribe', { channel: 'candle', symbol, exchange: selectedExchange, timeframe: selectedTimeframe });
-      socket.disconnect();
-      socketRef.current = null;
+      destroyed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.onclose = null; // prevent reconnect on intentional close
+        ws.close();
+      }
+      wsRef.current = null;
     };
   }, [symbol, selectedExchange, selectedTimeframe]);
-
-  // ── Intra-candle update from ticker (fills gaps between WS events) ──
-  // Only fires after WS has established the current candle — prevents
-  // ticker from spiking the last REST candle (which may be hours old)
-  useEffect(() => {
-    if (!wsEstablishedRef.current) return;
-    if (!candleSeriesRef.current || !ticker?.price || !lastCandleRef.current) return;
-
-    const price = ticker.price;
-    if (!isFinite(price) || price <= 0) return;
-
-    const last = lastCandleRef.current;
-    const newHigh = Math.max(last.high, price);
-    const newLow = Math.min(last.low, price);
-
-    try {
-      candleSeriesRef.current.update({
-        time: last.time as Time,
-        open: last.open, high: newHigh, low: newLow, close: price,
-      });
-      volumeSeriesRef.current?.update({
-        time: last.time as Time,
-        value: last.volume,
-        color: price >= last.open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
-      });
-      lastCandleRef.current = { ...last, high: newHigh, low: newLow, close: price };
-      setCurrentPrice(price);
-    } catch {
-      // chart may be transitioning
-    }
-  }, [ticker?.price]);
 
   const livePrice = ticker?.price ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
