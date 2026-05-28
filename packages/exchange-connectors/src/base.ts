@@ -36,6 +36,8 @@ export abstract class BaseExchangeConnector extends EventEmitter {
   protected heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   protected connected = false;
   protected subscriptions = new Set<string>();
+  private sendQueue: string[] = [];
+  private sendQueueTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Rate limiting
   private requestTimes: number[] = [];
@@ -99,13 +101,14 @@ export abstract class BaseExchangeConnector extends EventEmitter {
   // WebSocket helpers
   protected setupWebSocket(ws: import('ws').WebSocket): void {
     this.ws = ws;
-    this.connected = true;
-    this.reconnectAttempts = 0;
+    this.connected = false;
 
     ws.on('open', () => {
       this.connected = true;
+      this.reconnectAttempts = 0;
       this.emit('connected');
       this.startHeartbeat();
+      this.flushSendQueue();
     });
 
     ws.on('message', (data: Buffer) => {
@@ -117,10 +120,12 @@ export abstract class BaseExchangeConnector extends EventEmitter {
       }
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code: number, reason: Buffer) => {
       this.connected = false;
       this.subscriptions.clear();
+      this.clearSendQueue();
       this.stopHeartbeat();
+      console.warn(`[${this.id}] websocket closed`, code, reason.toString());
       this.emit('disconnected');
       this.scheduleReconnect();
     });
@@ -133,16 +138,48 @@ export abstract class BaseExchangeConnector extends EventEmitter {
   protected abstract handleMessage(msg: unknown): void;
 
   protected send(data: unknown): void {
-    if (this.ws && this.connected) {
-      this.ws.send(JSON.stringify(data));
+    this.sendQueue.push(JSON.stringify(data));
+    this.flushSendQueue();
+  }
+
+  private flushSendQueue(): void {
+    if (this.sendQueueTimer || !this.ws || !this.connected || this.ws.readyState !== 1) {
+      return;
     }
+
+    const payload = this.sendQueue.shift();
+    if (!payload) return;
+
+    try {
+      this.ws.send(payload);
+    } catch (err) {
+      this.emit('error', err as Error);
+    }
+
+    this.sendQueueTimer = setTimeout(() => {
+      this.sendQueueTimer = null;
+      this.flushSendQueue();
+    }, this.getWsSendIntervalMs());
+  }
+
+  private clearSendQueue(): void {
+    this.sendQueue = [];
+    if (this.sendQueueTimer) {
+      clearTimeout(this.sendQueueTimer);
+      this.sendQueueTimer = null;
+    }
+  }
+
+  protected getWsSendIntervalMs(): number {
+    return 250;
   }
 
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
       if (this.ws && this.connected) {
-        this.send(this.getPingMessage());
+        const message = this.getPingMessage();
+        if (message != null) this.send(message);
       }
     }, WS_HEARTBEAT_INTERVAL);
   }
@@ -154,7 +191,7 @@ export abstract class BaseExchangeConnector extends EventEmitter {
     }
   }
 
-  protected getPingMessage(): unknown {
+  protected getPingMessage(): unknown | null {
     return { op: 'ping' };
   }
 
@@ -199,5 +236,6 @@ export abstract class BaseExchangeConnector extends EventEmitter {
     }
     this.connected = false;
     this.subscriptions.clear();
+    this.clearSendQueue();
   }
 }
