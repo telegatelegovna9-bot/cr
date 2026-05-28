@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
+import { io, Socket } from 'socket.io-client';
 import { useMarketStore } from '@/stores';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
@@ -23,12 +24,30 @@ interface CandleState {
   volume: number;
 }
 
+function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: HistogramData[] } {
+  const candles: CandlestickData[] = raw.map((k) => ({
+    time: (k.timestamp / 1000) as Time,
+    open: k.open, high: k.high, low: k.low, close: k.close,
+  }));
+  const volumes: HistogramData[] = raw.map((k) => ({
+    time: (k.timestamp / 1000) as Time,
+    value: k.volume,
+    color: k.close >= k.open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+  }));
+  return { candles, volumes };
+}
+
 export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const lastCandleRef = useRef<CandleState | null>(null);
+  const oldestTimeRef = useRef<number | null>(null);
+  const allRawRef = useRef<any[]>([]);
+  const loadingMoreRef = useRef(false);
+  const socketRef = useRef<Socket | null>(null);
+
   const { selectedExchange, selectedTimeframe, getTicker } = useMarketStore();
   const [loading, setLoading] = useState(true);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
@@ -36,13 +55,15 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
 
   const ticker = getTicker(symbol, selectedExchange);
 
-  // ── Load history & init chart ──────────────────────────────
+  // ── Init chart + load history ──────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
 
     const initChart = async () => {
       setLoading(true);
       lastCandleRef.current = null;
+      oldestTimeRef.current = null;
+      allRawRef.current = [];
 
       if (chartRef.current) {
         chartRef.current.remove();
@@ -88,6 +109,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
       chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
       volumeSeriesRef.current = volumeSeries;
 
+      // Load initial history via REST
       try {
         const resp = await fetch(
           `/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
@@ -96,15 +118,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
           const data = await resp.json();
           const raw: any[] = data.data || [];
           if (raw.length) {
-            const candles: CandlestickData[] = raw.map((k) => ({
-              time: (k.timestamp / 1000) as Time,
-              open: k.open, high: k.high, low: k.low, close: k.close,
-            }));
-            const volumes: HistogramData[] = raw.map((k) => ({
-              time: (k.timestamp / 1000) as Time,
-              value: k.volume,
-              color: k.close >= k.open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
-            }));
+            allRawRef.current = raw;
+            const { candles, volumes } = buildCandles(raw);
             candleSeries.setData(candles);
             volumeSeries.setData(volumes);
 
@@ -115,13 +130,12 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
               low: lastRaw.low, close: lastRaw.close,
               volume: lastRaw.volume,
             };
+            oldestTimeRef.current = raw[0].timestamp / 1000;
 
-            const last = candles[candles.length - 1];
-            setCurrentPrice(last.close as number);
-            if (candles.length > 1) {
-              const first = candles[0];
+            setCurrentPrice(lastRaw.close);
+            if (raw.length > 1) {
               setPriceChange(
-                ((last.close as number) - (first.open as number)) / (first.open as number) * 100
+                ((lastRaw.close - raw[0].open) / raw[0].open) * 100
               );
             }
           }
@@ -157,7 +171,69 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     return () => observer.disconnect();
   }, []);
 
-  // ── Intra-candle real-time update from ticker ──────────────
+  // ── Socket.IO: real-time candle updates via WS ─────────────
+  useEffect(() => {
+    const socket = io('/market', {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('subscribe', {
+        channel: 'candle',
+        symbol,
+        exchange: selectedExchange,
+        timeframe: selectedTimeframe,
+      });
+    });
+
+    socket.on('candle', (candle: any) => {
+      if (candle.symbol !== symbol) return;
+      if (!candleSeriesRef.current) return;
+
+      const candleTime = candle.timestamp / 1000;
+
+      candleSeriesRef.current.update({
+        time: candleTime as Time,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+      });
+
+      volumeSeriesRef.current?.update({
+        time: candleTime as Time,
+        value: candle.volume,
+        color: candle.close >= candle.open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+      });
+
+      // Update last candle ref
+      if (!lastCandleRef.current || candleTime >= lastCandleRef.current.time) {
+        lastCandleRef.current = {
+          time: candleTime,
+          open: candle.open, high: candle.high,
+          low: candle.low, close: candle.close,
+          volume: candle.volume,
+        };
+        setCurrentPrice(candle.close);
+      }
+    });
+
+    return () => {
+      socket.emit('unsubscribe', {
+        channel: 'candle',
+        symbol,
+        exchange: selectedExchange,
+        timeframe: selectedTimeframe,
+      });
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [symbol, selectedExchange, selectedTimeframe]);
+
+  // ── Intra-candle update from ticker (fills gaps between WS events) ──
   useEffect(() => {
     if (!candleSeriesRef.current || !ticker?.price || !lastCandleRef.current) return;
 
@@ -184,45 +260,43 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     setCurrentPrice(price);
   }, [ticker?.price]);
 
-  // ── Poll for new candles every 10s (new candle detection) ──
+  // ── Historical scroll: load more when user scrolls left ────
   useEffect(() => {
-    const interval = setInterval(async () => {
-      if (!candleSeriesRef.current || !lastCandleRef.current) return;
+    if (!chartRef.current) return;
+
+    const handleRangeChange = async (range: any) => {
+      if (!range || loadingMoreRef.current || !oldestTimeRef.current) return;
+      if (range.from > 10) return; // not near left edge
+
+      loadingMoreRef.current = true;
       try {
+        const endTime = oldestTimeRef.current * 1000 - 1;
         const resp = await fetch(
-          `/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=3`
+          `/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300&endTime=${endTime}`
         );
-        if (!resp.ok) return;
+        if (!resp.ok) { loadingMoreRef.current = false; return; }
+
         const data = await resp.json();
-        const raw: any[] = data.data || [];
+        const older: any[] = data.data || [];
+        if (!older.length) { loadingMoreRef.current = false; return; }
 
-        raw.forEach((k) => {
-          const candleTime = k.timestamp / 1000;
-          if (candleTime < (lastCandleRef.current?.time ?? 0)) return;
-
-          candleSeriesRef.current?.update({
-            time: candleTime as Time,
-            open: k.open, high: k.high, low: k.low, close: k.close,
-          });
-          volumeSeriesRef.current?.update({
-            time: candleTime as Time,
-            value: k.volume,
-            color: k.close >= k.open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
-          });
-
-          if (candleTime >= (lastCandleRef.current?.time ?? 0)) {
-            lastCandleRef.current = {
-              time: candleTime,
-              open: k.open, high: k.high, low: k.low, close: k.close, volume: k.volume,
-            };
-          }
-        });
+        // Prepend older candles and re-render
+        allRawRef.current = [...older, ...allRawRef.current];
+        const { candles, volumes } = buildCandles(allRawRef.current);
+        candleSeriesRef.current?.setData(candles);
+        volumeSeriesRef.current?.setData(volumes);
+        oldestTimeRef.current = older[0].timestamp / 1000;
       } catch {
-        // silent — don't spam console on network errors
+        // silent
       }
-    }, 10000);
+      loadingMoreRef.current = false;
+    };
 
-    return () => clearInterval(interval);
+    chartRef.current.timeScale().subscribeVisibleLogicalRangeChange(handleRangeChange);
+
+    return () => {
+      chartRef.current?.timeScale().unsubscribeVisibleLogicalRangeChange(handleRangeChange);
+    };
   }, [symbol, selectedExchange, selectedTimeframe]);
 
   const livePrice = ticker?.price ?? currentPrice;

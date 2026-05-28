@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { ExchangeManager } from '@crypto-screener/exchange-connectors';
 import type {
@@ -16,6 +16,7 @@ import {
   calculateATR,
 } from '@crypto-screener/shared';
 import { DatabaseService } from '../../database/database.service';
+import { MarketGateway } from './market.gateway';
 
 export interface TickerWithMeta extends Ticker {
   volatility: number;
@@ -33,8 +34,12 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
   private connectedExchanges = new Set<ExchangeId>();
   private subscribedSymbols = new Set<string>();
+  private subscribedCandles = new Set<string>();
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    @Inject(forwardRef(() => MarketGateway)) private readonly gateway: MarketGateway,
+  ) {}
 
   async onModuleInit() {
     this.exchangeManager = new ExchangeManager();
@@ -130,6 +135,8 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.db.publish('candle', candle);
+    // Broadcast to Socket.IO subscribers
+    this.gateway?.broadcastCandle(candle);
   }
 
   private handleOrderBook(ob: OrderBook) {
@@ -263,6 +270,19 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   subscribeSymbol(symbol: string): void {
     this.subscribedSymbols.add(symbol);
     this.exchangeManager.subscribeTicker(symbol);
+  }
+
+  subscribeCandle(symbol: string, timeframe: Timeframe, exchange?: ExchangeId): void {
+    const key = `${symbol}:${timeframe}:${exchange || 'all'}`;
+    if (this.subscribedCandles.has(key)) return;
+    this.subscribedCandles.add(key);
+    this.exchangeManager.subscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
+  }
+
+  unsubscribeCandle(symbol: string, timeframe: Timeframe, exchange?: ExchangeId): void {
+    const key = `${symbol}:${timeframe}:${exchange || 'all'}`;
+    this.subscribedCandles.delete(key);
+    this.exchangeManager.unsubscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
   }
 
   unsubscribeSymbol(symbol: string): void {

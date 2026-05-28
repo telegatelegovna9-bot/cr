@@ -6,7 +6,9 @@ import {
   OnGatewayDisconnect,
   MessageBody,
   ConnectedSocket,
+  Inject,
 } from '@nestjs/websockets';
+import { forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { MarketService } from './market.service';
 import type { ExchangeId, Timeframe } from '@crypto-screener/shared';
@@ -32,7 +34,9 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private clientSubscriptions = new Map<string, Set<string>>();
 
-  constructor(private readonly marketService: MarketService) {}
+  constructor(
+    @Inject(forwardRef(() => MarketService)) private readonly marketService: MarketService,
+  ) {}
 
   handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
@@ -66,6 +70,11 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
       // Subscribe to exchange updates
       this.marketService.subscribeSymbol(symbol);
+    }
+
+    // Subscribe to candle stream on exchange
+    if (channel === 'candle' && symbol && timeframe) {
+      this.marketService.subscribeCandle(symbol, timeframe as Timeframe, exchange);
     }
 
     return { event: 'subscribed', data: { channel, symbol, exchange, timeframe } };
