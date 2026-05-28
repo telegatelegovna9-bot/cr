@@ -188,7 +188,7 @@ export function PatternsPanel({ patterns, loading }: {
 
     return [...filtered].sort((a, b) => {
       if (sortBy === 'confidence') return b.confidence - a.confidence;
-      if (sortBy === 'strength') return b.pattern.strength - a.pattern.strength;
+      if (sortBy === 'strength') return (b.pattern.strength ?? 0) - (a.pattern.strength ?? 0);
       return b.timestamp - a.timestamp;
     });
   }, [patterns, filter, sortBy, search]);
