@@ -213,8 +213,8 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     limit = 500,
     endTime?: number,
   ): Promise<Candle[]> {
-    // Try cache first
-    const cacheKey = `candle:${symbol}`;
+    // Cache key includes timeframe to avoid returning wrong candles on TF switch
+    const cacheKey = `candle:${symbol}:${timeframe}`;
     const cached = this.candleCache.get(cacheKey);
     if (cached?.length && !endTime) {
       return cached.slice(-limit);

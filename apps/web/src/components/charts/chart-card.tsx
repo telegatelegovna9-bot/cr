@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
+import { io, Socket } from 'socket.io-client';
 import { useMarketStore } from '@/stores';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
@@ -14,24 +15,8 @@ interface ChartCardProps {
   isModal?: boolean;
 }
 
-// Convert unified symbol to Binance stream symbol: "BTC/USDT" → "btcusdt"
-function toBinanceSymbol(symbol: string): string {
-  return symbol.split('/')[0].toLowerCase() + symbol.split('/')[1]?.split(':')[0]?.toLowerCase();
-}
-
-// Is this a futures symbol? "BTC/USDT:USDT" → true
-function isFutures(symbol: string): boolean {
-  return symbol.includes(':');
-}
-
-// Binance WS URL for kline stream
-function binanceWsUrl(symbol: string, timeframe: string): string {
-  const s = toBinanceSymbol(symbol);
-  const base = isFutures(symbol)
-    ? 'wss://fstream.binance.com/ws'
-    : 'wss://stream.binance.com:9443/ws';
-  return `${base}/${s}@kline_${timeframe}`;
-}
+// How many candles to show in the initial view
+const INITIAL_VISIBLE_CANDLES = 100;
 
 function isValidCandle(k: any): boolean {
   return (
@@ -75,7 +60,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   const allRawRef = useRef<any[]>([]);
   const loadingMoreRef = useRef(false);
   const readyRef = useRef(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   const { selectedExchange, selectedTimeframe, getTicker } = useMarketStore();
   const [loading, setLoading] = useState(true);
@@ -159,6 +144,12 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
               volumeSeries.setData(volumes);
               oldestTimeRef.current = raw[0].timestamp / 1000;
 
+              // Show last INITIAL_VISIBLE_CANDLES candles with a small right margin
+              // This gives a proper initial view regardless of total candle count
+              const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
+              const to = candles.length + 3;
+              chart.timeScale().setVisibleLogicalRange({ from, to });
+
               const lastRaw = raw[raw.length - 1];
               setCurrentPrice(lastRaw.close);
               if (raw.length > 1) {
@@ -172,11 +163,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
       }
 
       if (cancelled) return;
-
-      chart.timeScale().fitContent();
       setLoading(false);
 
-      // Enable historical scroll after a short delay
+      // Enable historical scroll after a short delay to avoid firing on initial render
       setTimeout(() => { readyRef.current = true; }, 600);
 
       // Historical scroll: load older candles when user scrolls to left edge
@@ -237,84 +226,63 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     return () => observer.disconnect();
   }, []);
 
-  // ── Direct Binance WebSocket kline stream ──────────────────
-  // Industry-standard approach: connect directly to Binance WS from browser.
-  // Binance kline stream sends updates every 2s with current candle OHLCV.
-  // k.x === true means the candle is closed (finalized).
+  // ── Socket.IO: real-time candle updates via backend relay ──
+  // Backend subscribes once to Binance WS per symbol/timeframe and
+  // broadcasts to all connected clients — scales to many users.
   useEffect(() => {
-    // Only connect to Binance for binance exchange
-    if (selectedExchange !== 'binance') return;
+    const socket = io('/market', {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+    });
+    socketRef.current = socket;
 
-    let ws: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let destroyed = false;
-
-    const connect = () => {
-      if (destroyed) return;
-      const url = binanceWsUrl(symbol, selectedTimeframe);
-      ws = new WebSocket(url);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        console.log(`[WS] Binance kline connected: ${symbol} ${selectedTimeframe}`);
-      };
-
-      ws.onmessage = (event) => {
-        if (destroyed) return;
-        try {
-          const data = JSON.parse(event.data);
-          const k = data.k;
-          if (!k) return;
-
-          const open = parseFloat(k.o);
-          const high = parseFloat(k.h);
-          const low = parseFloat(k.l);
-          const close = parseFloat(k.c);
-          const volume = parseFloat(k.v);
-          const time = (k.t / 1000) as Time;
-
-          if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
-          if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return;
-
-          // Update candlestick series — lightweight-charts handles new vs existing candle
-          if (candleSeriesRef.current) {
-            candleSeriesRef.current.update({ time, open, high, low, close });
-          }
-          if (volumeSeriesRef.current) {
-            volumeSeriesRef.current.update({
-              time,
-              value: volume,
-              color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
-            });
-          }
-
-          setCurrentPrice(close);
-        } catch {
-          // ignore parse errors
-        }
-      };
-
-      ws.onclose = (event) => {
-        if (destroyed) return;
-        console.log(`[WS] Binance kline closed (${event.code}), reconnecting in 3s...`);
-        reconnectTimer = setTimeout(connect, 3000);
-      };
-
-      ws.onerror = () => {
-        ws?.close();
-      };
+    const doSubscribe = () => {
+      socket.emit('subscribe', {
+        channel: 'candle',
+        symbol,
+        exchange: selectedExchange,
+        timeframe: selectedTimeframe,
+      });
     };
 
-    connect();
+    socket.on('connect', doSubscribe);
+    socket.on('reconnect', doSubscribe);
+
+    socket.on('candle', (candle: any) => {
+      if (candle.symbol !== symbol) return;
+      // Filter by timeframe (candle.timeframe is Binance interval e.g. "1h")
+      if (candle.timeframe && candle.timeframe !== selectedTimeframe) return;
+      if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+
+      const { open, high, low, close, volume, timestamp } = candle;
+      if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
+      if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return;
+
+      const time = (timestamp / 1000) as Time;
+      try {
+        candleSeriesRef.current.update({ time, open, high, low, close });
+        volumeSeriesRef.current.update({
+          time,
+          value: volume ?? 0,
+          color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+        });
+        setCurrentPrice(close);
+      } catch {
+        // chart may be transitioning
+      }
+    });
 
     return () => {
-      destroyed = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (ws) {
-        ws.onclose = null; // prevent reconnect on intentional close
-        ws.close();
-      }
-      wsRef.current = null;
+      socket.emit('unsubscribe', {
+        channel: 'candle',
+        symbol,
+        exchange: selectedExchange,
+        timeframe: selectedTimeframe,
+      });
+      socket.disconnect();
+      socketRef.current = null;
     };
   }, [symbol, selectedExchange, selectedTimeframe]);
 
