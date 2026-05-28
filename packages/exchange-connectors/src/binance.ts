@@ -10,6 +10,10 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
 };
 
 export class BinanceConnector extends BaseExchangeConnector {
+  private futuresWs: WebSocket | null = null;
+  private futuresConnected = false;
+  private futuresSubscriptions = new Set<string>();
+
   constructor() {
     super({
       id: 'binance',
@@ -22,13 +26,47 @@ export class BinanceConnector extends BaseExchangeConnector {
   async connectWS(): Promise<void> {
     const ws = new WebSocket(this.wsUrl);
     this.setupWebSocket(ws);
-    return new Promise((resolve, reject) => {
+    const spotReady = new Promise<void>((resolve, reject) => {
       ws.on('open', () => resolve());
       ws.on('error', (err) => reject(err));
     });
+
+    const futuresWs = new WebSocket('wss://fstream.binance.com/ws');
+    this.futuresWs = futuresWs;
+    const futuresReady = new Promise<void>((resolve) => {
+      futuresWs.on('open', () => {
+        this.futuresConnected = true;
+        resolve();
+      });
+      futuresWs.on('message', (data: Buffer) => {
+        try {
+          const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+          msg.__marketType = 'futures';
+          this.handleMessage(msg);
+        } catch {
+          // ignore non-JSON futures messages
+        }
+      });
+      futuresWs.on('close', () => {
+        this.futuresConnected = false;
+        this.futuresSubscriptions.clear();
+      });
+      futuresWs.on('error', (err: Error) => this.emit('error', err));
+    });
+
+    await Promise.allSettled([spotReady, futuresReady]);
   }
 
   subscribeTicker(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBinanceSymbol(symbol).toLowerCase();
+      const key = `ticker:${symbol}`;
+      if (this.futuresSubscriptions.has(key)) return;
+      this.futuresSubscriptions.add(key);
+      this.sendFutures({ method: 'SUBSCRIBE', params: [`${local}@ticker`], id: Date.now() });
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const key = `ticker:${symbol}`;
     if (this.subscriptions.has(key)) return;
@@ -37,6 +75,16 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   subscribeCandle(symbol: string, timeframe: Timeframe): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBinanceSymbol(symbol).toLowerCase();
+      const tf = TIMEFRAME_MAP[timeframe];
+      const key = `candle:${symbol}:${timeframe}`;
+      if (this.futuresSubscriptions.has(key)) return;
+      this.futuresSubscriptions.add(key);
+      this.sendFutures({ method: 'SUBSCRIBE', params: [`${local}@kline_${tf}`], id: Date.now() });
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const tf = TIMEFRAME_MAP[timeframe];
     const key = `candle:${symbol}:${timeframe}`;
@@ -62,12 +110,27 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   unsubscribeTicker(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBinanceSymbol(symbol).toLowerCase();
+      this.futuresSubscriptions.delete(`ticker:${symbol}`);
+      this.sendFutures({ method: 'UNSUBSCRIBE', params: [`${local}@ticker`], id: Date.now() });
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol).toLowerCase();
     this.subscriptions.delete(`ticker:${symbol}`);
     this.send({ method: 'UNSUBSCRIBE', params: [`${local}@ticker`], id: Date.now() });
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBinanceSymbol(symbol).toLowerCase();
+      const tf = TIMEFRAME_MAP[timeframe];
+      this.futuresSubscriptions.delete(`candle:${symbol}:${timeframe}`);
+      this.sendFutures({ method: 'UNSUBSCRIBE', params: [`${local}@kline_${tf}`], id: Date.now() });
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const tf = TIMEFRAME_MAP[timeframe];
     this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
@@ -109,7 +172,8 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   private handleTicker(data: Record<string, unknown>): void {
-    const symbol = this.fromLocalSymbol(data.s as string);
+    const isFutures = data.__marketType === 'futures';
+    const symbol = isFutures ? this.toFuturesSymbol(data.s as string) : this.fromLocalSymbol(data.s as string);
     const ticker: Ticker = {
       symbol,
       exchange: 'binance',
@@ -132,11 +196,13 @@ export class BinanceConnector extends BaseExchangeConnector {
   private handleKline(data: Record<string, unknown>): void {
     const k = data.k as Record<string, unknown>;
     if (!k) return;
-    const symbol = this.fromLocalSymbol(k.s as string);
+    const timeframe = k.i as string;
+    const isFutures = data.__marketType === 'futures';
+    const symbol = isFutures ? this.toFuturesSymbol(k.s as string) : this.fromLocalSymbol(k.s as string);
     const candle: Candle & { symbol: string; timeframe: string; exchange: string; finalized: boolean } = {
       symbol,
       exchange: 'binance',
-      timeframe: k.i as string,  // e.g. "1h", "5m"
+      timeframe,
       timestamp: k.t as number,
       open: parseFloat(k.o as string),
       high: parseFloat(k.h as string),
@@ -249,11 +315,9 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   async fetchCandles(symbol: string, timeframe: Timeframe, limit = 500, endTime?: number): Promise<Candle[]> {
-    const isFutures = symbol.includes(':USDT');
+    const isFutures = this.isFuturesSymbol(symbol);
     // For futures: BTC/USDT:USDT -> BTCUSDT, for spot: BTC/USDT -> BTCUSDT
-    const local = isFutures
-      ? symbol.split('/')[0] + 'USDT'
-      : this.toLocalSymbol(symbol);
+    const local = this.toBinanceSymbol(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
     const baseUrl = isFutures ? 'https://fapi.binance.com' : this.restUrl;
     const path = isFutures ? '/fapi/v1/klines' : '/api/v3/klines';
@@ -287,5 +351,37 @@ export class BinanceConnector extends BaseExchangeConnector {
       asks: data.asks.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       timestamp: Date.now(),
     };
+  }
+
+  private isFuturesSymbol(symbol: string): boolean {
+    return symbol.includes(':USDT');
+  }
+
+  private toBinanceSymbol(symbol: string): string {
+    return this.isFuturesSymbol(symbol)
+      ? `${symbol.split('/')[0]}USDT`
+      : this.toLocalSymbol(symbol);
+  }
+
+  private toFuturesSymbol(raw: string): string {
+    const base = raw.toUpperCase().replace(/USDT$/, '');
+    return `${base}/USDT:USDT`;
+  }
+
+  private sendFutures(data: unknown): void {
+    if (this.futuresWs && this.futuresConnected) {
+      this.futuresWs.send(JSON.stringify(data));
+    }
+  }
+
+  disconnect(): void {
+    super.disconnect();
+    if (this.futuresWs) {
+      this.futuresWs.removeAllListeners();
+      this.futuresWs.close();
+      this.futuresWs = null;
+    }
+    this.futuresConnected = false;
+    this.futuresSubscriptions.clear();
   }
 }

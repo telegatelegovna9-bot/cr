@@ -64,17 +64,18 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   const loadingMoreRef = useRef(false);
   const readyRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
 
   // Refs that the socket candle handler reads — avoids stale closures
   const activeTimeframeRef = useRef('');
   const activeExchangeRef = useRef('');
 
-  const { selectedExchange, selectedTimeframe, getTicker } = useMarketStore();
+  const selectedExchange = useMarketStore(state => state.selectedExchange);
+  const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
+  const ticker = useMarketStore(state => state.tickers.get(`${state.selectedExchange}:${symbol}`));
   const [loading, setLoading] = useState(true);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
-
-  const ticker = getTicker(symbol, selectedExchange);
 
   // Keep refs in sync with current values
   useEffect(() => {
@@ -265,12 +266,21 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
           const older: any[] = data.data || [];
           if (!older.length) { loadingMoreRef.current = false; return; }
 
+          const previousRange = chart.timeScale().getVisibleLogicalRange();
+          const previousLength = buildCandles(allRawRef.current).candles.length;
           allRawRef.current = [...older, ...allRawRef.current];
           const { candles, volumes } = buildCandles(allRawRef.current);
           if (candleSeriesRef.current && volumeSeriesRef.current && candles.length > 0) {
             candleSeriesRef.current.setData(candles);
             volumeSeriesRef.current.setData(volumes);
             oldestTimeRef.current = older[0].timestamp / 1000;
+            if (previousRange) {
+              const addedBars = candles.length - previousLength;
+              chart.timeScale().setVisibleLogicalRange({
+                from: previousRange.from + addedBars,
+                to: previousRange.to + addedBars,
+              });
+            }
           }
         } catch {
           // silent
@@ -300,10 +310,20 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     if (!containerRef.current) return;
     const observer = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
-      chartRef.current?.applyOptions({ width, height });
+      if (resizeFrameRef.current != null) cancelAnimationFrame(resizeFrameRef.current);
+      resizeFrameRef.current = requestAnimationFrame(() => {
+        chartRef.current?.applyOptions({ width, height });
+        resizeFrameRef.current = null;
+      });
     });
     observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (resizeFrameRef.current != null) {
+        cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+    };
   }, []);
 
   const livePrice = ticker?.price ?? currentPrice;

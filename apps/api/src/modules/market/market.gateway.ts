@@ -69,6 +69,10 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const key = `${channel}:${symbol || '*'}:${exchange || '*'}:${timeframe || '*'}`;
 
     const subs = this.clientSubscriptions.get(client.id);
+    if (subs?.has(key)) {
+      return { event: 'subscribed', data: { channel, symbol, exchange, timeframe } };
+    }
+
     if (subs) subs.add(key);
 
     // Join socket.io room for efficient broadcasting
