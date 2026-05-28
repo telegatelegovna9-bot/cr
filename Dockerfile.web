@@ -1,0 +1,24 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package.json turbo.json ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/exchange-connectors/package.json ./packages/exchange-connectors/
+
+RUN npm install --legacy-peer-deps
+
+COPY . .
+
+RUN cd apps/web && npx next build
+
+RUN find apps/web/.next/standalone -name "server.js" | head -5
+
+ENV PORT=8080
+ENV HOSTNAME=0.0.0.0
+
+EXPOSE 8080
+
+CMD ["node", "apps/web/.next/standalone/apps/web/server.js"]
