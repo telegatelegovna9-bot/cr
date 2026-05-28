@@ -173,15 +173,12 @@ export abstract class BaseExchangeConnector extends EventEmitter {
 
   private scheduleReconnect(): void {
     if (this.reconnectBlocked) return;
-    if (this.reconnectAttempts >= WS_MAX_RECONNECT_ATTEMPTS) {
-      this.emit('max_reconnect');
-      return;
-    }
 
-    // Exponential backoff with jitter: 5s, 10s, 20s, 40s, 80s ... capped at 120s
+    // Exponential backoff with jitter capped at 120s — retries indefinitely.
+    // reconnectAttempts is reset via the stability timer after 30s of uptime.
     const base = WS_RECONNECT_DELAY * Math.pow(2, Math.min(this.reconnectAttempts, 6));
     const capped = Math.min(base, 120_000);
-    const jitter = Math.random() * capped * 0.2; // up to 20% jitter
+    const jitter = Math.random() * capped * 0.2;
     const delay = Math.floor(capped + jitter);
     this.reconnectAttempts++;
 

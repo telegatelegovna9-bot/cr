@@ -24,49 +24,51 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   async connectWS(): Promise<void> {
-    if (this.connected || this.ws) return; // prevent duplicate connections
+    if (this.connected || this.ws) return; // prevent duplicate while connecting/connected
+
+    // ── Spot WebSocket ─────────────────────────────────────────────────────
     const ws = new WebSocket(this.wsUrl);
-    this.setupWebSocket(ws);
-    const spotReady = new Promise<void>((resolve, reject) => {
-      ws.on('open', () => resolve());
-      ws.on('error', (err) => reject(err));
-      // 451 = geo-blocked, no point retrying
-      ws.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
-        if (res.statusCode === 451) {
-          this.blockReconnect();
-          reject(new Error(`Binance blocked (HTTP 451)`));
-        }
-      });
+    this.setupWebSocket(ws); // registers open/close/message/error lifecycle handlers
+
+    ws.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
+      if (res.statusCode === 451) {
+        this.blockReconnect();
+        console.error('[binance] Spot WS geo-blocked (HTTP 451) — reconnect disabled');
+      } else {
+        console.warn(`[binance] Spot WS HTTP ${res.statusCode} — will retry`);
+      }
     });
 
+    // ── Futures WebSocket ──────────────────────────────────────────────────
     const futuresWs = new WebSocket('wss://fstream.binance.com/ws');
     this.futuresWs = futuresWs;
-    const futuresReady = new Promise<void>((resolve) => {
-      futuresWs.on('open', () => {
-        this.futuresConnected = true;
-        resolve();
-      });
-      futuresWs.on('message', (data: Buffer) => {
-        try {
-          const msg = JSON.parse(data.toString()) as Record<string, unknown>;
-          msg.__marketType = 'futures';
-          this.handleMessage(msg);
-        } catch {
-          // ignore non-JSON futures messages
-        }
-      });
-      futuresWs.on('close', () => {
-        this.futuresConnected = false;
-        this.futuresSubscriptions.clear();
-      });
-      futuresWs.on('error', (err: Error) => this.emit('error', err));
-      futuresWs.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
-        if (res.statusCode === 451) this.blockReconnect();
-        resolve();
-      });
+
+    futuresWs.on('open', () => { this.futuresConnected = true; });
+    futuresWs.on('message', (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+        msg.__marketType = 'futures';
+        this.handleMessage(msg);
+      } catch { /* ignore non-JSON */ }
+    });
+    futuresWs.on('close', () => {
+      this.futuresConnected = false;
+      this.futuresSubscriptions.clear();
+    });
+    futuresWs.on('error', () => { /* suppress unhandled-error crash */ });
+    futuresWs.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
+      if (res.statusCode === 451) this.blockReconnect();
     });
 
-    await Promise.allSettled([spotReady, futuresReady]);
+    // Wait for spot to open (or fail) — always resolves, never hangs.
+    // Actual connected/disconnected state is driven by setupWebSocket events.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 10_000); // 10 s timeout — never block connectAll()
+      const done = () => { clearTimeout(timer); resolve(); };
+      ws.once('open', done);
+      ws.once('error', done);
+      ws.once('close', done);
+    });
   }
 
   subscribeTicker(symbol: string): void {
