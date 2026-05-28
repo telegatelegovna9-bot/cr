@@ -6,9 +6,8 @@ import {
   OnGatewayDisconnect,
   MessageBody,
   ConnectedSocket,
-  Inject,
 } from '@nestjs/websockets';
-import { forwardRef } from '@nestjs/common';
+import { Inject, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { MarketService } from './market.service';
 import type { ExchangeId, Timeframe } from '@crypto-screener/shared';
