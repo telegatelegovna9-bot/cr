@@ -13,11 +13,16 @@ const BINANCE_SPOT_WS_URL = 'wss://data-stream.binance.vision:443/ws';
 const BINANCE_SPOT_REST_URL = 'https://data-api.binance.vision';
 const BINANCE_FUTURES_WS_URL = 'wss://fstream.binance.com/ws';
 const BINANCE_FUTURES_REST_URL = 'https://fapi.binance.com';
+const SUBSCRIPTION_BATCH_DELAY_MS = 250;
 
 export class BinanceConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
+  private spotPendingStreams = new Map<string, 'SUBSCRIBE' | 'UNSUBSCRIBE'>();
+  private futuresPendingStreams = new Map<string, 'SUBSCRIBE' | 'UNSUBSCRIBE'>();
+  private spotBatchTimer: ReturnType<typeof setTimeout> | null = null;
+  private futuresBatchTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     super({
@@ -35,6 +40,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     const ws = new WebSocket(this.wsUrl);
     this.setupWebSocket(ws); // registers open/close/message/error lifecycle handlers
     ws.on('close', (code: number, reason: Buffer) => {
+      this.clearSpotControlBatch();
       console.warn(`[binance] Spot WS closed code=${code} reason=${reason.toString() || 'n/a'}`);
     });
     ws.on('error', (err: Error) => {
@@ -67,6 +73,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     futuresWs.on('close', () => {
       this.futuresConnected = false;
       this.futuresSubscriptions.clear();
+      this.clearFuturesControlBatch();
     });
     futuresWs.on('error', (err: Error) => {
       console.warn(`[binance] Futures WS error: ${err.message}`);
@@ -92,7 +99,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       const key = `ticker:${symbol}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.sendFutures({ method: 'SUBSCRIBE', params: [`${local}@ticker`], id: Date.now() });
+      this.enqueueFuturesControl('SUBSCRIBE', `${local}@ticker`);
       return;
     }
 
@@ -100,7 +107,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     const key = `ticker:${symbol}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIBE', params: [`${local}@ticker`], id: Date.now() });
+    this.enqueueSpotControl('SUBSCRIBE', `${local}@ticker`);
   }
 
   subscribeCandle(symbol: string, timeframe: Timeframe): void {
@@ -110,7 +117,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       const key = `candle:${symbol}:${timeframe}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.sendFutures({ method: 'SUBSCRIBE', params: [`${local}@kline_${tf}`], id: Date.now() });
+      this.enqueueFuturesControl('SUBSCRIBE', `${local}@kline_${tf}`);
       return;
     }
 
@@ -119,7 +126,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     const key = `candle:${symbol}:${timeframe}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIBE', params: [`${local}@kline_${tf}`], id: Date.now() });
+    this.enqueueSpotControl('SUBSCRIBE', `${local}@kline_${tf}`);
   }
 
   subscribeOrderBook(symbol: string): void {
@@ -127,7 +134,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     const key = `orderbook:${symbol}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIBE', params: [`${local}@depth20@100ms`], id: Date.now() });
+    this.enqueueSpotControl('SUBSCRIBE', `${local}@depth20@100ms`);
   }
 
   subscribeTrades(symbol: string): void {
@@ -135,20 +142,20 @@ export class BinanceConnector extends BaseExchangeConnector {
     const key = `trades:${symbol}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIBE', params: [`${local}@trade`], id: Date.now() });
+    this.enqueueSpotControl('SUBSCRIBE', `${local}@trade`);
   }
 
   unsubscribeTicker(symbol: string): void {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toBinanceSymbol(symbol).toLowerCase();
       this.futuresSubscriptions.delete(`ticker:${symbol}`);
-      this.sendFutures({ method: 'UNSUBSCRIBE', params: [`${local}@ticker`], id: Date.now() });
+      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@ticker`);
       return;
     }
 
     const local = this.toLocalSymbol(symbol).toLowerCase();
     this.subscriptions.delete(`ticker:${symbol}`);
-    this.send({ method: 'UNSUBSCRIBE', params: [`${local}@ticker`], id: Date.now() });
+    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@ticker`);
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe): void {
@@ -156,26 +163,26 @@ export class BinanceConnector extends BaseExchangeConnector {
       const local = this.toBinanceSymbol(symbol).toLowerCase();
       const tf = TIMEFRAME_MAP[timeframe];
       this.futuresSubscriptions.delete(`candle:${symbol}:${timeframe}`);
-      this.sendFutures({ method: 'UNSUBSCRIBE', params: [`${local}@kline_${tf}`], id: Date.now() });
+      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@kline_${tf}`);
       return;
     }
 
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const tf = TIMEFRAME_MAP[timeframe];
     this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
-    this.send({ method: 'UNSUBSCRIBE', params: [`${local}@kline_${tf}`], id: Date.now() });
+    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@kline_${tf}`);
   }
 
   unsubscribeOrderBook(symbol: string): void {
     const local = this.toLocalSymbol(symbol).toLowerCase();
     this.subscriptions.delete(`orderbook:${symbol}`);
-    this.send({ method: 'UNSUBSCRIBE', params: [`${local}@depth20@100ms`], id: Date.now() });
+    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@depth20@100ms`);
   }
 
   unsubscribeTrades(symbol: string): void {
     const local = this.toLocalSymbol(symbol).toLowerCase();
     this.subscriptions.delete(`trades:${symbol}`);
-    this.send({ method: 'UNSUBSCRIBE', params: [`${local}@trade`], id: Date.now() });
+    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@trade`);
   }
 
   protected handleMessage(msg: Record<string, unknown>): void {
@@ -413,6 +420,7 @@ export class BinanceConnector extends BaseExchangeConnector {
 
   disconnect(): void {
     super.disconnect();
+    this.clearControlBatchTimers();
     if (this.futuresWs) {
       this.futuresWs.removeAllListeners();
       this.futuresWs.close();
@@ -420,6 +428,75 @@ export class BinanceConnector extends BaseExchangeConnector {
     }
     this.futuresConnected = false;
     this.futuresSubscriptions.clear();
+    this.spotPendingStreams.clear();
+    this.futuresPendingStreams.clear();
+  }
+
+  private enqueueSpotControl(method: 'SUBSCRIBE' | 'UNSUBSCRIBE', stream: string): void {
+    this.spotPendingStreams.set(stream, method);
+    if (this.spotBatchTimer) return;
+    this.spotBatchTimer = setTimeout(() => {
+      this.spotBatchTimer = null;
+      this.flushSpotControl();
+    }, SUBSCRIPTION_BATCH_DELAY_MS);
+  }
+
+  private enqueueFuturesControl(method: 'SUBSCRIBE' | 'UNSUBSCRIBE', stream: string): void {
+    this.futuresPendingStreams.set(stream, method);
+    if (this.futuresBatchTimer) return;
+    this.futuresBatchTimer = setTimeout(() => {
+      this.futuresBatchTimer = null;
+      this.flushFuturesControl();
+    }, SUBSCRIPTION_BATCH_DELAY_MS);
+  }
+
+  private flushSpotControl(): void {
+    if (!this.ws || !this.connected || this.spotPendingStreams.size === 0) return;
+    for (const [method, params] of this.groupPendingStreams(this.spotPendingStreams)) {
+      this.send({ method, params, id: Date.now() });
+    }
+    this.spotPendingStreams.clear();
+  }
+
+  private flushFuturesControl(): void {
+    if (!this.futuresWs || !this.futuresConnected || this.futuresPendingStreams.size === 0) return;
+    for (const [method, params] of this.groupPendingStreams(this.futuresPendingStreams)) {
+      this.sendFutures({ method, params, id: Date.now() });
+    }
+    this.futuresPendingStreams.clear();
+  }
+
+  private groupPendingStreams(
+    streams: Map<string, 'SUBSCRIBE' | 'UNSUBSCRIBE'>,
+  ): Array<['SUBSCRIBE' | 'UNSUBSCRIBE', string[]]> {
+    const groups = new Map<'SUBSCRIBE' | 'UNSUBSCRIBE', string[]>();
+    for (const [stream, method] of streams) {
+      const params = groups.get(method) || [];
+      params.push(stream);
+      groups.set(method, params);
+    }
+    return Array.from(groups.entries());
+  }
+
+  private clearControlBatchTimers(): void {
+    this.clearSpotControlBatch();
+    this.clearFuturesControlBatch();
+  }
+
+  private clearSpotControlBatch(): void {
+    if (this.spotBatchTimer) {
+      clearTimeout(this.spotBatchTimer);
+      this.spotBatchTimer = null;
+    }
+    this.spotPendingStreams.clear();
+  }
+
+  private clearFuturesControlBatch(): void {
+    if (this.futuresBatchTimer) {
+      clearTimeout(this.futuresBatchTimer);
+      this.futuresBatchTimer = null;
+    }
+    this.futuresPendingStreams.clear();
   }
 
   private async fetchArray<T>(url: string, label: string): Promise<T[]> {
