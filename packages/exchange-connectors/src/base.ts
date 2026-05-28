@@ -125,6 +125,7 @@ export abstract class BaseExchangeConnector extends EventEmitter {
 
     ws.on('close', () => {
       this.connected = false;
+      this.ws = null; // must clear so connectWS() guard allows reconnection
       this.subscriptions.clear();
       this.stopHeartbeat();
       if (this.stabilityTimer) {

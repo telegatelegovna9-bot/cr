@@ -183,6 +183,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
 
     let cancelled = false;
     let readyTimer: ReturnType<typeof setTimeout> | null = null;
+    let rafId: number | null = null;
 
     const initChart = async () => {
       const hasInitialData = initialData && initialData.length > 0;
@@ -311,11 +312,21 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
       chart.timeScale().subscribeVisibleLogicalRangeChange(handleRangeChange);
     };
 
-    initChart();
+    // Defer chart init by one animation frame so it doesn't block ongoing
+    // CSS animations (e.g. modal open). Modal gets an extra frame to be safe.
+    rafId = requestAnimationFrame(() => {
+      if (cancelled) return;
+      if (isModal) {
+        rafId = requestAnimationFrame(() => { if (!cancelled) initChart(); });
+      } else {
+        initChart();
+      }
+    });
 
     return () => {
       cancelled = true;
       readyRef.current = false;
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       if (readyTimer) { clearTimeout(readyTimer); readyTimer = null; }
       if (chartRef.current) {
         chartRef.current.remove();
