@@ -63,10 +63,10 @@ export function ChartGrid() {
   }, [sortMode, chartGridSize, getTicker, selectedExchange]);
 
   const gridClass = chartGridSize === 1
-    ? 'grid-cols-1'
+    ? 'grid-cols-1 grid-rows-1'
     : chartGridSize === 4
-      ? 'grid-cols-2'
-      : 'grid-cols-2 xl:grid-cols-3';
+      ? 'grid-cols-2 grid-rows-2'
+      : 'grid-cols-2 grid-rows-3 xl:grid-cols-3 xl:grid-rows-2';
 
   const getSortButtonClass = (id: SortMode) => {
     if (sortMode !== id) return 'text-text-muted hover:text-text-secondary';
