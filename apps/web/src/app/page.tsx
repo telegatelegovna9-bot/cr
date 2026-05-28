@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 import { Header } from '@/components/terminal/header';
 import { TerminalView } from '@/components/terminal/terminal-view';
 import { CoinList, CoinListToggle } from '@/components/coin-list/coin-list';
@@ -9,7 +10,9 @@ import { ScreenerView } from '@/components/screener/screener-view';
 import { SettingsView } from '@/components/terminal/settings-view';
 import { AlertToast, AlertModal } from '@/components/alerts/alert-toast';
 import { useUIStore, useMarketStore, useWSStore, useAlertStore } from '@/stores';
-import { getMarketSocket, subscribeMarket, unsubscribeMarket } from '@/lib/market-socket';
+
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL
+  || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
 
 export default function TerminalPage() {
   const { viewMode } = useUIStore();
@@ -20,72 +23,60 @@ export default function TerminalPage() {
 
   // ─── WebSocket Connection ────────────────────────────────
   useEffect(() => {
-    const socket = getMarketSocket();
+    const socket = io(`${WS_URL}/market`, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 10,
+    });
 
-    const handleConnect = () => {
+    socket.on('connect', () => {
       console.log('[WS] Connected');
       setConnected(true);
       setReconnecting(false);
       setError(null);
       setWsReady(true);
       socket.emit('get_tickers', {});
-    };
+      socket.emit('subscribe', { channel: 'ticker' });
+    });
 
-    const handleTickers = (tickers: any[]) => {
+    socket.on('tickers', (tickers) => {
       setTickers(tickers);
-    };
+    });
 
-    const handleTicker = (ticker: any) => {
+    socket.on('ticker', (ticker) => {
       updateTicker(ticker);
-    };
+    });
 
-    const handleAlert = (alert: any) => {
+    socket.on('alert', (alert) => {
       addTriggeredAlert(alert);
-    };
+    });
 
-    const handleDisconnect = (reason: string) => {
+    socket.on('disconnect', (reason) => {
       console.log('[WS] Disconnected:', reason);
       setConnected(false);
       setWsReady(false);
-    };
+    });
 
-    const handleReconnectAttempt = (attempt: number) => {
+    socket.on('reconnect_attempt', (attempt) => {
       console.log(`[WS] Reconnecting (attempt ${attempt}/10)`);
       setReconnecting(true);
-    };
+    });
 
-    const handleReconnect = () => {
+    socket.on('reconnect', () => {
       setConnected(true);
       setReconnecting(false);
       socket.emit('get_tickers', {});
-    };
+      socket.emit('subscribe', { channel: 'ticker' });
+    });
 
-    const handleConnectError = (error: Error) => {
+    socket.on('connect_error', (error) => {
       console.error('[WS] Error:', error);
       setError('WebSocket connection error');
-    };
-
-    socket.on('connect', handleConnect);
-    socket.on('tickers', handleTickers);
-    socket.on('ticker', handleTicker);
-    socket.on('alert', handleAlert);
-    socket.on('disconnect', handleDisconnect);
-    socket.on('reconnect_attempt', handleReconnectAttempt);
-    socket.on('reconnect', handleReconnect);
-    socket.on('connect_error', handleConnectError);
-    subscribeMarket({ channel: 'ticker' });
-    if (socket.connected) handleConnect();
+    });
 
     return () => {
-      socket.off('connect', handleConnect);
-      socket.off('tickers', handleTickers);
-      socket.off('ticker', handleTicker);
-      socket.off('alert', handleAlert);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('reconnect_attempt', handleReconnectAttempt);
-      socket.off('reconnect', handleReconnect);
-      socket.off('connect_error', handleConnectError);
-      unsubscribeMarket({ channel: 'ticker' });
+      socket.disconnect();
     };
   }, [setTickers, updateTicker, setConnected, setReconnecting, setError, addTriggeredAlert]);
 
