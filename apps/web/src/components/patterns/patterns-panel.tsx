@@ -60,6 +60,12 @@ function PatternCard({ pattern, index }: { pattern: PatternScanResult; index: nu
   const { setSelectedSymbol, setSelectedCoin } = useMarketStore();
   const [expanded, setExpanded] = useState(false);
   const colors = getPatternColor(pattern.pattern.type);
+  const p = pattern.pattern;
+  const strength = p.strength ?? 3;
+  const entry = p.entry ?? p.points?.[0]?.price ?? 0;
+  const target = p.target ?? p.targetPrice ?? 0;
+  const stopLoss = p.stopLoss ?? 0;
+  const riskReward = p.riskReward ?? (target && stopLoss ? Math.abs(target - entry) / Math.abs(entry - stopLoss || 1) : 0);
 
   const handleViewChart = () => {
     setSelectedSymbol(pattern.symbol);
@@ -100,7 +106,7 @@ function PatternCard({ pattern, index }: { pattern: PatternScanResult; index: nu
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-text-muted uppercase tracking-wider">Strength</span>
             <div className="flex items-end gap-0.5">
-              {getStrengthBars(pattern.pattern.strength)}
+              {getStrengthBars(strength)}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -119,15 +125,15 @@ function PatternCard({ pattern, index }: { pattern: PatternScanResult; index: nu
         <div className="grid grid-cols-3 gap-2 mb-3">
           <div className="bg-bg-primary/40 rounded-lg p-2 border border-border">
             <div className="text-[10px] text-text-muted mb-0.5">Entry</div>
-            <div className="text-xs font-bold font-mono text-text-primary">${formatPrice(pattern.pattern.entry)}</div>
+            <div className="text-xs font-bold font-mono text-text-primary">${formatPrice(entry)}</div>
           </div>
           <div className="bg-positive/5 rounded-lg p-2 border border-positive/10">
             <div className="text-[10px] text-positive/70 mb-0.5">Target</div>
-            <div className="text-xs font-bold font-mono text-positive">${formatPrice(pattern.pattern.target)}</div>
+            <div className="text-xs font-bold font-mono text-positive">${formatPrice(target)}</div>
           </div>
           <div className="bg-negative/5 rounded-lg p-2 border border-negative/10">
             <div className="text-[10px] text-negative/70 mb-0.5">Stop</div>
-            <div className="text-xs font-bold font-mono text-negative">${formatPrice(pattern.pattern.stopLoss)}</div>
+            <div className="text-xs font-bold font-mono text-negative">${formatPrice(stopLoss)}</div>
           </div>
         </div>
 
@@ -138,7 +144,7 @@ function PatternCard({ pattern, index }: { pattern: PatternScanResult; index: nu
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="badge-premium !text-[10px]">
-              R:R {pattern.pattern.riskReward.toFixed(1)}
+              R:R {riskReward.toFixed(1)}
             </span>
             <span className="badge-premium !text-[10px]">
               {pattern.pattern.timeframe}

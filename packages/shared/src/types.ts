@@ -138,7 +138,7 @@ export interface DetectedPattern {
   exchange: ExchangeId;
   type: PatternType;
   timeframe: Timeframe;
-  confidence: number; // 0-1
+  confidence: number;
   points: { price: number; timestamp: number }[];
   description: string;
   direction: 'bullish' | 'bearish' | 'neutral';
@@ -146,6 +146,19 @@ export interface DetectedPattern {
   stopLoss?: number;
   detectedAt: number;
   status: 'forming' | 'confirmed' | 'invalidated';
+  // Frontend display fields (optional, computed on read)
+  strength?: number;
+  entry?: number;
+  target?: number;
+  riskReward?: number;
+}
+
+export interface PatternScanResult {
+  symbol: string;
+  exchange: ExchangeId;
+  pattern: DetectedPattern;
+  confidence: number;
+  timestamp: number;
 }
 
 // ============================================================
@@ -247,49 +260,6 @@ export interface WSSubscription {
   symbol?: string;
   exchange?: ExchangeId;
   timeframe?: Timeframe;
-}
-
-// ============================================================
-// PATTERN TYPES
-// ============================================================
-
-export type PatternType =
-  | 'double_top'
-  | 'double_bottom'
-  | 'head_and_shoulders'
-  | 'inverse_head_and_shoulders'
-  | 'ascending_triangle'
-  | 'descending_triangle'
-  | 'symmetrical_triangle'
-  | 'bull_flag'
-  | 'bear_flag'
-  | 'rising_wedge'
-  | 'falling_wedge'
-  | 'channel_up'
-  | 'channel_down'
-  | 'cup_and_handle'
-  | 'rounding_bottom'
-  | 'rounding_top';
-
-export interface DetectedPattern {
-  type: PatternType;
-  direction: 'bullish' | 'bearish' | 'neutral';
-  strength: number;
-  confidence: number;
-  entry: number;
-  target: number;
-  stopLoss: number;
-  riskReward: number;
-  timeframe: Timeframe;
-  description: string;
-}
-
-export interface PatternScanResult {
-  symbol: string;
-  exchange: ExchangeId;
-  pattern: DetectedPattern;
-  confidence: number;
-  timestamp: number;
 }
 
 // ============================================================
