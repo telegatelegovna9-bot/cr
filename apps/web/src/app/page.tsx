@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { Header } from '@/components/terminal/header';
 import { TerminalView } from '@/components/terminal/terminal-view';
@@ -10,15 +10,12 @@ import { ScreenerView } from '@/components/screener/screener-view';
 import { SettingsView } from '@/components/terminal/settings-view';
 import { AlertToast, AlertModal } from '@/components/alerts/alert-toast';
 import { useUIStore, useMarketStore, useWSStore, useAlertStore } from '@/stores';
-import type { PatternScanResult } from '@crypto-screener/shared';
 
 export default function TerminalPage() {
   const { viewMode } = useUIStore();
   const { setTickers } = useMarketStore();
   const { setConnected, setReconnecting, setError } = useWSStore();
-  const { addTriggeredAlert, config: alertConfig } = useAlertStore();
-  const [patterns, setPatterns] = useState<PatternScanResult[]>([]);
-  const [patternsLoading, setPatternsLoading] = useState(false);
+  const { addTriggeredAlert } = useAlertStore();
   const [wsReady, setWsReady] = useState(false);
 
   // ─── WebSocket Connection ────────────────────────────────
@@ -73,40 +70,6 @@ export default function TerminalPage() {
       socket.disconnect();
     };
   }, [setTickers, setConnected, setReconnecting, setError, addTriggeredAlert]);
-
-  // ─── Pattern Scanning ────────────────────────────────────
-  const scanPatterns = useCallback(async () => {
-    setPatternsLoading(true);
-    try {
-      const resp = await fetch('/api/patterns/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          exchange: 'binance',
-          timeframes: alertConfig.timeframes,
-          minStrength: 3,
-          limit: 50,
-        }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        setPatterns(data.patterns || []);
-      }
-    } catch (e) {
-      console.error('[Patterns] Scan failed:', e);
-    } finally {
-      setPatternsLoading(false);
-    }
-  }, [alertConfig.timeframes]);
-
-  // Initial pattern scan
-  useEffect(() => {
-    if (wsReady) {
-      scanPatterns();
-      const interval = setInterval(scanPatterns, 5 * 60 * 1000);
-      return () => clearInterval(interval);
-    }
-  }, [wsReady, scanPatterns]);
 
   // ─── Request Notification Permission ─────────────────────
   useEffect(() => {

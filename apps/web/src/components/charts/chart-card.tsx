@@ -24,11 +24,15 @@ interface CandleState {
   volume: number;
 }
 
-// Filter out candles with null/NaN OHLC values that crash lightweight-charts
+// Filter out candles with null/NaN/zero/infinite OHLC values that crash lightweight-charts
 function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: HistogramData[] } {
   const valid = raw.filter(
-    (k) => k.open != null && k.high != null && k.low != null && k.close != null &&
-           !isNaN(k.open) && !isNaN(k.high) && !isNaN(k.low) && !isNaN(k.close)
+    (k) =>
+      k.timestamp != null &&
+      k.open != null && k.high != null && k.low != null && k.close != null &&
+      isFinite(k.open) && isFinite(k.high) && isFinite(k.low) && isFinite(k.close) &&
+      k.open > 0 && k.high > 0 && k.low > 0 && k.close > 0 &&
+      k.high >= k.low
   );
   const candles: CandlestickData[] = valid.map((k) => ({
     time: (k.timestamp / 1000) as Time,
