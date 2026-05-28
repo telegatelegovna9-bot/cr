@@ -44,6 +44,19 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   handleDisconnect(client: Socket) {
     console.log(`Client disconnected: ${client.id}`);
+    const subs = this.clientSubscriptions.get(client.id);
+    if (subs) {
+      for (const key of subs) {
+        const [channel, symbol, exchange, timeframe] = key.split(':');
+        if (channel === 'candle' && symbol && symbol !== '*' && timeframe && timeframe !== '*') {
+          this.marketService.unsubscribeCandle(
+            symbol,
+            timeframe as Timeframe,
+            exchange && exchange !== '*' ? (exchange as ExchangeId) : undefined,
+          );
+        }
+      }
+    }
     this.clientSubscriptions.delete(client.id);
   }
 
@@ -91,6 +104,10 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (subs) subs.delete(key);
 
     client.leave(key);
+
+    if (channel === 'candle' && symbol && timeframe) {
+      this.marketService.unsubscribeCandle(symbol, timeframe as Timeframe, exchange);
+    }
 
     return { event: 'unsubscribed', data: { channel, symbol, exchange, timeframe } };
   }

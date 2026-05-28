@@ -40,7 +40,8 @@ const SORT_OPTIONS: { id: SortMode; label: string; icon: typeof TrendingUp }[] =
 
 export function ChartGrid() {
   const { chartGridSize, setChartGridSize } = useUIStore();
-  const { getTicker, selectedExchange } = useMarketStore();
+  const selectedExchange = useMarketStore(state => state.selectedExchange);
+  const getTicker = useMarketStore(state => state.getTicker);
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
 
@@ -118,7 +119,7 @@ export function ChartGrid() {
       <div className={`flex-1 grid ${gridClass} gap-3 min-h-0`}>
         {sortedSymbols.map((symbol, index) => (
           <ChartCard
-            key={`${symbol}-${sortMode}`}
+            key={symbol}
             symbol={symbol}
             index={index}
             onExpand={() => setExpandedSymbol(symbol)}

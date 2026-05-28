@@ -35,6 +35,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private connectedExchanges = new Set<ExchangeId>();
   private subscribedSymbols = new Set<string>();
   private subscribedCandles = new Map<string, { symbol: string; timeframe: Timeframe; exchange?: ExchangeId }>();
+  private candleSubscriptionRefs = new Map<string, number>();
 
   constructor(
     private readonly db: DatabaseService,
@@ -280,15 +281,25 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
   subscribeCandle(symbol: string, timeframe: Timeframe, exchange?: ExchangeId): void {
     const key = JSON.stringify([symbol, timeframe, exchange || 'all']);
-    if (this.subscribedCandles.has(key)) return;
+    const currentRefs = this.candleSubscriptionRefs.get(key) || 0;
+    this.candleSubscriptionRefs.set(key, currentRefs + 1);
+    if (currentRefs > 0) return;
+
     this.subscribedCandles.set(key, { symbol, timeframe, exchange });
     this.exchangeManager.subscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe, exchange?: ExchangeId): void {
     const key = JSON.stringify([symbol, timeframe, exchange || 'all']);
-    this.subscribedCandles.delete(key);
-    this.exchangeManager.unsubscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
+    const currentRefs = this.candleSubscriptionRefs.get(key) || 0;
+    if (currentRefs <= 1) {
+      this.candleSubscriptionRefs.delete(key);
+      this.subscribedCandles.delete(key);
+      this.exchangeManager.unsubscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
+      return;
+    }
+
+    this.candleSubscriptionRefs.set(key, currentRefs - 1);
   }
 
   unsubscribeSymbol(symbol: string): void {
