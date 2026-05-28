@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useMarketStore, useUIStore } from '@/stores';
-import type { ExchangeId, PatternScanResult, PatternType } from '@crypto-screener/shared';
+import type { PatternScanResult, PatternType } from '@crypto-screener/shared';
 import { motion } from 'framer-motion';
 import {
   Search,
@@ -44,7 +44,7 @@ function getDirectionIcon(direction: string) {
   return <Activity className="w-4 h-4 text-text-muted" />;
 }
 
-function getStrengthBars(strength: number): JSX.Element[] {
+function getStrengthBars(strength: number): React.ReactElement[] {
   return Array.from({ length: 5 }, (_, i) => (
     <div
       key={i}
@@ -199,8 +199,8 @@ export function PatternsPanel({ patterns, loading }: {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center">
-            <Activity className="w-5 h-5 text-violet-400" />
+          <div className="w-9 h-9 rounded-xl bg-accent/15 flex items-center justify-center">
+            <Activity className="w-5 h-5 text-accent-light" />
           </div>
           <div>
             <h1 className="text-lg font-bold gradient-text">Patterns</h1>

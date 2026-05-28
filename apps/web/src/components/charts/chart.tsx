@@ -140,7 +140,7 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
   return (
     <div className="relative">
       {/* Symbol label */}
-      <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-terminal-card/80 rounded text-xs font-mono">
+      <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-surface/80 rounded text-xs font-mono">
         {symbol}
       </div>
       <div ref={chartContainerRef} className="w-full" />

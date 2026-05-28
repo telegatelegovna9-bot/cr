@@ -250,6 +250,49 @@ export interface WSSubscription {
 }
 
 // ============================================================
+// PATTERN TYPES
+// ============================================================
+
+export type PatternType =
+  | 'double_top'
+  | 'double_bottom'
+  | 'head_and_shoulders'
+  | 'inverse_head_and_shoulders'
+  | 'ascending_triangle'
+  | 'descending_triangle'
+  | 'symmetrical_triangle'
+  | 'bull_flag'
+  | 'bear_flag'
+  | 'rising_wedge'
+  | 'falling_wedge'
+  | 'channel_up'
+  | 'channel_down'
+  | 'cup_and_handle'
+  | 'rounding_bottom'
+  | 'rounding_top';
+
+export interface DetectedPattern {
+  type: PatternType;
+  direction: 'bullish' | 'bearish' | 'neutral';
+  strength: number;
+  confidence: number;
+  entry: number;
+  target: number;
+  stopLoss: number;
+  riskReward: number;
+  timeframe: Timeframe;
+  description: string;
+}
+
+export interface PatternScanResult {
+  symbol: string;
+  exchange: ExchangeId;
+  pattern: DetectedPattern;
+  confidence: number;
+  timestamp: number;
+}
+
+// ============================================================
 // UI STATE TYPES
 // ============================================================
 
