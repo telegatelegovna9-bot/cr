@@ -3,8 +3,6 @@
 import { create } from 'zustand';
 import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker } from '@crypto-screener/shared';
 
-export type MarketType = 'spot' | 'futures';
-
 // ============================================================
 // Market Store
 // ============================================================
@@ -32,7 +30,6 @@ interface MarketStore {
   selectedTimeframe: Timeframe;
   connectedExchanges: ExchangeId[];
   selectedCoin: string | null;
-  marketType: MarketType;
 
   setTickers: (tickers: TickerData[]) => void;
   updateTicker: (ticker: TickerData) => void;
@@ -41,7 +38,6 @@ interface MarketStore {
   setSelectedTimeframe: (timeframe: Timeframe) => void;
   setConnectedExchanges: (exchanges: ExchangeId[]) => void;
   setSelectedCoin: (coin: string | null) => void;
-  setMarketType: (marketType: MarketType) => void;
   getTicker: (symbol: string, exchange: ExchangeId) => TickerData | undefined;
   getTickersArray: () => TickerData[];
 }
@@ -53,7 +49,6 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   selectedTimeframe: '1h',
   connectedExchanges: [],
   selectedCoin: null,
-  marketType: 'spot',
 
   setTickers: (tickers) => {
     const map = new Map<string, TickerData>();
@@ -74,7 +69,6 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   setSelectedTimeframe: (timeframe) => set({ selectedTimeframe: timeframe }),
   setConnectedExchanges: (exchanges) => set({ connectedExchanges: exchanges }),
   setSelectedCoin: (coin) => set({ selectedCoin: coin }),
-  setMarketType: (marketType) => set({ marketType }),
 
   getTicker: (symbol, exchange) => get().tickers.get(`${exchange}:${symbol}`),
   getTickersArray: () => Array.from(get().tickers.values()),

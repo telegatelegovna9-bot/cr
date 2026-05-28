@@ -1,7 +1,6 @@
 'use client';
 
 import { useUIStore, useMarketStore, useWSStore } from '@/stores';
-import type { MarketType } from '@/stores';
 import type { ExchangeId, ViewMode } from '@crypto-screener/shared';
 import { motion } from 'framer-motion';
 import {
@@ -26,7 +25,7 @@ export function Header() {
   const {
     viewMode, setViewMode, showHeatmap, toggleHeatmap, toggleAlerts, unreadAlertCount,
   } = useUIStore();
-  const { selectedSymbol, selectedTimeframe, setSelectedTimeframe, selectedExchange, setSelectedExchange, marketType, setMarketType } = useMarketStore();
+  const { selectedSymbol, selectedTimeframe, setSelectedTimeframe, selectedExchange, setSelectedExchange } = useMarketStore();
   const { connected, reconnecting } = useWSStore();
 
   const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
@@ -65,25 +64,6 @@ export function Header() {
             ))}
           </select>
         </div>
-
-        {/* Spot / Futures toggle (only for Binance) */}
-        {selectedExchange === 'binance' && (
-          <div className="flex items-center gap-0.5 bg-surface-secondary/60 rounded-lg p-0.5 shrink-0">
-            {(['spot', 'futures'] as MarketType[]).map((mt) => (
-              <button
-                key={mt}
-                onClick={() => setMarketType(mt)}
-                className={`px-3 py-1 text-xs rounded-md transition-all duration-200 cursor-pointer font-semibold uppercase tracking-wider
-                  ${marketType === mt
-                    ? 'bg-accent/15 text-accent-light border border-accent/20 shadow-sm'
-                    : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'
-                  }`}
-              >
-                {mt}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Symbol & Timeframe */}
         <div className="flex items-center gap-2 ml-1">
