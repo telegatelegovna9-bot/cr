@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { Header } from '@/components/terminal/header';
 import { TerminalView } from '@/components/terminal/terminal-view';
-import { CoinList } from '@/components/coin-list/coin-list';
+import { CoinList, CoinListToggle } from '@/components/coin-list/coin-list';
 import { ChartGrid } from '@/components/charts/chart-grid';
 import { ScreenerView } from '@/components/screener/screener-view';
 import { SettingsView } from '@/components/terminal/settings-view';
@@ -122,6 +122,7 @@ export default function TerminalPage() {
         return (
           <div className="flex h-full overflow-hidden">
             <CoinList />
+            <CoinListToggle />
             <div className="flex-1 min-w-0 h-full overflow-hidden">
               <ChartGrid />
             </div>
@@ -137,6 +138,7 @@ export default function TerminalPage() {
         return (
           <div className="flex h-full overflow-hidden">
             <CoinList />
+            <CoinListToggle />
             <div className="flex-1 min-w-0 h-full overflow-hidden">
               <ChartGrid />
             </div>
