@@ -264,7 +264,7 @@ export function CoinList() {
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-        className="w-72 h-full flex flex-col glass-card border-r border-border overflow-hidden shrink-0"
+        className="w-80 h-full flex flex-col glass-card border-r border-border overflow-hidden shrink-0"
       >
         {/* Header */}
         <div className="p-3 pb-2 border-b border-border shrink-0">
