@@ -138,8 +138,14 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   broadcastCandle(candle: unknown) {
-    const c = candle as { symbol: string };
+    const c = candle as { symbol: string; exchange?: string; timeframe?: string };
+    // Broadcast to wildcard room (clients subscribed with symbol only)
     this.server.to(`candle:${c.symbol}:*:*`).emit('candle', candle);
+    // Broadcast to specific room (clients subscribed with exchange+timeframe)
+    if (c.exchange && c.timeframe) {
+      this.server.to(`candle:${c.symbol}:${c.exchange}:${c.timeframe}`).emit('candle', candle);
+      this.server.to(`candle:${c.symbol}:*:${c.timeframe}`).emit('candle', candle);
+    }
   }
 
   broadcastOrderBook(ob: unknown) {

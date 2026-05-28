@@ -133,8 +133,10 @@ export class BinanceConnector extends BaseExchangeConnector {
     const k = data.k as Record<string, unknown>;
     if (!k) return;
     const symbol = this.fromLocalSymbol(k.s as string);
-    const candle: Candle & { symbol: string; finalized: boolean } = {
+    const candle: Candle & { symbol: string; timeframe: string; exchange: string; finalized: boolean } = {
       symbol,
+      exchange: 'binance',
+      timeframe: k.i as string,  // e.g. "1h", "5m"
       timestamp: k.t as number,
       open: parseFloat(k.o as string),
       high: parseFloat(k.h as string),

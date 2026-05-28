@@ -160,10 +160,11 @@ export class ExchangeManager extends EventEmitter {
     timeframe: Timeframe,
     exchange?: ExchangeId,
     limit = 500,
+    endTime?: number,
   ): Promise<Candle[]> {
     if (exchange) {
       const c = this.connectors.get(exchange);
-      if (c) return c.fetchCandles(symbol, timeframe, limit);
+      if (c) return c.fetchCandles(symbol, timeframe, limit, endTime);
       throw new Error(`Exchange ${exchange} not available`);
     }
 
@@ -173,7 +174,7 @@ export class ExchangeManager extends EventEmitter {
       const c = this.connectors.get(id);
       if (c?.isConnected()) {
         try {
-          return await c.fetchCandles(symbol, timeframe, limit);
+          return await c.fetchCandles(symbol, timeframe, limit, endTime);
         } catch { /* try next */ }
       }
     }
@@ -182,7 +183,7 @@ export class ExchangeManager extends EventEmitter {
     for (const c of this.connectors.values()) {
       if (c.isConnected()) {
         try {
-          return await c.fetchCandles(symbol, timeframe, limit);
+          return await c.fetchCandles(symbol, timeframe, limit, endTime);
         } catch { /* try next */ }
       }
     }

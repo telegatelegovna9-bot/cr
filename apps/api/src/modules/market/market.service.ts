@@ -222,7 +222,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
     // Fetch from exchange
     try {
-      const candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit);
+      const candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);
       if (candles.length > 0) {
         this.candleCache.set(cacheKey, candles);
       }
