@@ -114,8 +114,8 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     this.db.publish('ticker', ticker);
   }
 
-  private handleCandle(candle: Candle & { symbol: string; finalized?: boolean }) {
-    const key = `candle:${candle.symbol}`;
+  private handleCandle(candle: Candle & { symbol: string; exchange?: ExchangeId; timeframe?: Timeframe; finalized?: boolean }) {
+    const key = `candle:${candle.symbol}:${candle.exchange || 'unknown'}:${candle.timeframe || 'unknown'}`;
     let candles = this.candleCache.get(key) || [];
     
     // Update or add candle
@@ -149,7 +149,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     this.db.publish('trade', trade);
   }
 
-  private async storeCandle(candle: Candle & { symbol: string }) {
+  private async storeCandle(candle: Candle & { symbol: string; exchange?: ExchangeId; timeframe?: Timeframe }) {
     try {
       await this.db.query(
         `INSERT INTO candles (symbol, exchange, timeframe, timestamp, open, high, low, close, volume, trades)
@@ -157,7 +157,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
          ON CONFLICT (symbol, exchange, timeframe, timestamp) DO UPDATE SET
            open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
            close = EXCLUDED.close, volume = EXCLUDED.volume, trades = EXCLUDED.trades`,
-        [candle.symbol, 'binance', '1m', candle.timestamp,
+        [candle.symbol, candle.exchange || 'binance', candle.timeframe || '1m', candle.timestamp,
          candle.open, candle.high, candle.low, candle.close, candle.volume, candle.trades],
       );
     } catch {
@@ -214,7 +214,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     endTime?: number,
   ): Promise<Candle[]> {
     // Cache key includes timeframe to avoid returning wrong candles on TF switch
-    const cacheKey = `candle:${symbol}:${timeframe}`;
+    const cacheKey = `candle:${symbol}:${exchange || 'all'}:${timeframe}`;
     const cached = this.candleCache.get(cacheKey);
     if (cached?.length && !endTime) {
       return cached.slice(-limit);

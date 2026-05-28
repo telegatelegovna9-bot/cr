@@ -92,7 +92,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     socket.on('candle', (candle: any) => {
       if (candle.symbol !== symbol) return;
       // Use refs to always read current TF — avoids stale closure after TF switch
-      if (candle.timeframe && candle.timeframe !== activeTimeframeRef.current) return;
+      if (candle.timeframe !== activeTimeframeRef.current) return;
+      if (candle.exchange && candle.exchange !== activeExchangeRef.current) return;
       if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
 
       const { open, high, low, close, volume, timestamp } = candle;

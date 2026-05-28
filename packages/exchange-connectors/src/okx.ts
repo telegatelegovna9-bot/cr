@@ -8,6 +8,15 @@ import { BaseExchangeConnector } from './base';
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1H', '4h': '4H', '1d': '1D', '1w': '1W',
 };
+const REVERSE_TIMEFRAME_MAP: Record<string, Timeframe> = {
+  candle1m: '1m',
+  candle5m: '5m',
+  candle15m: '15m',
+  candle1H: '1h',
+  candle4H: '4h',
+  candle1D: '1d',
+  candle1W: '1w',
+};
 
 export class OKXConnector extends BaseExchangeConnector {
   constructor() {
@@ -121,8 +130,10 @@ export class OKXConnector extends BaseExchangeConnector {
       this.emit('ticker', ticker);
     } else if (channel.startsWith('candle')) {
       const d = data[0];
-      const candle: Candle & { symbol: string; finalized: boolean } = {
+      const candle: Candle & { symbol: string; exchange: 'okx'; timeframe: Timeframe; finalized: boolean } = {
         symbol: this.fromLocalSymbol(d.instId as string),
+        exchange: 'okx',
+        timeframe: REVERSE_TIMEFRAME_MAP[channel] || '1m',
         timestamp: parseInt(d.ts as string, 10),
         open: parseFloat(d.o as string),
         high: parseFloat(d.h as string),

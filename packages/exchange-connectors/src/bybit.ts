@@ -8,6 +8,9 @@ import { BaseExchangeConnector } from './base';
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
   '1m': '1', '5m': '5', '15m': '15', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W',
 };
+const REVERSE_TIMEFRAME_MAP: Record<string, Timeframe> = {
+  '1': '1m', '5': '5m', '15': '15m', '60': '1h', '240': '4h', D: '1d', W: '1w',
+};
 
 export class BybitConnector extends BaseExchangeConnector {
   constructor() {
@@ -115,9 +118,12 @@ export class BybitConnector extends BaseExchangeConnector {
     } else if (topic.startsWith('kline.')) {
       const data = (msg.data as Record<string, unknown>[])[0];
       if (!data) return;
+      const [, interval] = topic.split('.');
       const symbol = this.fromLocalSymbol(data.symbol as string);
-      const candle: Candle & { symbol: string; finalized: boolean } = {
+      const candle: Candle & { symbol: string; exchange: 'bybit'; timeframe: Timeframe; finalized: boolean } = {
         symbol,
+        exchange: 'bybit',
+        timeframe: REVERSE_TIMEFRAME_MAP[interval] || '1m',
         timestamp: data.start as number,
         open: parseFloat(data.open as string),
         high: parseFloat(data.high as string),
