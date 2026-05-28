@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { io } from 'socket.io-client';
 import { Header } from '@/components/terminal/header';
 import { TerminalView } from '@/components/terminal/terminal-view';
 import { CoinList } from '@/components/coin-list/coin-list';
@@ -22,67 +23,54 @@ export default function TerminalPage() {
 
   // ─── WebSocket Connection ────────────────────────────────
   useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: NodeJS.Timeout;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 10;
+    const socket = io('/market', {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 10,
+    });
 
-    const connect = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+    socket.on('connect', () => {
+      console.log('[WS] Connected');
+      setConnected(true);
+      setReconnecting(false);
+      setError(null);
+      setWsReady(true);
+      socket.emit('get_tickers', {});
+    });
 
-      ws = new WebSocket(wsUrl);
+    socket.on('tickers', (tickers) => {
+      setTickers(tickers);
+    });
 
-      ws.onopen = () => {
-        console.log('[WS] Connected');
-        setConnected(true);
-        setReconnecting(false);
-        setError(null);
-        reconnectAttempts = 0;
-        setWsReady(true);
-      };
+    socket.on('alert', (alert) => {
+      addTriggeredAlert(alert);
+    });
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'tickers') {
-            setTickers(data.data);
-          } else if (data.type === 'alert') {
-            addTriggeredAlert(data.data);
-          }
-        } catch (e) {
-          console.error('[WS] Parse error:', e);
-        }
-      };
+    socket.on('disconnect', (reason) => {
+      console.log('[WS] Disconnected:', reason);
+      setConnected(false);
+      setWsReady(false);
+    });
 
-      ws.onclose = (event) => {
-        console.log('[WS] Disconnected:', event.code, event.reason);
-        setConnected(false);
-        setWsReady(false);
+    socket.on('reconnect_attempt', (attempt) => {
+      console.log(`[WS] Reconnecting (attempt ${attempt}/10)`);
+      setReconnecting(true);
+    });
 
-        if (reconnectAttempts < maxReconnectAttempts) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-          console.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
-          setReconnecting(true);
-          reconnectTimeout = setTimeout(connect, delay);
-          reconnectAttempts++;
-        } else {
-          console.error('[WS] Max reconnect attempts reached');
-          setError('Connection lost. Please refresh the page.');
-        }
-      };
+    socket.on('reconnect', () => {
+      setConnected(true);
+      setReconnecting(false);
+      socket.emit('get_tickers', {});
+    });
 
-      ws.onerror = (error) => {
-        console.error('[WS] Error:', error);
-        setError('WebSocket connection error');
-      };
-    };
-
-    connect();
+    socket.on('connect_error', (error) => {
+      console.error('[WS] Error:', error);
+      setError('WebSocket connection error');
+    });
 
     return () => {
-      if (ws) ws.close();
-      clearTimeout(reconnectTimeout);
+      socket.disconnect();
     };
   }, [setTickers, setConnected, setReconnecting, setError, addTriggeredAlert]);
 
@@ -90,7 +78,7 @@ export default function TerminalPage() {
   const scanPatterns = useCallback(async () => {
     setPatternsLoading(true);
     try {
-      const resp = await fetch('/api/v1/patterns/scan', {
+      const resp = await fetch('/api/patterns/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
