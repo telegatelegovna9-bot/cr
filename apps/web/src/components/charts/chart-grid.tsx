@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useUIStore, useMarketStore } from '@/stores';
 import { ChartCard } from './chart-card';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,9 +40,20 @@ const SORT_OPTIONS: { id: SortMode; label: string; icon: typeof TrendingUp }[] =
 export function ChartGrid() {
   const { chartGridSize, setChartGridSize } = useUIStore();
   const selectedExchange = useMarketStore(state => state.selectedExchange);
+  const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
   const tickers = useMarketStore(state => state.tickers);
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
+  const chartDataCache = useRef<Map<string, any[]>>(new Map());
+
+  // Clear cache when exchange or timeframe changes so modal gets fresh data
+  useEffect(() => {
+    chartDataCache.current.clear();
+  }, [selectedExchange, selectedTimeframe]);
+
+  const handleDataLoaded = useCallback((symbol: string, data: any[]) => {
+    chartDataCache.current.set(symbol, data);
+  }, []);
 
   const sortedSymbols = useMemo(() => {
     if (sortMode === 'default') return ALL_SYMBOLS.slice(0, chartGridSize);
@@ -123,6 +134,7 @@ export function ChartGrid() {
             index={index}
             onExpand={() => setExpandedSymbol(symbol)}
             paused={expandedSymbol === symbol}
+            onDataLoaded={handleDataLoaded}
           />
         ))}
       </div>
@@ -150,6 +162,7 @@ export function ChartGrid() {
                 index={0}
                 onExpand={() => setExpandedSymbol(null)}
                 isModal
+                initialData={chartDataCache.current.get(expandedSymbol)}
               />
             </motion.div>
           </motion.div>

@@ -335,7 +335,8 @@ export class BinanceConnector extends BaseExchangeConnector {
     let url = `${baseUrl}${path}?symbol=${local}&interval=${tf}&limit=${limit}`;
     if (endTime) url += `&endTime=${endTime}`;
 
-    const data = await fetch(url).then(r => r.json()) as unknown[];
+    const data = await fetch(url).then(r => r.json());
+    if (!Array.isArray(data)) return [];
 
     return (data as unknown[][]).map((k: unknown[]): Candle => ({
       timestamp: k[0] as number,

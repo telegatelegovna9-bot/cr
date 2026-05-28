@@ -14,6 +14,8 @@ interface ChartCardProps {
   onExpand?: () => void;
   isModal?: boolean;
   paused?: boolean;
+  initialData?: any[];
+  onDataLoaded?: (symbol: string, data: any[]) => void;
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL
@@ -55,7 +57,7 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
-export function ChartCard({ symbol, index, onExpand, isModal = false, paused = false }: ChartCardProps) {
+export function ChartCard({ symbol, index, onExpand, isModal = false, paused = false, initialData, onDataLoaded }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -221,29 +223,35 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
       volumeSeriesRef.current = volumeSeries;
 
       try {
-        const resp = await fetch(
-          `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
-        );
-        if (!cancelled && resp.ok) {
-          const data = await resp.json();
-          const raw: any[] = data.data || [];
-          if (raw.length && !cancelled) {
-            allRawRef.current = raw;
-            const { candles, volumes } = buildCandles(raw);
-            if (candles.length > 0) {
-              candleSeries.setData(candles);
-              volumeSeries.setData(volumes);
-              oldestTimeRef.current = raw[0].timestamp / 1000;
+        let raw: any[] = [];
+        if (initialData && initialData.length > 0) {
+          raw = initialData;
+        } else {
+          const resp = await fetch(
+            `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
+          );
+          if (!cancelled && resp.ok) {
+            const data = await resp.json();
+            raw = data.data || [];
+          }
+        }
+        if (raw.length && !cancelled) {
+          allRawRef.current = raw;
+          onDataLoaded?.(symbol, raw);
+          const { candles, volumes } = buildCandles(raw);
+          if (candles.length > 0) {
+            candleSeries.setData(candles);
+            volumeSeries.setData(volumes);
+            oldestTimeRef.current = raw[0].timestamp / 1000;
 
-              // Show last INITIAL_VISIBLE_CANDLES with small right margin
-              const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
-              chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
+            // Show last INITIAL_VISIBLE_CANDLES with small right margin
+            const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
+            chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
 
-              const lastRaw = raw[raw.length - 1];
-              setCurrentPrice(lastRaw.close);
-              if (raw.length > 1) {
-                setPriceChange(((lastRaw.close - raw[0].open) / raw[0].open) * 100);
-              }
+            const lastRaw = raw[raw.length - 1];
+            setCurrentPrice(lastRaw.close);
+            if (raw.length > 1) {
+              setPriceChange(((lastRaw.close - raw[0].open) / raw[0].open) * 100);
             }
           }
         }
