@@ -12,9 +12,14 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 
-RUN npm run build
+# Build shared packages first (api depends on them)
+RUN cd packages/shared && npx tsc --noEmit false --outDir dist || true
+RUN cd packages/exchange-connectors && npx tsc --noEmit false --outDir dist || true
 
-RUN ls -la apps/api/dist/ || (echo "ERROR: dist not found" && exit 1)
+# Build API directly, bypassing turbo cache
+RUN cd apps/api && npx nest build
+
+RUN echo "=== dist contents ===" && ls -la apps/api/dist/ && test -f apps/api/dist/main.js || (echo "ERROR: main.js not found in dist" && exit 1)
 
 EXPOSE 3001
 
