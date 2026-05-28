@@ -28,10 +28,6 @@ export class BinanceConnector extends BaseExchangeConnector {
     });
   }
 
-  protected getPingMessage(): unknown | null {
-    return null;
-  }
-
   subscribeTicker(symbol: string): void {
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const key = `ticker:${symbol}`;
