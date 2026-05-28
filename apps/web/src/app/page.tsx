@@ -11,16 +11,19 @@ import { SettingsView } from '@/components/terminal/settings-view';
 import { AlertToast, AlertModal } from '@/components/alerts/alert-toast';
 import { useUIStore, useMarketStore, useWSStore, useAlertStore } from '@/stores';
 
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL
+  || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
+
 export default function TerminalPage() {
   const { viewMode } = useUIStore();
-  const { setTickers } = useMarketStore();
+  const { setTickers, updateTicker } = useMarketStore();
   const { setConnected, setReconnecting, setError } = useWSStore();
   const { addTriggeredAlert, config: alertConfig } = useAlertStore();
   const [wsReady, setWsReady] = useState(false);
 
   // ─── WebSocket Connection ────────────────────────────────
   useEffect(() => {
-    const socket = io('/market', {
+    const socket = io(`${WS_URL}/market`, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
@@ -34,10 +37,15 @@ export default function TerminalPage() {
       setError(null);
       setWsReady(true);
       socket.emit('get_tickers', {});
+      socket.emit('subscribe', { channel: 'ticker' });
     });
 
     socket.on('tickers', (tickers) => {
       setTickers(tickers);
+    });
+
+    socket.on('ticker', (ticker) => {
+      updateTicker(ticker);
     });
 
     socket.on('alert', (alert) => {
@@ -59,6 +67,7 @@ export default function TerminalPage() {
       setConnected(true);
       setReconnecting(false);
       socket.emit('get_tickers', {});
+      socket.emit('subscribe', { channel: 'ticker' });
     });
 
     socket.on('connect_error', (error) => {
@@ -69,7 +78,7 @@ export default function TerminalPage() {
     return () => {
       socket.disconnect();
     };
-  }, [setTickers, setConnected, setReconnecting, setError, addTriggeredAlert]);
+  }, [setTickers, updateTicker, setConnected, setReconnecting, setError, addTriggeredAlert]);
 
   // ─── Request Notification Permission ─────────────────────
   useEffect(() => {

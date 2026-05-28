@@ -130,8 +130,11 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // Broadcast ticker updates to subscribed clients
   broadcastTicker(ticker: unknown) {
-    const key = `ticker:${(ticker as { symbol: string }).symbol}:*:*`;
-    this.server.to(key).emit('ticker', ticker);
+    const t = ticker as { symbol: string; exchange?: string };
+    this.server.to(`ticker:${t.symbol}:*:*`).emit('ticker', ticker);
+    if (t.exchange) {
+      this.server.to(`ticker:${t.symbol}:${t.exchange}:*`).emit('ticker', ticker);
+    }
 
     // Also broadcast to wildcard subscribers
     this.server.to('ticker:*:*:*').emit('ticker', ticker);

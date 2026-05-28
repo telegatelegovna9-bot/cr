@@ -369,7 +369,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
       try {
         const candles = await this.fetchCandles(symbol, timeframe, 1);
         if (candles.length > 0) {
-          this.emit('candle', { ...candles[0], symbol, finalized: true });
+          this.emit('candle', { ...candles[0], symbol, exchange: this.id, timeframe, finalized: true });
         }
       } catch { /* ignore */ }
     }, 10000);

@@ -15,6 +15,10 @@ interface ChartCardProps {
   isModal?: boolean;
 }
 
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL
+  || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
+  || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
 const INITIAL_VISIBLE_CANDLES = 100;
 
 function isValidCandle(k: any): boolean {
@@ -81,7 +85,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   // ── Create socket ONCE per symbol (not per TF) ────────────
   // Subscriptions change on TF/exchange change, socket stays alive.
   useEffect(() => {
-    const socket = io('/market', {
+    const socket = io(`${WS_URL}/market`, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 2000,
@@ -135,20 +139,19 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
       });
     };
 
-    if (socket.connected) {
-      doSubscribe();
-    } else {
-      socket.once('connect', doSubscribe);
-    }
+    socket.on('connect', doSubscribe);
+    if (socket.connected) doSubscribe();
 
     return () => {
-      // Unsubscribe from old TF before subscribing to new one
-      socket.emit('unsubscribe', {
-        channel: 'candle',
-        symbol,
-        exchange: selectedExchange,
-        timeframe: selectedTimeframe,
-      });
+      socket.off('connect', doSubscribe);
+      if (socket.connected) {
+        socket.emit('unsubscribe', {
+          channel: 'candle',
+          symbol,
+          exchange: selectedExchange,
+          timeframe: selectedTimeframe,
+        });
+      }
     };
   }, [symbol, selectedExchange, selectedTimeframe]);
 
@@ -213,7 +216,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
 
       try {
         const resp = await fetch(
-          `/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
+          `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
         );
         if (!cancelled && resp.ok) {
           const data = await resp.json();
@@ -254,7 +257,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
         try {
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
           const resp = await fetch(
-            `/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300&endTime=${endTime}`
+            `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300&endTime=${endTime}`
           );
           if (!resp.ok) { loadingMoreRef.current = false; return; }
 

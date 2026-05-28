@@ -34,7 +34,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
   private connectedExchanges = new Set<ExchangeId>();
   private subscribedSymbols = new Set<string>();
-  private subscribedCandles = new Set<string>();
+  private subscribedCandles = new Map<string, { symbol: string; timeframe: Timeframe; exchange?: ExchangeId }>();
 
   constructor(
     private readonly db: DatabaseService,
@@ -55,6 +55,11 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       // Re-subscribe active symbols
       for (const symbol of this.subscribedSymbols) {
         this.exchangeManager.subscribeTicker(symbol, [id]);
+      }
+      for (const sub of this.subscribedCandles.values()) {
+        if (!sub.exchange || sub.exchange === id) {
+          this.exchangeManager.subscribeCandle(sub.symbol, sub.timeframe, [id]);
+        }
       }
     });
     this.exchangeManager.on('exchange_disconnected', (id: ExchangeId) => {
@@ -112,6 +117,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
     // Publish to Redis for WebSocket relay
     this.db.publish('ticker', ticker);
+    this.gateway?.broadcastTicker(ticker);
   }
 
   private handleCandle(candle: Candle & { symbol: string; exchange?: ExchangeId; timeframe?: Timeframe; finalized?: boolean }) {
@@ -273,14 +279,14 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   }
 
   subscribeCandle(symbol: string, timeframe: Timeframe, exchange?: ExchangeId): void {
-    const key = `${symbol}:${timeframe}:${exchange || 'all'}`;
+    const key = JSON.stringify([symbol, timeframe, exchange || 'all']);
     if (this.subscribedCandles.has(key)) return;
-    this.subscribedCandles.add(key);
+    this.subscribedCandles.set(key, { symbol, timeframe, exchange });
     this.exchangeManager.subscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe, exchange?: ExchangeId): void {
-    const key = `${symbol}:${timeframe}:${exchange || 'all'}`;
+    const key = JSON.stringify([symbol, timeframe, exchange || 'all']);
     this.subscribedCandles.delete(key);
     this.exchangeManager.unsubscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
   }
