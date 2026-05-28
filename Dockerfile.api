@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -12,18 +12,9 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 
-RUN npm run build && echo "=== apps/api contents ===" && ls -la apps/api/ && echo "=== dist contents ===" && ls -la apps/api/dist/ || echo "NO DIST FOUND"
+RUN npm run build
 
-FROM node:20-alpine
-
-WORKDIR /app
-
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/apps/api ./apps/api
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+RUN ls -la apps/api/dist/ || (echo "ERROR: dist not found" && exit 1)
 
 EXPOSE 3001
 
