@@ -187,7 +187,7 @@ export function ScreenerView() {
         <div className="flex-1 overflow-y-auto">
           {sortedSymbols.map((symbol) => {
             const ticker = getTicker(symbol, selectedExchange);
-            const isPositive = ticker ? ticker.priceChangePercent24h >= 0 : true;
+            const isPositive = ticker ? (ticker.priceChangePercent24h ?? 0) >= 0 : true;
             const base = symbol.split('/')[0];
 
             return (
@@ -219,7 +219,7 @@ export function ScreenerView() {
                   {ticker ? (
                     <span className={`inline-flex items-center gap-1 text-xs font-bold font-mono ${isPositive ? 'text-positive' : 'text-negative'}`}>
                       {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      {isPositive ? '+' : ''}{ticker.priceChangePercent24h.toFixed(2)}%
+                      {isPositive ? '+' : ''}{(ticker.priceChangePercent24h ?? 0).toFixed(2)}%
                     </span>
                   ) : (
                     <span className="text-xs text-text-muted">—</span>

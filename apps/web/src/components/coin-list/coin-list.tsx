@@ -119,7 +119,7 @@ function CoinDetailModal({
 }: {
   symbol: string; exchange: ExchangeId; ticker: any; coin: CoinInfo; onClose: () => void;
 }) {
-  const isPositive = ticker?.priceChangePercent24h >= 0;
+  const isPositive = (ticker?.priceChangePercent24h ?? 0) >= 0;
 
   return (
     <motion.div
@@ -346,7 +346,7 @@ export function CoinList() {
             const ticker = getTicker(symbol, selectedExchange);
             const coin = COINS[symbol];
             if (!coin) return null;
-            const isPositive = ticker ? ticker.priceChangePercent24h >= 0 : true;
+            const isPositive = ticker ? (ticker.priceChangePercent24h ?? 0) >= 0 : true;
             const prevPrice = prevPrices.get(symbol);
             const priceChanged = ticker && prevPrice && ticker.price !== prevPrice;
             const priceDir = ticker && prevPrice ? (ticker.price > prevPrice ? 'up' : 'down') : null;
@@ -381,7 +381,7 @@ export function CoinList() {
                 <div className="w-[65px] text-right">
                   {ticker ? (
                     <span className={`text-xs font-bold font-mono ${isPositive ? 'text-positive' : 'text-negative'}`}>
-                      {isPositive ? '+' : ''}{ticker.priceChangePercent24h.toFixed(2)}%
+                      {isPositive ? '+' : ''}{(ticker.priceChangePercent24h ?? 0).toFixed(2)}%
                     </span>
                   ) : (
                     <span className="text-xs text-text-muted">—</span>
