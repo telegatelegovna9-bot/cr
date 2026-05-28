@@ -36,6 +36,7 @@ export abstract class BaseExchangeConnector extends EventEmitter {
   protected heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   protected connected = false;
   protected subscriptions = new Set<string>();
+  private reconnectBlocked = false;
 
   // Rate limiting
   private requestTimes: number[] = [];
@@ -99,11 +100,11 @@ export abstract class BaseExchangeConnector extends EventEmitter {
   // WebSocket helpers
   protected setupWebSocket(ws: import('ws').WebSocket): void {
     this.ws = ws;
-    this.connected = true;
-    this.reconnectAttempts = 0;
 
     ws.on('open', () => {
       this.connected = true;
+      this.reconnectAttempts = 0;
+      this.reconnectBlocked = false;
       this.emit('connected');
       this.startHeartbeat();
     });
@@ -159,6 +160,7 @@ export abstract class BaseExchangeConnector extends EventEmitter {
   }
 
   private scheduleReconnect(): void {
+    if (this.reconnectBlocked) return;
     if (this.reconnectAttempts >= WS_MAX_RECONNECT_ATTEMPTS) {
       this.emit('max_reconnect');
       return;
@@ -171,6 +173,10 @@ export abstract class BaseExchangeConnector extends EventEmitter {
       this.emit('reconnecting', this.reconnectAttempts);
       this.connectWS().catch(err => this.emit('error', err));
     }, delay);
+  }
+
+  protected blockReconnect(): void {
+    this.reconnectBlocked = true;
   }
 
   // Utility

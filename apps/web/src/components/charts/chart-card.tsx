@@ -253,7 +253,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
 
       if (cancelled) return;
       setLoading(false);
-      setTimeout(() => { readyRef.current = true; }, 600);
+      setTimeout(() => { readyRef.current = true; }, 200);
 
       const handleRangeChange = async (range: any) => {
         if (!range || !readyRef.current || loadingMoreRef.current || !oldestTimeRef.current) return;

@@ -14,7 +14,6 @@ import {
   Activity,
   Zap,
 } from 'lucide-react';
-
 const GRID_OPTIONS = [
   { size: 1 as const, label: '1', icon: Square },
   { size: 4 as const, label: '4', icon: Grid2x2 },
@@ -41,7 +40,7 @@ const SORT_OPTIONS: { id: SortMode; label: string; icon: typeof TrendingUp }[] =
 export function ChartGrid() {
   const { chartGridSize, setChartGridSize } = useUIStore();
   const selectedExchange = useMarketStore(state => state.selectedExchange);
-  const getTicker = useMarketStore(state => state.getTicker);
+  const tickers = useMarketStore(state => state.tickers);
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
 
@@ -50,8 +49,8 @@ export function ChartGrid() {
 
     return [...ALL_SYMBOLS]
       .sort((a, b) => {
-        const ta = getTicker(a, selectedExchange);
-        const tb = getTicker(b, selectedExchange);
+        const ta = tickers.get(`${selectedExchange}:${a}`);
+        const tb = tickers.get(`${selectedExchange}:${b}`);
         switch (sortMode) {
           case 'gainers': return (tb?.priceChangePercent24h ?? 0) - (ta?.priceChangePercent24h ?? 0);
           case 'losers':  return (ta?.priceChangePercent24h ?? 0) - (tb?.priceChangePercent24h ?? 0);
@@ -61,7 +60,7 @@ export function ChartGrid() {
         }
       })
       .slice(0, chartGridSize);
-  }, [sortMode, chartGridSize, getTicker, selectedExchange]);
+  }, [sortMode, chartGridSize, tickers, selectedExchange]);
 
   const gridClass = chartGridSize === 1
     ? 'grid-cols-1 grid-rows-1'

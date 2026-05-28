@@ -29,6 +29,13 @@ export class BinanceConnector extends BaseExchangeConnector {
     const spotReady = new Promise<void>((resolve, reject) => {
       ws.on('open', () => resolve());
       ws.on('error', (err) => reject(err));
+      // 451 = geo-blocked, no point retrying
+      ws.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
+        if (res.statusCode === 451) {
+          this.blockReconnect();
+          reject(new Error(`Binance blocked (HTTP 451)`));
+        }
+      });
     });
 
     const futuresWs = new WebSocket('wss://fstream.binance.com/ws');
@@ -52,6 +59,10 @@ export class BinanceConnector extends BaseExchangeConnector {
         this.futuresSubscriptions.clear();
       });
       futuresWs.on('error', (err: Error) => this.emit('error', err));
+      futuresWs.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
+        if (res.statusCode === 451) this.blockReconnect();
+        resolve();
+      });
     });
 
     await Promise.allSettled([spotReady, futuresReady]);
