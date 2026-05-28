@@ -23,7 +23,7 @@ ENV NEXT_PUBLIC_WS_URL=""
 RUN cd apps/web && npx next build
 
 # Find Next.js standalone server.js and copy static/public assets next to it
-RUN WEB_SERVER=$(find apps/web/.next/standalone -name "server.js" | head -1) && \
+RUN WEB_SERVER=$(find apps/web/.next/standalone -name "server.js" -not -path "*/node_modules/*" | head -1) && \
     echo "Found Next.js server at: $WEB_SERVER" && \
     WEB_DIR=$(dirname "$WEB_SERVER") && \
     cp -r apps/web/.next/static "$WEB_DIR/.next/static" && \
