@@ -66,6 +66,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async runMigrations() {
+    // Drop tables with potentially incompatible schema before recreating
+    await this.query(`
+      DROP TABLE IF EXISTS alert_rules CASCADE;
+      DROP TABLE IF EXISTS watchlists CASCADE;
+      DROP TABLE IF EXISTS users CASCADE;
+    `);
+
     await this.query(`
       CREATE TABLE IF NOT EXISTS candles (
         id BIGSERIAL,
