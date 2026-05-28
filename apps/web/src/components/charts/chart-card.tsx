@@ -15,7 +15,6 @@ interface ChartCardProps {
   isModal?: boolean;
 }
 
-// How many candles to show in the initial view
 const INITIAL_VISIBLE_CANDLES = 100;
 
 function isValidCandle(k: any): boolean {
@@ -62,12 +61,95 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   const readyRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
 
+  // Refs that the socket candle handler reads — avoids stale closures
+  const activeTimeframeRef = useRef('');
+  const activeExchangeRef = useRef('');
+
   const { selectedExchange, selectedTimeframe, getTicker } = useMarketStore();
   const [loading, setLoading] = useState(true);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
 
   const ticker = getTicker(symbol, selectedExchange);
+
+  // Keep refs in sync with current values
+  useEffect(() => {
+    activeTimeframeRef.current = selectedTimeframe;
+    activeExchangeRef.current = selectedExchange;
+  }, [selectedTimeframe, selectedExchange]);
+
+  // ── Create socket ONCE per symbol (not per TF) ────────────
+  // Subscriptions change on TF/exchange change, socket stays alive.
+  useEffect(() => {
+    const socket = io('/market', {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+    });
+    socketRef.current = socket;
+
+    socket.on('candle', (candle: any) => {
+      if (candle.symbol !== symbol) return;
+      // Use refs to always read current TF — avoids stale closure after TF switch
+      if (candle.timeframe && candle.timeframe !== activeTimeframeRef.current) return;
+      if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+
+      const { open, high, low, close, volume, timestamp } = candle;
+      if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
+      if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return;
+
+      const time = (timestamp / 1000) as Time;
+      try {
+        candleSeriesRef.current.update({ time, open, high, low, close });
+        volumeSeriesRef.current.update({
+          time,
+          value: volume ?? 0,
+          color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+        });
+        setCurrentPrice(close);
+      } catch {
+        // chart may be transitioning
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [symbol]); // Only recreate socket when symbol changes
+
+  // ── Subscribe/unsubscribe when TF or exchange changes ─────
+  // Same socket, just change the subscription.
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    const doSubscribe = () => {
+      socket.emit('subscribe', {
+        channel: 'candle',
+        symbol,
+        exchange: selectedExchange,
+        timeframe: selectedTimeframe,
+      });
+    };
+
+    if (socket.connected) {
+      doSubscribe();
+    } else {
+      socket.once('connect', doSubscribe);
+    }
+
+    return () => {
+      // Unsubscribe from old TF before subscribing to new one
+      socket.emit('unsubscribe', {
+        channel: 'candle',
+        symbol,
+        exchange: selectedExchange,
+        timeframe: selectedTimeframe,
+      });
+    };
+  }, [symbol, selectedExchange, selectedTimeframe]);
 
   // ── Init chart + load history via REST ────────────────────
   useEffect(() => {
@@ -128,7 +210,6 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
       chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
       volumeSeriesRef.current = volumeSeries;
 
-      // Load initial history via REST
       try {
         const resp = await fetch(
           `/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
@@ -144,11 +225,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
               volumeSeries.setData(volumes);
               oldestTimeRef.current = raw[0].timestamp / 1000;
 
-              // Show last INITIAL_VISIBLE_CANDLES candles with a small right margin
-              // This gives a proper initial view regardless of total candle count
+              // Show last INITIAL_VISIBLE_CANDLES with small right margin
               const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
-              const to = candles.length + 3;
-              chart.timeScale().setVisibleLogicalRange({ from, to });
+              chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
 
               const lastRaw = raw[raw.length - 1];
               setCurrentPrice(lastRaw.close);
@@ -164,11 +243,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
 
       if (cancelled) return;
       setLoading(false);
-
-      // Enable historical scroll after a short delay to avoid firing on initial render
       setTimeout(() => { readyRef.current = true; }, 600);
 
-      // Historical scroll: load older candles when user scrolls to left edge
       const handleRangeChange = async (range: any) => {
         if (!range || !readyRef.current || loadingMoreRef.current || !oldestTimeRef.current) return;
         if (range.from > 5) return;
@@ -225,66 +301,6 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, []);
-
-  // ── Socket.IO: real-time candle updates via backend relay ──
-  // Backend subscribes once to Binance WS per symbol/timeframe and
-  // broadcasts to all connected clients — scales to many users.
-  useEffect(() => {
-    const socket = io('/market', {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionAttempts: Infinity,
-    });
-    socketRef.current = socket;
-
-    const doSubscribe = () => {
-      socket.emit('subscribe', {
-        channel: 'candle',
-        symbol,
-        exchange: selectedExchange,
-        timeframe: selectedTimeframe,
-      });
-    };
-
-    socket.on('connect', doSubscribe);
-    socket.on('reconnect', doSubscribe);
-
-    socket.on('candle', (candle: any) => {
-      if (candle.symbol !== symbol) return;
-      // Filter by timeframe (candle.timeframe is Binance interval e.g. "1h")
-      if (candle.timeframe && candle.timeframe !== selectedTimeframe) return;
-      if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
-
-      const { open, high, low, close, volume, timestamp } = candle;
-      if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
-      if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return;
-
-      const time = (timestamp / 1000) as Time;
-      try {
-        candleSeriesRef.current.update({ time, open, high, low, close });
-        volumeSeriesRef.current.update({
-          time,
-          value: volume ?? 0,
-          color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
-        });
-        setCurrentPrice(close);
-      } catch {
-        // chart may be transitioning
-      }
-    });
-
-    return () => {
-      socket.emit('unsubscribe', {
-        channel: 'candle',
-        symbol,
-        exchange: selectedExchange,
-        timeframe: selectedTimeframe,
-      });
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [symbol, selectedExchange, selectedTimeframe]);
 
   const livePrice = ticker?.price ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
