@@ -15,7 +15,7 @@ export default function TerminalPage() {
   const { viewMode } = useUIStore();
   const { setTickers } = useMarketStore();
   const { setConnected, setReconnecting, setError } = useWSStore();
-  const { addTriggeredAlert } = useAlertStore();
+  const { addTriggeredAlert, config: alertConfig } = useAlertStore();
   const [wsReady, setWsReady] = useState(false);
 
   // ─── WebSocket Connection ────────────────────────────────
