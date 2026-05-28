@@ -9,18 +9,21 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1w',
 };
 
+const BINANCE_SPOT_WS_URL = 'wss://data-stream.binance.vision:443/ws';
+const BINANCE_SPOT_REST_URL = 'https://data-api.binance.vision';
+const BINANCE_FUTURES_WS_URL = 'wss://fstream.binance.com/ws';
+const BINANCE_FUTURES_REST_URL = 'https://fapi.binance.com';
+
 export class BinanceConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
-  private spotKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
-  private futuresKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super({
       id: 'binance',
-      wsUrl: 'wss://stream.binance.com:9443/ws',
-      restUrl: 'https://api.binance.com',
+      wsUrl: BINANCE_SPOT_WS_URL,
+      restUrl: BINANCE_SPOT_REST_URL,
       rateLimit: 1200,
     });
   }
@@ -31,9 +34,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     // ── Spot WebSocket ─────────────────────────────────────────────────────
     const ws = new WebSocket(this.wsUrl);
     this.setupWebSocket(ws); // registers open/close/message/error lifecycle handlers
-    ws.on('open', () => this.startSpotKeepAlive());
     ws.on('close', (code: number, reason: Buffer) => {
-      this.stopSpotKeepAlive();
       console.warn(`[binance] Spot WS closed code=${code} reason=${reason.toString() || 'n/a'}`);
     });
     ws.on('error', (err: Error) => {
@@ -50,12 +51,11 @@ export class BinanceConnector extends BaseExchangeConnector {
     });
 
     // ── Futures WebSocket ──────────────────────────────────────────────────
-    const futuresWs = new WebSocket('wss://fstream.binance.com/ws');
+    const futuresWs = new WebSocket(BINANCE_FUTURES_WS_URL);
     this.futuresWs = futuresWs;
 
     futuresWs.on('open', () => {
       this.futuresConnected = true;
-      this.startFuturesKeepAlive();
     });
     futuresWs.on('message', (data: Buffer) => {
       try {
@@ -67,10 +67,8 @@ export class BinanceConnector extends BaseExchangeConnector {
     futuresWs.on('close', () => {
       this.futuresConnected = false;
       this.futuresSubscriptions.clear();
-      this.stopFuturesKeepAlive();
     });
     futuresWs.on('error', (err: Error) => {
-      this.stopFuturesKeepAlive();
       console.warn(`[binance] Futures WS error: ${err.message}`);
     });
     futuresWs.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
@@ -284,8 +282,8 @@ export class BinanceConnector extends BaseExchangeConnector {
   // REST API methods
   async fetchTickers(symbols?: string[]): Promise<Ticker[]> {
     const [spotRes, futuresRes] = await Promise.allSettled([
-      fetch(`${this.restUrl}/api/v3/ticker/24hr`).then(r => r.json()) as Promise<Record<string, unknown>[]>,
-      fetch('https://fapi.binance.com/fapi/v1/ticker/24hr').then(r => r.json()) as Promise<Record<string, unknown>[]>,
+      this.fetchArray<Record<string, unknown>>(`${this.restUrl}/api/v3/ticker/24hr`, 'spot tickers'),
+      this.fetchArray<Record<string, unknown>>(`${BINANCE_FUTURES_REST_URL}/fapi/v1/ticker/24hr`, 'futures tickers'),
     ]);
 
     const results: Ticker[] = [];
@@ -350,12 +348,12 @@ export class BinanceConnector extends BaseExchangeConnector {
     // For futures: BTC/USDT:USDT -> BTCUSDT, for spot: BTC/USDT -> BTCUSDT
     const local = this.toBinanceSymbol(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
-    const baseUrl = isFutures ? 'https://fapi.binance.com' : this.restUrl;
+    const baseUrl = isFutures ? BINANCE_FUTURES_REST_URL : this.restUrl;
     const path = isFutures ? '/fapi/v1/klines' : '/api/v3/klines';
     let url = `${baseUrl}${path}?symbol=${local}&interval=${tf}&limit=${limit}`;
     if (endTime) url += `&endTime=${endTime}`;
 
-    const data = await fetch(url).then(r => r.json());
+    const data = await this.fetchArray<unknown[]>(url, `${symbol} ${timeframe} candles`);
     if (!Array.isArray(data)) return [];
 
     return (data as unknown[][]).map((k: unknown[]): Candle => ({
@@ -415,8 +413,6 @@ export class BinanceConnector extends BaseExchangeConnector {
 
   disconnect(): void {
     super.disconnect();
-    this.stopSpotKeepAlive();
-    this.stopFuturesKeepAlive();
     if (this.futuresWs) {
       this.futuresWs.removeAllListeners();
       this.futuresWs.close();
@@ -426,35 +422,22 @@ export class BinanceConnector extends BaseExchangeConnector {
     this.futuresSubscriptions.clear();
   }
 
-  private startSpotKeepAlive(): void {
-    this.stopSpotKeepAlive();
-    this.spotKeepAliveTimer = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.ping();
-      }
-    }, 20_000);
-  }
+  private async fetchArray<T>(url: string, label: string): Promise<T[]> {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
 
-  private stopSpotKeepAlive(): void {
-    if (this.spotKeepAliveTimer) {
-      clearInterval(this.spotKeepAliveTimer);
-      this.spotKeepAliveTimer = null;
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`[binance] Failed to fetch ${label}: HTTP ${response.status} ${body.slice(0, 200)}`);
     }
-  }
 
-  private startFuturesKeepAlive(): void {
-    this.stopFuturesKeepAlive();
-    this.futuresKeepAliveTimer = setInterval(() => {
-      if (this.futuresWs && this.futuresWs.readyState === WebSocket.OPEN) {
-        this.futuresWs.ping();
-      }
-    }, 20_000);
-  }
-
-  private stopFuturesKeepAlive(): void {
-    if (this.futuresKeepAliveTimer) {
-      clearInterval(this.futuresKeepAliveTimer);
-      this.futuresKeepAliveTimer = null;
+    const data = await response.json();
+    if (!Array.isArray(data)) {
+      throw new Error(`[binance] Failed to fetch ${label}: unexpected response`);
     }
+
+    return data as T[];
   }
 }
