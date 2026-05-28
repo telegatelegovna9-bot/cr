@@ -74,7 +74,6 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
   const ticker = useMarketStore(state => state.tickers.get(`${state.selectedExchange}:${symbol}`));
-  const exchangeConnected = useMarketStore(state => state.connectedExchanges.includes(state.selectedExchange));
   const [loading, setLoading] = useState(true);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
@@ -334,7 +333,6 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
 
   const livePrice = ticker?.price ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
-  const hasLivePrice = Boolean(ticker && exchangeConnected);
   const isPositive = (liveChange ?? 0) >= 0;
   const base = symbol.split('/')[0];
 
@@ -367,7 +365,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         <div className="flex items-center gap-2">
           {livePrice != null && (
             <div className="text-right mr-2">
-              <div className={`text-sm font-bold font-mono ${hasLivePrice ? 'text-text-primary' : 'text-warning'}`}>
+              <div className="text-sm font-bold font-mono text-text-primary">
                 ${livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
               </div>
               {liveChange != null && (
