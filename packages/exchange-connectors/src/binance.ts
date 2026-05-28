@@ -184,40 +184,78 @@ export class BinanceConnector extends BaseExchangeConnector {
 
   // REST API methods
   async fetchTickers(symbols?: string[]): Promise<Ticker[]> {
-    const data = await fetch(`${this.restUrl}/api/v3/ticker/24hr`).then(r => r.json()) as Record<string, unknown>[];
+    const [spotRes, futuresRes] = await Promise.allSettled([
+      fetch(`${this.restUrl}/api/v3/ticker/24hr`).then(r => r.json()) as Promise<Record<string, unknown>[]>,
+      fetch('https://fapi.binance.com/fapi/v1/ticker/24hr').then(r => r.json()) as Promise<Record<string, unknown>[]>,
+    ]);
 
-    return data
-      .filter((t: Record<string, unknown>) => {
-        const sym = t.symbol as string;
-        if (!sym.endsWith('USDT')) return false;
-        if (symbols) {
-          const normalized = normalizeSymbol(sym, 'binance');
-          return symbols.includes(normalized);
-        }
-        return true;
-      })
-      .map((t: Record<string, unknown>): Ticker => ({
-        symbol: normalizeSymbol(t.symbol as string, 'binance'),
-        exchange: 'binance',
-        price: parseFloat(t.lastPrice as string),
-        priceChange24h: parseFloat(t.priceChange as string),
-        priceChangePercent24h: parseFloat(t.priceChangePercent as string),
-        high24h: parseFloat(t.highPrice as string),
-        low24h: parseFloat(t.lowPrice as string),
-        volume24h: parseFloat(t.volume as string),
-        quoteVolume24h: parseFloat(t.quoteVolume as string),
-        trades24h: parseInt(t.count as string, 10),
-        bid: parseFloat(t.bidPrice as string),
-        ask: parseFloat(t.askPrice as string),
-        spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
-        lastUpdate: Date.now(),
-      }));
+    const results: Ticker[] = [];
+
+    if (spotRes.status === 'fulfilled') {
+      const spot = spotRes.value
+        .filter(t => (t.symbol as string).endsWith('USDT'))
+        .map((t): Ticker => ({
+          symbol: normalizeSymbol(t.symbol as string, 'binance'),
+          exchange: 'binance',
+          price: parseFloat(t.lastPrice as string),
+          priceChange24h: parseFloat(t.priceChange as string),
+          priceChangePercent24h: parseFloat(t.priceChangePercent as string),
+          high24h: parseFloat(t.highPrice as string),
+          low24h: parseFloat(t.lowPrice as string),
+          volume24h: parseFloat(t.volume as string),
+          quoteVolume24h: parseFloat(t.quoteVolume as string),
+          trades24h: parseInt(t.count as string, 10),
+          bid: parseFloat(t.bidPrice as string),
+          ask: parseFloat(t.askPrice as string),
+          spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
+          lastUpdate: Date.now(),
+        }));
+      results.push(...spot);
+    }
+
+    if (futuresRes.status === 'fulfilled') {
+      const futures = futuresRes.value
+        .filter(t => (t.symbol as string).endsWith('USDT'))
+        .map((t): Ticker => {
+          const raw = t.symbol as string;
+          // BTCUSDT -> BTC/USDT:USDT (CCXT perpetual format)
+          const base = raw.slice(0, -4);
+          const symbol = `${base}/USDT:USDT`;
+          const lastPrice = parseFloat(t.lastPrice as string);
+          return {
+            symbol,
+            exchange: 'binance',
+            price: lastPrice,
+            priceChange24h: parseFloat(t.priceChange as string),
+            priceChangePercent24h: parseFloat(t.priceChangePercent as string),
+            high24h: parseFloat(t.highPrice as string),
+            low24h: parseFloat(t.lowPrice as string),
+            volume24h: parseFloat(t.volume as string),
+            quoteVolume24h: parseFloat(t.quoteVolume as string),
+            trades24h: parseInt(t.count as string, 10),
+            bid: lastPrice,
+            ask: lastPrice,
+            spread: 0,
+            lastUpdate: Date.now(),
+          };
+        });
+      results.push(...futures);
+    }
+
+    if (symbols) return results.filter(t => symbols.includes(t.symbol));
+    return results;
   }
 
   async fetchCandles(symbol: string, timeframe: Timeframe, limit = 500, endTime?: number): Promise<Candle[]> {
-    const local = this.toLocalSymbol(symbol);
+    const isFutures = symbol.includes(':USDT');
+    // For futures: BTC/USDT:USDT -> BTCUSDT, for spot: BTC/USDT -> BTCUSDT
+    const local = isFutures
+      ? symbol.split('/')[0] + 'USDT'
+      : this.toLocalSymbol(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
-    let url = `${this.restUrl}/api/v3/klines?symbol=${local}&interval=${tf}&limit=${limit}`;
+    const baseUrl = isFutures ? 'https://fapi.binance.com' : this.restUrl;
+    const path = isFutures ? '/fapi/v1/klines' : '/api/v3/klines';
+    let url = `${baseUrl}${path}?symbol=${local}&interval=${tf}&limit=${limit}`;
     if (endTime) url += `&endTime=${endTime}`;
 
     const data = await fetch(url).then(r => r.json()) as unknown[];
