@@ -4,6 +4,7 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "./dist",
+    "noEmit": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "target": "ES2022",
