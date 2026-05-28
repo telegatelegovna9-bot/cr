@@ -75,6 +75,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   const loadingMoreRef = useRef(false);
   const readyRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
+  // Only true after a WS candle has arrived — prevents ticker from spiking REST candles
+  const wsEstablishedRef = useRef(false);
 
   const { selectedExchange, selectedTimeframe, getTicker } = useMarketStore();
   const [loading, setLoading] = useState(true);
@@ -92,6 +94,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     oldestTimeRef.current = null;
     allRawRef.current = [];
     loadingMoreRef.current = false;
+    wsEstablishedRef.current = false;
 
     if (chartRef.current) {
       chartRef.current.remove();
@@ -295,6 +298,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
             open: candle.open, high: candle.high, low: candle.low, close: candle.close,
             volume: candle.volume ?? 0,
           };
+          wsEstablishedRef.current = true; // WS candle received — ticker updates now safe
           setCurrentPrice(candle.close);
         }
       } catch {
@@ -310,8 +314,10 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   }, [symbol, selectedExchange, selectedTimeframe]);
 
   // ── Intra-candle update from ticker (fills gaps between WS events) ──
-  // Ticker updates every ~1s from the exchange WS ticker stream
+  // Only fires after WS has established the current candle — prevents
+  // ticker from spiking the last REST candle (which may be hours old)
   useEffect(() => {
+    if (!wsEstablishedRef.current) return;
     if (!candleSeriesRef.current || !ticker?.price || !lastCandleRef.current) return;
 
     const price = ticker.price;
