@@ -48,7 +48,7 @@ export function SettingsView() {
   };
 
   return (
-    <div className="h-full flex flex-col p-3 gap-3">
+    <div className="h-full w-full flex flex-col p-3 gap-3 overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-3 shrink-0">
         <div className="w-9 h-9 rounded-xl bg-accent/15 flex items-center justify-center">
