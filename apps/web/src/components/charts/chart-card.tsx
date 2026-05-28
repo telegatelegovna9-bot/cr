@@ -5,6 +5,7 @@ import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-ch
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
 import { io, Socket } from 'socket.io-client';
 import { useMarketStore } from '@/stores';
+import type { MarketType } from '@/stores';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 
@@ -22,7 +23,19 @@ const WS_URL = process.env.NEXT_PUBLIC_WS_URL
   || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
   || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
-const INITIAL_VISIBLE_CANDLES = 100;
+const INITIAL_VISIBLE_CANDLES = 500;
+
+/**
+ * Convert spot symbol to futures symbol format.
+ * BinanceConnector uses `:USDT` suffix to detect futures.
+ * e.g. "BTC/USDT" → "BTC/USDT:USDT"
+ */
+function toFuturesSymbol(symbol: string): string {
+  if (symbol.endsWith(':USDT')) return symbol;
+  if (symbol.endsWith('/USDT')) return symbol + ':USDT';
+  // For other quote currencies, append :USDT as well (Binance futures are USDT-margined)
+  return symbol + ':USDT';
+}
 
 function isValidCandle(k: any): boolean {
   return (
@@ -72,20 +85,26 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
   // Refs that the socket candle handler reads — avoids stale closures
   const activeTimeframeRef = useRef('');
   const activeExchangeRef = useRef('');
+  const activeMarketTypeRef = useRef<MarketType>('spot');
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
+  const marketType = useMarketStore(state => state.marketType);
   const ticker = useMarketStore(state => state.tickers.get(`${state.selectedExchange}:${symbol}`));
   const [loading, setLoading] = useState(!initialData || initialData.length === 0);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
 
+  // Compute the actual symbol to use for exchange operations
+  const exchangeSymbol = marketType === 'futures' ? toFuturesSymbol(symbol) : symbol;
+
   // Keep refs in sync with current values
   useEffect(() => {
     activeTimeframeRef.current = selectedTimeframe;
     activeExchangeRef.current = selectedExchange;
-  }, [selectedTimeframe, selectedExchange]);
+    activeMarketTypeRef.current = marketType;
+  }, [selectedTimeframe, selectedExchange, marketType]);
 
   // ── Create socket ONCE per symbol (not per TF) ────────────
   // Subscriptions change on TF/exchange change, socket stays alive.
@@ -101,7 +120,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
     socketRef.current = socket;
 
     socket.on('candle', (candle: any) => {
-      if (candle.symbol !== symbol) return;
+      // Use the exchange symbol (futures or spot) for matching
+      if (candle.symbol !== exchangeSymbol) return;
       // Use refs to always read current TF — avoids stale closure after TF switch
       if (candle.timeframe !== activeTimeframeRef.current) return;
       if (candle.exchange && candle.exchange !== activeExchangeRef.current) return;
@@ -129,10 +149,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [symbol, paused]); // Only recreate socket when symbol or active state changes
+  }, [symbol, paused, marketType]); // Recreate socket when marketType changes
 
-  // ── Subscribe/unsubscribe when TF or exchange changes ─────
-  // Same socket, just change the subscription.
+  // ── Subscribe/unsubscribe when TF, exchange or marketType changes ─────
   useEffect(() => {
     if (paused) return;
 
@@ -142,9 +161,10 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
     const doSubscribe = () => {
       socket.emit('subscribe', {
         channel: 'candle',
-        symbol,
+        symbol: exchangeSymbol,
         exchange: selectedExchange,
         timeframe: selectedTimeframe,
+        marketType,
       });
     };
 
@@ -156,13 +176,13 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
       if (socket.connected) {
         socket.emit('unsubscribe', {
           channel: 'candle',
-          symbol,
+          symbol: exchangeSymbol,
           exchange: selectedExchange,
           timeframe: selectedTimeframe,
         });
       }
     };
-  }, [symbol, selectedExchange, selectedTimeframe, paused]);
+  }, [symbol, selectedExchange, selectedTimeframe, paused, marketType]);
 
   // ── Init chart + load history via REST ────────────────────
   useEffect(() => {
@@ -232,8 +252,10 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         if (initialData && initialData.length > 0) {
           raw = initialData;
         } else {
+          // Use exchangeSymbol for futures (BTC/USDT:USDT) or spot (BTC/USDT)
+          const urlSymbol = exchangeSymbol.replace('/', '-');
           const resp = await fetch(
-            `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
+            `${API_BASE}/api/market/candles/${urlSymbol}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=1500`
           );
           if (!cancelled && resp.ok) {
             const data = await resp.json();
@@ -277,8 +299,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         setLoadingHistory(true);
         try {
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
+          const urlSymbol = exchangeSymbol.replace('/', '-');
           const resp = await fetch(
-            `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300&endTime=${endTime}`
+            `${API_BASE}/api/market/candles/${urlSymbol}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=1500&endTime=${endTime}`
           );
           if (!resp.ok) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 
@@ -335,7 +358,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         volumeSeriesRef.current = null;
       }
     };
-  }, [symbol, selectedExchange, selectedTimeframe]);
+  }, [symbol, selectedExchange, selectedTimeframe, marketType]);
 
   // ── Resize observer ────────────────────────────────────────
   useEffect(() => {
@@ -362,6 +385,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
   const isPositive = (liveChange ?? 0) >= 0;
   const base = symbol.split('/')[0];
+  const displayLabel = marketType === 'futures' ? `${symbol}·F` : symbol;
 
   return (
     <motion.div
@@ -382,9 +406,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
             {base.charAt(0)}
           </div>
           <div>
-            <div className="text-xs font-bold text-text-primary">{symbol}</div>
+            <div className="text-xs font-bold text-text-primary">{displayLabel}</div>
             <div className="text-[10px] text-text-muted uppercase tracking-wider">
-              {selectedExchange} · {selectedTimeframe}
+              {selectedExchange}{marketType === 'futures' ? ' futures' : ''} · {selectedTimeframe}
             </div>
           </div>
         </div>

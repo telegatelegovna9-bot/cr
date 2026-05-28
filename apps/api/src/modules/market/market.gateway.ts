@@ -17,6 +17,7 @@ interface SubscribePayload {
   symbol?: string;
   exchange?: ExchangeId;
   timeframe?: Timeframe;
+  marketType?: string;
 }
 
 @WebSocketGateway({
