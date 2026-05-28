@@ -125,15 +125,15 @@ function CoinChartModal({ symbol, onClose }: { symbol: string; onClose: () => vo
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3"
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="w-full max-w-5xl h-[80vh]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.12 }}
+        className="w-full max-w-6xl h-[86vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <ChartCard symbol={symbol} index={0} onExpand={onClose} isModal />
@@ -210,7 +210,9 @@ export function CoinList() {
 
     // Fallback to known symbols if store is empty
     if (filtered.length === 0) {
-      filtered = Object.keys(COIN_META).map((base) => `${base}/USDT`);
+      filtered = Object.keys(COIN_META).map((base) =>
+        marketType === 'futures' ? `${base}/USDT:USDT` : `${base}/USDT`
+      );
     }
 
     return [...new Set(filtered)];

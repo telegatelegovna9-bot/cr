@@ -123,6 +123,7 @@ export function ChartGrid() {
             symbol={symbol}
             index={index}
             onExpand={() => setExpandedSymbol(symbol)}
+            paused={expandedSymbol === symbol}
           />
         ))}
       </div>
@@ -134,15 +135,15 @@ export function ChartGrid() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3"
             onClick={() => setExpandedSymbol(null)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-5xl h-[80vh]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
+              className="w-full max-w-6xl h-[86vh]"
               onClick={(e) => e.stopPropagation()}
             >
               <ChartCard

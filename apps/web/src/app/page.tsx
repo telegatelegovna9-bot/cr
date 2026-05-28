@@ -13,10 +13,12 @@ import { useUIStore, useMarketStore, useWSStore, useAlertStore } from '@/stores'
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL
   || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
+  || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
 
 export default function TerminalPage() {
   const { viewMode } = useUIStore();
-  const { setTickers, updateTicker } = useMarketStore();
+  const { setTickers, updateTicker, setConnectedExchanges } = useMarketStore();
   const { setConnected, setReconnecting, setError } = useWSStore();
   const { addTriggeredAlert, config: alertConfig } = useAlertStore();
   const [wsReady, setWsReady] = useState(false);
@@ -79,6 +81,28 @@ export default function TerminalPage() {
       socket.disconnect();
     };
   }, [setTickers, updateTicker, setConnected, setReconnecting, setError, addTriggeredAlert]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshExchanges = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/market/exchanges`);
+        if (!resp.ok || cancelled) return;
+        const data = await resp.json();
+        setConnectedExchanges(data.data?.connected ?? []);
+      } catch {
+        if (!cancelled) setConnectedExchanges([]);
+      }
+    };
+
+    refreshExchanges();
+    const interval = setInterval(refreshExchanges, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [setConnectedExchanges]);
 
   // ─── Request Notification Permission ─────────────────────
   useEffect(() => {

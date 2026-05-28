@@ -13,6 +13,7 @@ interface ChartCardProps {
   index: number;
   onExpand?: () => void;
   isModal?: boolean;
+  paused?: boolean;
 }
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL
@@ -54,7 +55,7 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
-export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCardProps) {
+export function ChartCard({ symbol, index, onExpand, isModal = false, paused = false }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -73,6 +74,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
   const ticker = useMarketStore(state => state.tickers.get(`${state.selectedExchange}:${symbol}`));
+  const exchangeConnected = useMarketStore(state => state.connectedExchanges.includes(state.selectedExchange));
   const [loading, setLoading] = useState(true);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
@@ -86,6 +88,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   // ── Create socket ONCE per symbol (not per TF) ────────────
   // Subscriptions change on TF/exchange change, socket stays alive.
   useEffect(() => {
+    if (paused) return;
+
     const socket = io(`${WS_URL}/market`, {
       transports: ['websocket', 'polling'],
       reconnection: true,
@@ -123,11 +127,13 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [symbol]); // Only recreate socket when symbol changes
+  }, [symbol, paused]); // Only recreate socket when symbol or active state changes
 
   // ── Subscribe/unsubscribe when TF or exchange changes ─────
   // Same socket, just change the subscription.
   useEffect(() => {
+    if (paused) return;
+
     const socket = socketRef.current;
     if (!socket) return;
 
@@ -154,7 +160,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
         });
       }
     };
-  }, [symbol, selectedExchange, selectedTimeframe]);
+  }, [symbol, selectedExchange, selectedTimeframe, paused]);
 
   // ── Init chart + load history via REST ────────────────────
   useEffect(() => {
@@ -328,12 +334,13 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
 
   const livePrice = ticker?.price ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
+  const hasLivePrice = Boolean(ticker && exchangeConnected);
   const isPositive = (liveChange ?? 0) >= 0;
   const base = symbol.split('/')[0];
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.97 }}
+      initial={isModal ? { opacity: 1 } : { opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.3, delay: index * 0.05 }}
       className="glass-card overflow-hidden flex flex-col relative ambient-glow h-full"
@@ -360,7 +367,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
         <div className="flex items-center gap-2">
           {livePrice != null && (
             <div className="text-right mr-2">
-              <div className="text-sm font-bold font-mono text-text-primary">
+              <div className={`text-sm font-bold font-mono ${hasLivePrice ? 'text-text-primary' : 'text-warning'}`}>
                 ${livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
               </div>
               {liveChange != null && (
