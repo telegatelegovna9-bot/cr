@@ -12,7 +12,7 @@ import {
   Globe,
 } from 'lucide-react';
 
-const EXCHANGES: ExchangeId[] = ['binance', 'bybit', 'okx', 'bitget', 'bingx', 'mexc'];
+const EXCHANGES: ExchangeId[] = ['binance', 'bybit', 'okx', 'bitget', 'mexc'];
 const TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
 // ─── Premium Toggle Component ────────────────────────────────

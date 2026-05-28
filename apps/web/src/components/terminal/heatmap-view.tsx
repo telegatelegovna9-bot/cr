@@ -26,7 +26,7 @@ const MARKET_CAP: Record<string, number> = {
   'JUP/USDT': 1e9, 'WIF/USDT': 1e9,
 };
 
-const EXCHANGES: ExchangeId[] = ['binance', 'bybit', 'okx', 'bitget', 'bingx', 'mexc'];
+const EXCHANGES: ExchangeId[] = ['binance', 'bybit', 'okx', 'bitget', 'mexc'];
 
 type HeatmapMode = 'price' | 'volume' | 'trades';
 type ExchangeFilter = ExchangeId | 'all';
