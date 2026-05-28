@@ -202,15 +202,6 @@ interface TriggeredAlert {
   triggeredAt: number;
 }
 
-interface AlertConfig {
-  soundEnabled: boolean;
-  browserNotifications: boolean;
-  visualFlash: boolean;
-  autoDismiss: boolean;
-  autoDismissSeconds: number;
-  timeframes: Timeframe[];
-}
-
 interface AlertStore {
   alerts: AlertEntry[];
   activeAlerts: TriggeredAlert[];
