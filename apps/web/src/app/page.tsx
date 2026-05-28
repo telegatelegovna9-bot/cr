@@ -119,7 +119,14 @@ export default function TerminalPage() {
   const renderView = () => {
     switch (viewMode) {
       case 'terminal':
-        return <CoinList />;
+        return (
+          <div className="flex h-full overflow-hidden">
+            <CoinList />
+            <div className="flex-1 min-w-0 h-full overflow-hidden">
+              <ChartGrid />
+            </div>
+          </div>
+        );
       case 'screener':
         return <ScreenerView />;
       case 'grid':
@@ -127,7 +134,14 @@ export default function TerminalPage() {
       case 'settings':
         return <SettingsView />;
       default:
-        return <CoinList />;
+        return (
+          <div className="flex h-full overflow-hidden">
+            <CoinList />
+            <div className="flex-1 min-w-0 h-full overflow-hidden">
+              <ChartGrid />
+            </div>
+          </div>
+        );
     }
   };
 
