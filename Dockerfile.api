@@ -12,7 +12,7 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 
-RUN npm run build
+RUN npm run build && echo "=== apps/api contents ===" && ls -la apps/api/ && echo "=== dist contents ===" && ls -la apps/api/dist/ || echo "NO DIST FOUND"
 
 FROM node:20-alpine
 
