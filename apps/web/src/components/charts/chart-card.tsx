@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
-import { io, Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { useMarketStore } from '@/stores';
+import { getMarketSocket, subscribeMarket, unsubscribeMarket } from '@/lib/market-socket';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 
@@ -15,11 +16,10 @@ interface ChartCardProps {
   isModal?: boolean;
 }
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL
-  || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
   || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
 const INITIAL_VISIBLE_CANDLES = 100;
+const candleCache = new Map<string, any[]>();
 
 function isValidCandle(k: any): boolean {
   return (
@@ -54,6 +54,16 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
+function cacheKey(exchange: string, symbol: string, timeframe: string): string {
+  return `${exchange}:${symbol}:${timeframe}`;
+}
+
+function mergeRawCandle(raw: any[], candle: any): any[] {
+  const next = raw.filter((k) => k.timestamp !== candle.timestamp);
+  next.push(candle);
+  return next.sort((a, b) => a.timestamp - b.timestamp).slice(-500);
+}
+
 export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -85,15 +95,10 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
   // ── Create socket ONCE per symbol (not per TF) ────────────
   // Subscriptions change on TF/exchange change, socket stays alive.
   useEffect(() => {
-    const socket = io(`${WS_URL}/market`, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionAttempts: Infinity,
-    });
+    const socket = getMarketSocket();
     socketRef.current = socket;
 
-    socket.on('candle', (candle: any) => {
+    const handleCandle = (candle: any) => {
       if (candle.symbol !== symbol) return;
       // Use refs to always read current TF — avoids stale closure after TF switch
       if (candle.timeframe !== activeTimeframeRef.current) return;
@@ -113,13 +118,17 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
           color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
         });
         setCurrentPrice(close);
+        const key = cacheKey(activeExchangeRef.current, symbol, activeTimeframeRef.current);
+        candleCache.set(key, mergeRawCandle(candleCache.get(key) || allRawRef.current, candle));
       } catch {
         // chart may be transitioning
       }
-    });
+    };
+
+    socket.on('candle', handleCandle);
 
     return () => {
-      socket.disconnect();
+      socket.off('candle', handleCandle);
       socketRef.current = null;
     };
   }, [symbol]); // Only recreate socket when symbol changes
@@ -130,30 +139,22 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
     const socket = socketRef.current;
     if (!socket) return;
 
-    const doSubscribe = () => {
-      socket.emit('subscribe', {
+    subscribeMarket({
+      channel: 'candle',
+      symbol,
+      exchange: selectedExchange,
+      timeframe: selectedTimeframe,
+    });
+
+    return () => {
+      unsubscribeMarket({
         channel: 'candle',
         symbol,
         exchange: selectedExchange,
         timeframe: selectedTimeframe,
       });
     };
-
-    socket.on('connect', doSubscribe);
-    if (socket.connected) doSubscribe();
-
-    return () => {
-      socket.off('connect', doSubscribe);
-      if (socket.connected) {
-        socket.emit('unsubscribe', {
-          channel: 'candle',
-          symbol,
-          exchange: selectedExchange,
-          timeframe: selectedTimeframe,
-        });
-      }
-    };
-  }, [symbol, selectedExchange, selectedTimeframe]);
+  }, [symbol, selectedExchange, selectedTimeframe, isModal]);
 
   // ── Init chart + load history via REST ────────────────────
   useEffect(() => {
@@ -214,15 +215,32 @@ export function ChartCard({ symbol, index, onExpand, isModal = false }: ChartCar
       chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
       volumeSeriesRef.current = volumeSeries;
 
+      const key = cacheKey(selectedExchange, symbol, selectedTimeframe);
+      const cachedRaw = candleCache.get(key);
+      if (cachedRaw?.length) {
+        allRawRef.current = cachedRaw;
+        const { candles, volumes } = buildCandles(cachedRaw);
+        if (candles.length > 0) {
+          candleSeries.setData(candles);
+          volumeSeries.setData(volumes);
+          oldestTimeRef.current = cachedRaw[0].timestamp / 1000;
+          const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
+          chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
+          setCurrentPrice(cachedRaw[cachedRaw.length - 1].close);
+          setLoading(false);
+        }
+      }
+
       try {
         const resp = await fetch(
-          `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
+          `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=${isModal ? 300 : 150}`
         );
         if (!cancelled && resp.ok) {
           const data = await resp.json();
           const raw: any[] = data.data || [];
           if (raw.length && !cancelled) {
             allRawRef.current = raw;
+            candleCache.set(key, raw);
             const { candles, volumes } = buildCandles(raw);
             if (candles.length > 0) {
               candleSeries.setData(candles);

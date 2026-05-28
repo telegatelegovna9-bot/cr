@@ -10,6 +10,11 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
 };
 
 export class BinanceConnector extends BaseExchangeConnector {
+  private futuresWs: WebSocket | null = null;
+  private futuresConnected = false;
+  private futuresReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private futuresSubscriptions = new Set<string>();
+
   constructor() {
     super({
       id: 'binance',
@@ -32,6 +37,84 @@ export class BinanceConnector extends BaseExchangeConnector {
     return null;
   }
 
+  private isFuturesSymbol(symbol: string): boolean {
+    return symbol.includes(':USDT');
+  }
+
+  private toFuturesLocalSymbol(symbol: string): string {
+    return `${symbol.split('/')[0]}USDT`.toLowerCase();
+  }
+
+  private ensureFuturesWS(): void {
+    if (this.futuresWs && (this.futuresConnected || this.futuresWs.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    const ws = new WebSocket('wss://fstream.binance.com/ws');
+    this.futuresWs = ws;
+
+    ws.on('open', () => {
+      this.futuresConnected = true;
+      for (const key of this.futuresSubscriptions) {
+        const [, symbol, timeframe] = JSON.parse(key) as [string, string, Timeframe];
+        this.sendFuturesSubscribe(symbol, timeframe as Timeframe);
+      }
+    });
+
+    ws.on('message', (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+        const eventType = msg.e as string;
+        if (eventType === 'kline') this.handleFuturesKline(msg);
+      } catch {
+        // ignore malformed exchange payloads
+      }
+    });
+
+    ws.on('close', (code: number, reason: Buffer) => {
+      this.futuresConnected = false;
+      console.warn('[binance:futures] websocket closed', code, reason.toString());
+      if (this.futuresSubscriptions.size > 0) {
+        this.futuresReconnectTimer = setTimeout(() => this.ensureFuturesWS(), 3000);
+      }
+    });
+
+    ws.on('error', (err: Error) => this.emit('error', err));
+  }
+
+  private sendFutures(data: unknown): void {
+    if (this.futuresWs && this.futuresConnected && this.futuresWs.readyState === WebSocket.OPEN) {
+      this.futuresWs.send(JSON.stringify(data));
+    }
+  }
+
+  private sendFuturesSubscribe(symbol: string, timeframe: Timeframe): void {
+    const local = this.toFuturesLocalSymbol(symbol);
+    const tf = TIMEFRAME_MAP[timeframe];
+    this.sendFutures({ method: 'SUBSCRIBE', params: [`${local}@kline_${tf}`], id: Date.now() });
+  }
+
+  private handleFuturesKline(data: Record<string, unknown>): void {
+    const k = data.k as Record<string, unknown>;
+    if (!k) return;
+    const raw = k.s as string;
+    const base = raw.slice(0, -4);
+    const candle: Candle & { symbol: string; timeframe: string; exchange: string; finalized: boolean } = {
+      symbol: `${base}/USDT:USDT`,
+      exchange: 'binance',
+      timeframe: k.i as string,
+      timestamp: k.t as number,
+      open: parseFloat(k.o as string),
+      high: parseFloat(k.h as string),
+      low: parseFloat(k.l as string),
+      close: parseFloat(k.c as string),
+      volume: parseFloat(k.v as string),
+      trades: parseInt(k.n as string, 10),
+      finalized: k.x as boolean,
+    };
+    this.emit('candle', candle);
+  }
+
   subscribeTicker(symbol: string): void {
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const key = `ticker:${symbol}`;
@@ -41,6 +124,15 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   subscribeCandle(symbol: string, timeframe: Timeframe): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const key = JSON.stringify(['futures-candle', symbol, timeframe]);
+      if (this.futuresSubscriptions.has(key)) return;
+      this.futuresSubscriptions.add(key);
+      this.ensureFuturesWS();
+      this.sendFuturesSubscribe(symbol, timeframe);
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const tf = TIMEFRAME_MAP[timeframe];
     const key = `candle:${symbol}:${timeframe}`;
@@ -72,6 +164,15 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const key = JSON.stringify(['futures-candle', symbol, timeframe]);
+      this.futuresSubscriptions.delete(key);
+      const local = this.toFuturesLocalSymbol(symbol);
+      const tf = TIMEFRAME_MAP[timeframe];
+      this.sendFutures({ method: 'UNSUBSCRIBE', params: [`${local}@kline_${tf}`], id: Date.now() });
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const tf = TIMEFRAME_MAP[timeframe];
     this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
@@ -291,5 +392,20 @@ export class BinanceConnector extends BaseExchangeConnector {
       asks: data.asks.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       timestamp: Date.now(),
     };
+  }
+
+  override disconnect(): void {
+    super.disconnect();
+    if (this.futuresReconnectTimer) {
+      clearTimeout(this.futuresReconnectTimer);
+      this.futuresReconnectTimer = null;
+    }
+    if (this.futuresWs) {
+      this.futuresWs.removeAllListeners();
+      this.futuresWs.close();
+      this.futuresWs = null;
+    }
+    this.futuresConnected = false;
+    this.futuresSubscriptions.clear();
   }
 }

@@ -36,12 +36,13 @@ export function normalizeSymbol(raw: string, exchange: ExchangeId): string {
  * Convert unified symbol to exchange-specific format
  */
 export function toExchangeSymbol(unified: string, exchange: ExchangeId): string {
-  const [base, quote] = unified.split('/');
+  const [base, quoteRaw] = unified.split('/');
+  const quote = quoteRaw?.split(':')[0];
   if (!base || !quote) return unified;
 
   switch (exchange) {
     case 'okx':
-      return `${base}-${quote}`;
+      return unified.includes(':') ? `${base}-${quote}-SWAP` : `${base}-${quote}`;
     case 'kucoin':
       return `${base}-${quote}`;
     default:
