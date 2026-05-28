@@ -13,6 +13,8 @@ export class BinanceConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
+  private spotKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  private futuresKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super({
@@ -29,6 +31,14 @@ export class BinanceConnector extends BaseExchangeConnector {
     // ── Spot WebSocket ─────────────────────────────────────────────────────
     const ws = new WebSocket(this.wsUrl);
     this.setupWebSocket(ws); // registers open/close/message/error lifecycle handlers
+    ws.on('open', () => this.startSpotKeepAlive());
+    ws.on('close', (code: number, reason: Buffer) => {
+      this.stopSpotKeepAlive();
+      console.warn(`[binance] Spot WS closed code=${code} reason=${reason.toString() || 'n/a'}`);
+    });
+    ws.on('error', (err: Error) => {
+      console.warn(`[binance] Spot WS error: ${err.message}`);
+    });
 
     ws.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
       if (res.statusCode === 451) {
@@ -43,7 +53,10 @@ export class BinanceConnector extends BaseExchangeConnector {
     const futuresWs = new WebSocket('wss://fstream.binance.com/ws');
     this.futuresWs = futuresWs;
 
-    futuresWs.on('open', () => { this.futuresConnected = true; });
+    futuresWs.on('open', () => {
+      this.futuresConnected = true;
+      this.startFuturesKeepAlive();
+    });
     futuresWs.on('message', (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString()) as Record<string, unknown>;
@@ -54,8 +67,12 @@ export class BinanceConnector extends BaseExchangeConnector {
     futuresWs.on('close', () => {
       this.futuresConnected = false;
       this.futuresSubscriptions.clear();
+      this.stopFuturesKeepAlive();
     });
-    futuresWs.on('error', () => { /* suppress unhandled-error crash */ });
+    futuresWs.on('error', (err: Error) => {
+      this.stopFuturesKeepAlive();
+      console.warn(`[binance] Futures WS error: ${err.message}`);
+    });
     futuresWs.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
       if (res.statusCode === 451) this.blockReconnect();
     });
@@ -398,6 +415,8 @@ export class BinanceConnector extends BaseExchangeConnector {
 
   disconnect(): void {
     super.disconnect();
+    this.stopSpotKeepAlive();
+    this.stopFuturesKeepAlive();
     if (this.futuresWs) {
       this.futuresWs.removeAllListeners();
       this.futuresWs.close();
@@ -405,5 +424,37 @@ export class BinanceConnector extends BaseExchangeConnector {
     }
     this.futuresConnected = false;
     this.futuresSubscriptions.clear();
+  }
+
+  private startSpotKeepAlive(): void {
+    this.stopSpotKeepAlive();
+    this.spotKeepAliveTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.ping();
+      }
+    }, 20_000);
+  }
+
+  private stopSpotKeepAlive(): void {
+    if (this.spotKeepAliveTimer) {
+      clearInterval(this.spotKeepAliveTimer);
+      this.spotKeepAliveTimer = null;
+    }
+  }
+
+  private startFuturesKeepAlive(): void {
+    this.stopFuturesKeepAlive();
+    this.futuresKeepAliveTimer = setInterval(() => {
+      if (this.futuresWs && this.futuresWs.readyState === WebSocket.OPEN) {
+        this.futuresWs.ping();
+      }
+    }, 20_000);
+  }
+
+  private stopFuturesKeepAlive(): void {
+    if (this.futuresKeepAliveTimer) {
+      clearInterval(this.futuresKeepAliveTimer);
+      this.futuresKeepAliveTimer = null;
+    }
   }
 }
