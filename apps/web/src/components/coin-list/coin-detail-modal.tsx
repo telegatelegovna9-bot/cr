@@ -22,8 +22,8 @@ export function CoinDetailModal() {
   if (!selectedCoin) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="terminal-card w-full max-w-6xl max-h-[70vh] flex flex-col">
+    <div className="fixed inset-x-0 top-20 bottom-0 z-[70] flex items-start justify-center bg-black/80 p-4">
+      <div className="terminal-card w-full max-w-6xl h-[calc(100vh-7.5rem)] min-h-[560px] max-h-[920px] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-terminal-border">
           <div className="flex items-center gap-3">
@@ -89,11 +89,11 @@ export function CoinDetailModal() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto p-4">
+        <div className="flex-1 overflow-auto p-4 min-h-0">
           {activeTab === 'chart' && (
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 h-full">
               {candles && candles.length > 0 ? (
-                <Chart candles={candles as any} symbol={symbol} height={400} />
+                <Chart candles={candles as any} symbol={symbol} height={560} />
               ) : (
                 <div className="flex items-center justify-center h-full text-terminal-muted">
                   Loading chart...

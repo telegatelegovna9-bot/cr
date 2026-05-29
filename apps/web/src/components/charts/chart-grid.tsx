@@ -146,7 +146,7 @@ export function ChartGrid() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+            className="fixed inset-x-0 top-20 bottom-0 z-[70] bg-black/80 flex items-start justify-center p-4"
             onClick={() => setExpandedSymbol(null)}
           >
             <motion.div
@@ -154,7 +154,7 @@ export function ChartGrid() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-6xl h-[90vh]"
+              className="w-full max-w-6xl h-[calc(100vh-7.5rem)] min-h-[560px] max-h-[920px]"
               onClick={(e) => e.stopPropagation()}
             >
               <ChartCard
