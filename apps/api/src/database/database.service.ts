@@ -71,6 +71,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       DROP TABLE IF EXISTS alert_rules CASCADE;
       DROP TABLE IF EXISTS watchlists CASCADE;
       DROP TABLE IF EXISTS users CASCADE;
+      DROP TABLE IF EXISTS candles CASCADE;
     `);
 
     await this.query(`
@@ -79,20 +80,20 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         symbol VARCHAR(20) NOT NULL,
         exchange VARCHAR(20) NOT NULL,
         timeframe VARCHAR(5) NOT NULL,
-        timestamp BIGINT NOT NULL,
+        time BIGINT NOT NULL,
         open NUMERIC(20,8) NOT NULL,
         high NUMERIC(20,8) NOT NULL,
         low NUMERIC(20,8) NOT NULL,
         close NUMERIC(20,8) NOT NULL,
         volume NUMERIC(30,8) NOT NULL,
         trades INTEGER DEFAULT 0,
-        PRIMARY KEY (symbol, exchange, timeframe, timestamp)
+        PRIMARY KEY (symbol, exchange, timeframe, time)
       );
 
-      CREATE INDEX IF NOT EXISTS idx_candles_symbol_tf_ts 
-        ON candles (symbol, timeframe, timestamp DESC);
-      CREATE INDEX IF NOT EXISTS idx_candles_exchange_ts 
-        ON candles (exchange, timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_candles_symbol_tf_time 
+        ON candles (symbol, timeframe, time DESC);
+      CREATE INDEX IF NOT EXISTS idx_candles_exchange_time 
+        ON candles (exchange, time DESC);
 
       CREATE TABLE IF NOT EXISTS alerts (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
