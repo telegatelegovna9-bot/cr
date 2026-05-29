@@ -20,8 +20,22 @@ interface ChartCardProps {
   onDataLoaded?: (symbol: string, data: any[]) => void;
 }
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Dynamic URL detection for production
+const getWsUrl = () => {
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+  if (typeof window === 'undefined') return 'ws://localhost:3001/ws';
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws`;
+};
+
+const getApiBase = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window === 'undefined') return 'http://localhost:3001';
+  return ''; // Relative path for production
+};
+
+const WS_URL = getWsUrl();
+const API_BASE = getApiBase();
 const INITIAL_VISIBLE_CANDLES = 100;
 
 function isValidCandle(k: any): boolean {
@@ -94,7 +108,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
     socketRef.current = socket;
 
     socket.onopen = () => {
-      console.log(`Chart ${symbol} socket opened`);
+      console.log(`[Chart] ${symbol} socket connected`);
       socket.send(JSON.stringify({
         action: 'subscribe',
         exchange: selectedExchange,
@@ -132,7 +146,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
     };
 
     socket.onclose = () => {
-      console.log(`Chart ${symbol} socket closed`);
+      console.log(`[Chart] ${symbol} socket disconnected`);
     };
 
     return () => {
@@ -250,7 +264,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         if (range.from > 30) return;
 
         loadingMoreRef.current = true;
-        setLoadingHistory(false);
+        setLoadingHistory(true);
         try {
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
           const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
