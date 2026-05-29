@@ -65,7 +65,7 @@ export function ChartGrid() {
         switch (sortMode) {
           case 'gainers': return (tb?.priceChangePercent24h ?? 0) - (ta?.priceChangePercent24h ?? 0);
           case 'losers':  return (ta?.priceChangePercent24h ?? 0) - (tb?.priceChangePercent24h ?? 0);
-          case 'volume':  return (tb?.quoteVolume24h ?? 0) - (ta?.quoteVolume24h ?? 0);
+          case 'volume':  return (tb?.volume24h ?? 0) - (ta?.volume24h ?? 0);
           case 'trades':  return (tb?.trades24h ?? 0) - (ta?.trades24h ?? 0);
           default: return 0;
         }

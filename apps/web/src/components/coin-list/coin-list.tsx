@@ -183,7 +183,7 @@ export function CoinList() {
       const allTickers = getTickersArray();
       const newPrev = new Map<string, number>();
       allTickers.forEach((t) => {
-        if (t.exchange === selectedExchange) newPrev.set(t.symbol, t.price);
+        if (t.exchange === selectedExchange) newPrev.set(t.symbol, t.lastPrice);
       });
       setPrevPrices(newPrev);
     }, 1000);
