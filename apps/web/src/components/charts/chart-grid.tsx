@@ -154,7 +154,7 @@ export function ChartGrid() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="w-full max-w-5xl h-[80vh]"
+              className="w-full max-w-6xl h-[90vh]"
               onClick={(e) => e.stopPropagation()}
             >
               <ChartCard
