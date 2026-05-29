@@ -41,9 +41,7 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
         horzLines: { color: '#1a1a2e' },
       },
       crosshair: {
-        mode: CrosshairMode.Normal,
-        vertLine: { color: '#6366f1', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#6366f1' },
-        horzLine: { color: '#6366f1', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#6366f1' },
+        mode: 2,
       },
       rightPriceScale: {
         borderColor: '#2a2a3e',
