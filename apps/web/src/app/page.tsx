@@ -48,7 +48,7 @@ export default function TerminalPage() {
     <div className="flex flex-col h-screen bg-bg-primary text-text-primary overflow-hidden font-sans selection:bg-accent/30">
       <Header />
       
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden relative pt-20">
         <CoinListToggle />
         <CoinList />
         

@@ -150,7 +150,7 @@ export function CoinListToggle() {
   return (
     <button
       onClick={toggleCoinList}
-      className="shrink-0 w-7 h-full flex items-center justify-center bg-bg-secondary/60 hover:bg-surface-hover border-r border-border transition-colors cursor-pointer group"
+      className="shrink-0 w-7 flex items-center justify-center bg-bg-secondary/60 hover:bg-surface-hover border-r border-border transition-colors cursor-pointer group my-2 ml-2 rounded-xl"
       title="Open Markets"
     >
       <ChevronRight className="w-3.5 h-3.5 text-text-muted group-hover:text-text-secondary transition-colors" />
@@ -266,7 +266,7 @@ export function CoinList() {
         initial={{ x: -20, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-        className="w-80 h-full flex flex-col glass-card border-r border-border overflow-hidden shrink-0"
+        className="w-80 flex flex-col glass-card border-r border-border overflow-hidden shrink-0 my-2 ml-2 rounded-2xl"
       >
         {/* Header */}
         <div className="p-3 pb-2 border-b border-border shrink-0">
