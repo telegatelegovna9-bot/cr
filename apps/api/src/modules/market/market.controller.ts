@@ -58,17 +58,6 @@ export class MarketController {
     };
   }
 
-  @Get('tickers/top-trades')
-  @ApiOperation({ summary: 'Get top trades tickers' })
-  @ApiQuery({ name: 'limit', required: false })
-  getTopTrades(@Query('limit') limit?: string) {
-    return {
-      success: true,
-      data: this.marketService.getTopTrades(limit ? parseInt(limit) : 50),
-      timestamp: Date.now(),
-    };
-  }
-
   @Get('candles/:symbol')
   @ApiOperation({ summary: 'Get candle data' })
   @ApiQuery({ name: 'timeframe', required: false })

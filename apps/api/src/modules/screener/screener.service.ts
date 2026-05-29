@@ -5,7 +5,7 @@ import { SCREENER_DEFAULT_PAGE_SIZE } from '@crypto-screener/shared';
 
 export interface ScreenerResult {
   symbol: string;
-  exchange: ExchangeId;
+  exchange: string;
   lastPrice: number;
   priceChange24h: number;
   priceChangePercent24h: number;
