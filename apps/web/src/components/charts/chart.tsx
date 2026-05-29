@@ -115,7 +115,7 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
     if (!candleSeriesRef.current || !volumeSeriesRef.current || !candles.length) return;
 
     const candleData: CandlestickData[] = candles.map(c => ({
-      time: (c.timestamp / 1000) as Time,
+      time: (c.time / 1000) as Time,
       open: c.open,
       high: c.high,
       low: c.low,
@@ -123,7 +123,7 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
     }));
 
     const volumeData: HistogramData[] = candles.map(c => ({
-      time: (c.timestamp / 1000) as Time,
+      time: (c.time / 1000) as Time,
       value: c.volume,
       color: c.close >= c.open ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
     }));
