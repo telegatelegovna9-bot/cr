@@ -23,7 +23,7 @@ export function CoinDetailModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="terminal-card w-full max-w-6xl max-h-[90vh] flex flex-col">
+      <div className="terminal-card w-full max-w-6xl max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-terminal-border">
           <div className="flex items-center gap-3">
