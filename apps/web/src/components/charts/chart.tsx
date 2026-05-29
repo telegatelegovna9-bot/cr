@@ -95,7 +95,7 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
 
   // Initialize chart
   useEffect(() => {
-    initChart();
+    let rafId: number | null = null;
 
     const handleResize = () => {
       if (chartRef.current && chartContainerRef.current) {
@@ -103,9 +103,14 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
       }
     };
 
+    rafId = requestAnimationFrame(() => {
+      initChart();
+    });
+
     window.addEventListener('resize', handleResize);
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (rafId !== null) cancelAnimationFrame(rafId);
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
