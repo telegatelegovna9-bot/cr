@@ -3,79 +3,111 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
 import { useMarketStore, useUIStore, useWSStore } from '@/stores';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
 
 export function useWebSocket() {
-  const socketRef = useRef<Socket | null>(null);
-  const { updateTicker } = useMarketStore();
+  const socketRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { updateTicker, updateCandle } = useMarketStore();
   const { addAlert, addPattern } = useUIStore();
   const { setConnected, setReconnecting } = useWSStore();
 
   const connect = useCallback(() => {
-    if (socketRef.current?.connected) return;
+    if (socketRef.current && (socketRef.current.readyState === WebSocket.OPEN || socketRef.current.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
 
-    const socket = io(`${WS_URL}/market`, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 10,
-    });
+    console.log(`Connecting to WebSocket: ${WS_URL}`);
+    const socket = new WebSocket(WS_URL);
 
-    socket.on('connect', () => {
+    socket.onopen = () => {
       console.log('WebSocket connected');
       setConnected(true);
       setReconnecting(false);
-    });
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
 
-    socket.on('disconnect', () => {
+    socket.onmessage = (event) => {
+      try {
+        const { channel, data, event: wsEvent } = JSON.parse(event.data);
+        
+        if (wsEvent === 'subscribed' || wsEvent === 'unsubscribed') {
+          return;
+        }
+
+        switch (channel) {
+          case 'ticker':
+            updateTicker(data);
+            break;
+          case 'candle':
+            updateCandle(data);
+            break;
+          case 'alert':
+            addAlert(data);
+            break;
+          case 'pattern':
+            addPattern(data);
+            break;
+        }
+      } catch (err) {
+        console.error('Failed to parse WS message:', err);
+      }
+    };
+
+    socket.onclose = () => {
       console.log('WebSocket disconnected');
       setConnected(false);
-    });
+      // Simple reconnect logic
+      reconnectTimerRef.current = setTimeout(() => {
+        setReconnecting(true);
+        connect();
+      }, 3000);
+    };
 
-    socket.on('reconnect_attempt', () => {
-      setReconnecting(true);
-    });
-
-    socket.on('reconnect', () => {
-      setConnected(true);
-      setReconnecting(false);
-    });
-
-    // Market data events
-    socket.on('ticker', (ticker) => {
-      updateTicker(ticker);
-    });
-
-    socket.on('alert', (alert) => {
-      addAlert(alert);
-    });
-
-    socket.on('pattern', (pattern) => {
-      addPattern(pattern);
-    });
+    socket.onerror = (err) => {
+      console.error('WebSocket error:', err);
+    };
 
     socketRef.current = socket;
-  }, [updateTicker, addAlert, addPattern, setConnected, setReconnecting]);
+  }, [updateTicker, updateCandle, addAlert, addPattern, setConnected, setReconnecting]);
 
   const disconnect = useCallback(() => {
     if (socketRef.current) {
-      socketRef.current.disconnect();
+      socketRef.current.close();
       socketRef.current = null;
     }
-  }, []);
-
-  const subscribe = useCallback((channel: string, symbol?: string, exchange?: string) => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit('subscribe', { channel, symbol, exchange });
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
     }
   }, []);
 
-  const unsubscribe = useCallback((channel: string, symbol?: string) => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit('unsubscribe', { channel, symbol });
+  const subscribe = useCallback((exchange: string, marketType: 'spot' | 'futures', symbol: string, timeframe?: string) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        action: 'subscribe',
+        exchange,
+        marketType,
+        symbol,
+        timeframe
+      }));
+    }
+  }, []);
+
+  const unsubscribe = useCallback((exchange: string, marketType: 'spot' | 'futures', symbol: string, timeframe?: string) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        action: 'unsubscribe',
+        exchange,
+        marketType,
+        symbol,
+        timeframe
+      }));
     }
   }, []);
 

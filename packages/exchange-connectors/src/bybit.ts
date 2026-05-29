@@ -199,21 +199,21 @@ export class BybitConnector extends BaseExchangeConnector {
         ? this.fromLocalSymbol(rawSymbol)
         : this.toFuturesSymbol(rawSymbol);
       const ticker: Ticker = {
-        symbol,
         exchange: 'bybit',
         marketType: isSpot ? 'spot' : 'futures',
-        price: parseFloat(data.lastPrice as string),
+        symbol,
+        lastPrice: parseFloat(data.lastPrice as string),
         priceChange24h: parseFloat(data.price24hPcnt as string) * parseFloat(data.lastPrice as string),
-        priceChangePercent24h: parseFloat(data.price24hPcnt as string) * 100,
+        volume24h: parseFloat(data.volume24h as string),
         high24h: parseFloat(data.highPrice24h as string),
         low24h: parseFloat(data.lowPrice24h as string),
-        volume24h: parseFloat(data.volume24h as string),
+        timestamp: Date.now(),
+        // Optional
+        priceChangePercent24h: parseFloat(data.price24hPcnt as string) * 100,
         quoteVolume24h: parseFloat(data.turnover24h as string),
-        trades24h: 0,
         bid: parseFloat(data.bid1Price as string),
         ask: parseFloat(data.ask1Price as string),
         spread: parseFloat(data.ask1Price as string) - parseFloat(data.bid1Price as string),
-        lastUpdate: Date.now(),
       };
       this.emit('ticker', ticker);
     } else if (topic.startsWith('kline.')) {
@@ -224,19 +224,19 @@ export class BybitConnector extends BaseExchangeConnector {
       const symbol = isSpot
         ? this.fromLocalSymbol(rawSymbol)
         : this.toFuturesSymbol(rawSymbol);
-      const candle: Candle & { symbol: string; exchange: 'bybit'; timeframe: Timeframe; finalized: boolean; marketType: 'spot' | 'futures' } = {
-        symbol,
+      const candle: Candle = {
         exchange: 'bybit',
         marketType: isSpot ? 'spot' : 'futures',
+        symbol,
         timeframe: REVERSE_TIMEFRAME_MAP[interval] || '1m',
-        timestamp: data.start as number,
+        time: data.start as number,
         open: parseFloat(data.open as string),
         high: parseFloat(data.high as string),
         low: parseFloat(data.low as string),
         close: parseFloat(data.close as string),
         volume: parseFloat(data.volume as string),
+        isClosed: data.confirm as boolean,
         trades: 0,
-        finalized: data.confirm as boolean,
       };
       this.emit('candle', candle);
     } else if (topic.startsWith('orderbook.')) {
@@ -276,21 +276,20 @@ export class BybitConnector extends BaseExchangeConnector {
       const futures = linearRes.value.result.list
         .filter(t => (t.symbol as string).endsWith('USDT'))
         .map((t): Ticker => ({
-          symbol: this.toFuturesSymbol(t.symbol as string),
           exchange: 'bybit',
           marketType: 'futures',
-          price: parseFloat(t.lastPrice as string),
+          symbol: this.toFuturesSymbol(t.symbol as string),
+          lastPrice: parseFloat(t.lastPrice as string),
           priceChange24h: parseFloat(t.price24hPcnt as string) * parseFloat(t.lastPrice as string),
-          priceChangePercent24h: parseFloat(t.price24hPcnt as string) * 100,
+          volume24h: parseFloat(t.volume24h as string),
           high24h: parseFloat(t.highPrice24h as string),
           low24h: parseFloat(t.lowPrice24h as string),
-          volume24h: parseFloat(t.volume24h as string),
+          timestamp: Date.now(),
+          priceChangePercent24h: parseFloat(t.price24hPcnt as string) * 100,
           quoteVolume24h: parseFloat(t.turnover24h as string),
-          trades24h: 0,
           bid: parseFloat(t.bid1Price as string),
           ask: parseFloat(t.ask1Price as string),
           spread: parseFloat(t.ask1Price as string) - parseFloat(t.bid1Price as string),
-          lastUpdate: Date.now(),
         }));
       results.push(...futures);
     }
@@ -299,21 +298,20 @@ export class BybitConnector extends BaseExchangeConnector {
       const spot = spotRes.value.result.list
         .filter(t => (t.symbol as string).endsWith('USDT'))
         .map((t): Ticker => ({
-          symbol: normalizeSymbol(t.symbol as string, 'bybit'),
           exchange: 'bybit',
           marketType: 'spot',
-          price: parseFloat(t.lastPrice as string),
+          symbol: normalizeSymbol(t.symbol as string, 'bybit'),
+          lastPrice: parseFloat(t.lastPrice as string),
           priceChange24h: parseFloat(t.price24hPcnt as string) * parseFloat(t.lastPrice as string),
-          priceChangePercent24h: parseFloat(t.price24hPcnt as string) * 100,
+          volume24h: parseFloat(t.volume24h as string),
           high24h: parseFloat(t.highPrice24h as string),
           low24h: parseFloat(t.lowPrice24h as string),
-          volume24h: parseFloat(t.volume24h as string),
+          timestamp: Date.now(),
+          priceChangePercent24h: parseFloat(t.price24hPcnt as string) * 100,
           quoteVolume24h: parseFloat(t.turnover24h as string),
-          trades24h: 0,
           bid: parseFloat(t.bid1Price as string),
           ask: parseFloat(t.ask1Price as string),
           spread: parseFloat(t.ask1Price as string) - parseFloat(t.bid1Price as string),
-          lastUpdate: Date.now(),
         }));
       results.push(...spot);
     }
@@ -332,14 +330,17 @@ export class BybitConnector extends BaseExchangeConnector {
 
     const data = await this.fetch<{ result: { list: string[][] } }>(url);
     return data.result.list.map((k): Candle => ({
-      timestamp: parseInt(k[0], 10),
+      exchange: 'bybit',
+      marketType: isFutures ? 'futures' : 'spot',
+      symbol,
+      timeframe,
+      time: parseInt(k[0], 10),
       open: parseFloat(k[1]),
       high: parseFloat(k[2]),
       low: parseFloat(k[3]),
       close: parseFloat(k[4]),
       volume: parseFloat(k[5]),
-      trades: 0,
-      marketType: isFutures ? 'futures' : 'spot',
+      isClosed: true,
     })).reverse();
   }
 

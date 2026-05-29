@@ -111,13 +111,10 @@ export class MexcConnector extends BaseExchangeConnector {
       return;
     }
 
-    const local = this.toMexcSpotSymbol(symbol);
     const key = `ticker:${symbol}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
     this.send({ method: 'SUBSCRIPTION', params: [`spot@public.miniTickers.v3.api@UTC+8`] });
-    // MEXC spot uses a global mini-ticker stream; we filter by symbol in handleMessage
-    void local;
   }
 
   subscribeCandle(symbol: string, timeframe: Timeframe): void {
@@ -212,21 +209,21 @@ export class MexcConnector extends BaseExchangeConnector {
       const price = parseFloat(data.c as string);
       const open = parseFloat(data.o as string);
       const ticker: Ticker = {
-        symbol,
         exchange: 'mexc',
         marketType: 'spot',
-        price,
+        symbol,
+        lastPrice: price,
         priceChange24h: price - open,
-        priceChangePercent24h: ((price - open) / open) * 100,
+        volume24h: parseFloat(data.v as string),
         high24h: parseFloat(data.h as string),
         low24h: parseFloat(data.l as string),
-        volume24h: parseFloat(data.v as string),
+        timestamp: Date.now(),
+        priceChangePercent24h: ((price - open) / open) * 100,
         quoteVolume24h: parseFloat(data.qv as string),
         trades24h: 0,
         bid: price,
         ask: price,
         spread: 0,
-        lastUpdate: Date.now(),
       };
       this.emit('ticker', ticker);
     } else if (channel.includes('kline')) {
@@ -238,19 +235,19 @@ export class MexcConnector extends BaseExchangeConnector {
       const symbol = normalizeSymbol(rawSymbol, 'mexc');
       const k = data.k as Record<string, unknown>;
       if (!k) return;
-      const candle: Candle & { symbol: string; exchange: 'mexc'; timeframe: string; finalized: boolean; marketType: 'spot' } = {
-        symbol,
+      const candle: Candle = {
         exchange: 'mexc',
         marketType: 'spot',
+        symbol,
         timeframe: tf,
-        timestamp: k.t as number,
+        time: k.t as number,
         open: parseFloat(k.o as string),
         high: parseFloat(k.h as string),
         low: parseFloat(k.l as string),
         close: parseFloat(k.c as string),
         volume: parseFloat(k.v as string),
+        isClosed: !!(k.X),
         trades: 0,
-        finalized: !!(k.X),
       };
       this.emit('candle', candle);
     } else if (channel.includes('depth')) {
@@ -298,21 +295,21 @@ export class MexcConnector extends BaseExchangeConnector {
       const symbol = this.fromMexcFuturesSymbol(data.symbol as string);
       const price = parseFloat(data.lastPrice as string);
       const ticker: Ticker = {
-        symbol,
         exchange: 'mexc',
         marketType: 'futures',
-        price,
+        symbol,
+        lastPrice: price,
         priceChange24h: parseFloat(data.riseFallValue as string),
-        priceChangePercent24h: parseFloat(data.riseFallRate as string) * 100,
+        volume24h: parseFloat(data.volume24 as string),
         high24h: parseFloat(data.high24Price as string),
         low24h: parseFloat(data.low24Price as string),
-        volume24h: parseFloat(data.volume24 as string),
+        timestamp: Date.now(),
+        priceChangePercent24h: parseFloat(data.riseFallRate as string) * 100,
         quoteVolume24h: parseFloat(data.amount24 as string),
         trades24h: 0,
         bid: price,
         ask: price,
         spread: 0,
-        lastUpdate: Date.now(),
       };
       this.emit('ticker', ticker);
     } else if (channel === 'push.kline') {
@@ -321,19 +318,19 @@ export class MexcConnector extends BaseExchangeConnector {
       const symbol = this.fromMexcFuturesSymbol(data.symbol as string);
       const klines = (data.klines || [data]) as Record<string, unknown>[];
       klines.forEach((k: Record<string, unknown>) => {
-        const candle: Candle & { symbol: string; exchange: 'mexc'; timeframe: string; finalized: boolean; marketType: 'futures' } = {
-          symbol,
+        const candle: Candle = {
           exchange: 'mexc',
           marketType: 'futures',
+          symbol,
           timeframe: data.interval as string || '1m',
-          timestamp: (k.time as number) * 1000,
+          time: (k.time as number) * 1000,
           open: parseFloat(k.open as string),
           high: parseFloat(k.high as string),
           low: parseFloat(k.low as string),
           close: parseFloat(k.close as string),
           volume: parseFloat(k.vol as string),
+          isClosed: false, // Contract WS needs additional check for closure
           trades: 0,
-          finalized: false,
         };
         this.emit('candle', candle);
       });
@@ -352,21 +349,21 @@ export class MexcConnector extends BaseExchangeConnector {
       const spot = spotRes.value
         .filter(t => (t.symbol as string).endsWith('USDT'))
         .map((t): Ticker => ({
-          symbol: normalizeSymbol(t.symbol as string, 'mexc'),
           exchange: 'mexc',
           marketType: 'spot',
-          price: parseFloat(t.lastPrice as string),
+          symbol: normalizeSymbol(t.symbol as string, 'mexc'),
+          lastPrice: parseFloat(t.lastPrice as string),
           priceChange24h: parseFloat(t.priceChange as string),
-          priceChangePercent24h: parseFloat(t.priceChangePercent as string),
+          volume24h: parseFloat(t.volume as string),
           high24h: parseFloat(t.highPrice as string),
           low24h: parseFloat(t.lowPrice as string),
-          volume24h: parseFloat(t.volume as string),
+          timestamp: Date.now(),
+          priceChangePercent24h: parseFloat(t.priceChangePercent as string),
           quoteVolume24h: parseFloat(t.quoteVolume as string),
           trades24h: parseInt(t.count as string, 10) || 0,
           bid: parseFloat(t.bidPrice as string),
           ask: parseFloat(t.askPrice as string),
           spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
-          lastUpdate: Date.now(),
         }));
       results.push(...spot);
     }
@@ -378,21 +375,21 @@ export class MexcConnector extends BaseExchangeConnector {
         .map((t): Ticker => {
           const price = parseFloat(t.lastPrice as string);
           return {
-            symbol: this.fromMexcFuturesSymbol(t.symbol as string),
             exchange: 'mexc',
             marketType: 'futures',
-            price,
+            symbol: this.fromMexcFuturesSymbol(t.symbol as string),
+            lastPrice: price,
             priceChange24h: parseFloat(t.riseFallValue as string) || 0,
-            priceChangePercent24h: parseFloat(t.riseFallRate as string) * 100 || 0,
+            volume24h: parseFloat(t.volume24 as string) || 0,
             high24h: parseFloat(t.high24Price as string) || 0,
             low24h: parseFloat(t.low24Price as string) || 0,
-            volume24h: parseFloat(t.volume24 as string) || 0,
+            timestamp: Date.now(),
+            priceChangePercent24h: parseFloat(t.riseFallRate as string) * 100 || 0,
             quoteVolume24h: parseFloat(t.amount24 as string) || 0,
             trades24h: 0,
             bid: price,
             ask: price,
             spread: 0,
-            lastUpdate: Date.now(),
           };
         });
       results.push(...futures);
@@ -415,14 +412,18 @@ export class MexcConnector extends BaseExchangeConnector {
       const d = data.data;
       if (!d?.time) return [];
       return d.time.map((t, i): Candle => ({
-        timestamp: t * 1000,
+        exchange: 'mexc',
+        marketType: 'futures',
+        symbol,
+        timeframe,
+        time: t * 1000,
         open: d.open[i],
         high: d.high[i],
         low: d.low[i],
         close: d.close[i],
         volume: d.vol[i],
+        isClosed: true,
         trades: 0,
-        marketType: 'futures',
       }));
     }
 
@@ -432,14 +433,18 @@ export class MexcConnector extends BaseExchangeConnector {
     const data = await this.fetchRaw<unknown[][]>(url);
     if (!Array.isArray(data)) return [];
     return data.map((k): Candle => ({
-      timestamp: k[0] as number,
+      exchange: 'mexc',
+      marketType: 'spot',
+      symbol,
+      timeframe,
+      time: k[0] as number,
       open: parseFloat(k[1] as string),
       high: parseFloat(k[2] as string),
       low: parseFloat(k[3] as string),
       close: parseFloat(k[4] as string),
       volume: parseFloat(k[5] as string),
+      isClosed: true,
       trades: 0,
-      marketType: 'spot',
     }));
   }
 

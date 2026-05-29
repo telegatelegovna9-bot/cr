@@ -211,21 +211,22 @@ export class BinanceConnector extends BaseExchangeConnector {
     const isFutures = data.__marketType === 'futures';
     const symbol = isFutures ? this.toFuturesSymbol(data.s as string) : this.fromLocalSymbol(data.s as string);
     const ticker: Ticker = {
-      symbol,
       exchange: 'binance',
       marketType: isFutures ? 'futures' : 'spot',
-      price: parseFloat(data.c as string),
+      symbol,
+      lastPrice: parseFloat(data.c as string),
       priceChange24h: parseFloat(data.p as string),
-      priceChangePercent24h: parseFloat(data.P as string),
+      volume24h: parseFloat(data.v as string),
       high24h: parseFloat(data.h as string),
       low24h: parseFloat(data.l as string),
-      volume24h: parseFloat(data.v as string),
+      timestamp: Date.now(),
+      // Optional fields
+      priceChangePercent24h: parseFloat(data.P as string),
       quoteVolume24h: parseFloat(data.q as string),
       trades24h: parseInt(data.n as string, 10),
       bid: parseFloat(data.b as string),
       ask: parseFloat(data.a as string),
       spread: parseFloat(data.a as string) - parseFloat(data.b as string),
-      lastUpdate: Date.now(),
     };
     this.emit('ticker', ticker);
   }
@@ -236,18 +237,19 @@ export class BinanceConnector extends BaseExchangeConnector {
     const timeframe = k.i as string;
     const isFutures = data.__marketType === 'futures';
     const symbol = isFutures ? this.toFuturesSymbol(k.s as string) : this.fromLocalSymbol(k.s as string);
-    const candle: Candle & { symbol: string; timeframe: string; exchange: string; finalized: boolean } = {
-      symbol,
+    const candle: Candle = {
       exchange: 'binance',
+      marketType: isFutures ? 'futures' : 'spot',
+      symbol,
       timeframe,
-      timestamp: k.t as number,
+      time: k.t as number,
       open: parseFloat(k.o as string),
       high: parseFloat(k.h as string),
       low: parseFloat(k.l as string),
       close: parseFloat(k.c as string),
       volume: parseFloat(k.v as string),
+      isClosed: k.x as boolean,
       trades: parseInt(k.n as string, 10),
-      finalized: k.x as boolean,
     };
     this.emit('candle', candle);
   }
@@ -300,21 +302,21 @@ export class BinanceConnector extends BaseExchangeConnector {
       const spot = spotRes.value
         .filter(t => (t.symbol as string).endsWith('USDT'))
         .map((t): Ticker => ({
-          symbol: normalizeSymbol(t.symbol as string, 'binance'),
           exchange: 'binance',
           marketType: 'spot',
-          price: parseFloat(t.lastPrice as string),
+          symbol: normalizeSymbol(t.symbol as string, 'binance'),
+          lastPrice: parseFloat(t.lastPrice as string),
           priceChange24h: parseFloat(t.priceChange as string),
-          priceChangePercent24h: parseFloat(t.priceChangePercent as string),
+          volume24h: parseFloat(t.volume as string),
           high24h: parseFloat(t.highPrice as string),
           low24h: parseFloat(t.lowPrice as string),
-          volume24h: parseFloat(t.volume as string),
+          timestamp: Date.now(),
+          priceChangePercent24h: parseFloat(t.priceChangePercent as string),
           quoteVolume24h: parseFloat(t.quoteVolume as string),
           trades24h: parseInt(t.count as string, 10),
           bid: parseFloat(t.bidPrice as string),
           ask: parseFloat(t.askPrice as string),
           spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
-          lastUpdate: Date.now(),
         }));
       results.push(...spot);
     }
@@ -324,26 +326,25 @@ export class BinanceConnector extends BaseExchangeConnector {
         .filter(t => (t.symbol as string).endsWith('USDT'))
         .map((t): Ticker => {
           const raw = t.symbol as string;
-          // BTCUSDT -> BTC/USDT:USDT (CCXT perpetual format)
           const base = raw.slice(0, -4);
           const symbol = `${base}/USDT:USDT`;
           const lastPrice = parseFloat(t.lastPrice as string);
           return {
-            symbol,
             exchange: 'binance',
             marketType: 'futures',
-            price: lastPrice,
+            symbol,
+            lastPrice,
             priceChange24h: parseFloat(t.priceChange as string),
-            priceChangePercent24h: parseFloat(t.priceChangePercent as string),
+            volume24h: parseFloat(t.volume as string),
             high24h: parseFloat(t.highPrice as string),
             low24h: parseFloat(t.lowPrice as string),
-            volume24h: parseFloat(t.volume as string),
+            timestamp: Date.now(),
+            priceChangePercent24h: parseFloat(t.priceChangePercent as string),
             quoteVolume24h: parseFloat(t.quoteVolume as string),
             trades24h: parseInt(t.count as string, 10),
             bid: lastPrice,
             ask: lastPrice,
             spread: 0,
-            lastUpdate: Date.now(),
           };
         });
       results.push(...futures);
@@ -355,7 +356,6 @@ export class BinanceConnector extends BaseExchangeConnector {
 
   async fetchCandles(symbol: string, timeframe: Timeframe, limit = 500, endTime?: number): Promise<Candle[]> {
     const isFutures = this.isFuturesSymbol(symbol);
-    // For futures: BTC/USDT:USDT -> BTCUSDT, for spot: BTC/USDT -> BTCUSDT
     const local = this.toBinanceSymbol(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
     const baseUrl = isFutures ? BINANCE_FUTURES_REST_URL : this.restUrl;
@@ -367,12 +367,17 @@ export class BinanceConnector extends BaseExchangeConnector {
     if (!Array.isArray(data)) return [];
 
     return (data as unknown[][]).map((k: unknown[]): Candle => ({
-      timestamp: k[0] as number,
+      exchange: 'binance',
+      marketType: isFutures ? 'futures' : 'spot',
+      symbol,
+      timeframe,
+      time: k[0] as number,
       open: parseFloat(k[1] as string),
       high: parseFloat(k[2] as string),
       low: parseFloat(k[3] as string),
       close: parseFloat(k[4] as string),
       volume: parseFloat(k[5] as string),
+      isClosed: true, // REST historical candles are always closed except maybe the last one
       trades: parseInt(k[8] as string, 10),
     }));
   }

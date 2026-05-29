@@ -1,49 +1,36 @@
 // Zustand stores for global state management
 
 import { create } from 'zustand';
-import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker } from '@crypto-screener/shared';
+import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle } from '@crypto-screener/shared';
 
 // ============================================================
 // Market Store
 // ============================================================
 
-interface TickerData {
-  symbol: string;
-  exchange: ExchangeId;
-  price: number;
-  priceChangePercent24h: number;
-  volume24h: number;
-  quoteVolume24h: number;
-  trades24h: number;
-  high24h: number;
-  low24h: number;
-  bid: number;
-  ask: number;
-  spread: number;
-  lastUpdate: number;
-}
-
 interface MarketStore {
-  tickers: Map<string, TickerData>;
+  tickers: Map<string, Ticker>;
+  latestCandle: Candle | null;
   selectedSymbol: string;
   selectedExchange: ExchangeId;
   selectedTimeframe: Timeframe;
   connectedExchanges: ExchangeId[];
   selectedCoin: string | null;
 
-  setTickers: (tickers: TickerData[]) => void;
-  updateTicker: (ticker: TickerData) => void;
+  setTickers: (tickers: Ticker[]) => void;
+  updateTicker: (ticker: Ticker) => void;
+  updateCandle: (candle: Candle) => void;
   setSelectedSymbol: (symbol: string) => void;
   setSelectedExchange: (exchange: ExchangeId) => void;
   setSelectedTimeframe: (timeframe: Timeframe) => void;
   setConnectedExchanges: (exchanges: ExchangeId[]) => void;
   setSelectedCoin: (coin: string | null) => void;
-  getTicker: (symbol: string, exchange: ExchangeId) => TickerData | undefined;
-  getTickersArray: () => TickerData[];
+  getTicker: (symbol: string, exchange: string) => Ticker | undefined;
+  getTickersArray: () => Ticker[];
 }
 
 export const useMarketStore = create<MarketStore>((set, get) => ({
   tickers: new Map(),
+  latestCandle: null,
   selectedSymbol: 'BTC/USDT',
   selectedExchange: 'binance',
   selectedTimeframe: '1h',
@@ -51,7 +38,7 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   selectedCoin: null,
 
   setTickers: (tickers) => {
-    const map = new Map<string, TickerData>();
+    const map = new Map<string, Ticker>();
     tickers.forEach(t => map.set(`${t.exchange}:${t.symbol}`, t));
     set({ tickers: map });
   },
@@ -62,6 +49,10 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
       newMap.set(`${ticker.exchange}:${ticker.symbol}`, ticker);
       return { tickers: newMap };
     });
+  },
+
+  updateCandle: (candle) => {
+    set({ latestCandle: candle });
   },
 
   setSelectedSymbol: (symbol) => set({ selectedSymbol: symbol }),

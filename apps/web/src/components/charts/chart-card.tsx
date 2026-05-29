@@ -1,12 +1,14 @@
+// Lightweight charts card component
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
-import { io, Socket } from 'socket.io-client';
 import { useMarketStore } from '@/stores';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
+import type { Candle, Ticker } from '@crypto-screener/shared';
 
 interface ChartCardProps {
   symbol: string;
@@ -18,15 +20,14 @@ interface ChartCardProps {
   onDataLoaded?: (symbol: string, data: any[]) => void;
 }
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL
-  || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
-const API_BASE = process.env.NEXT_PUBLIC_API_URL
-  || (typeof window !== 'undefined' && window.location.port === '3000' ? 'http://localhost:3001' : '');
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const INITIAL_VISIBLE_CANDLES = 100;
 
 function isValidCandle(k: any): boolean {
+  const time = k.time || k.timestamp;
   return (
-    k.timestamp != null && k.timestamp > 0 &&
+    time != null && time > 0 &&
     k.open != null && k.high != null && k.low != null && k.close != null &&
     isFinite(k.open) && isFinite(k.high) && isFinite(k.low) && isFinite(k.close) &&
     k.open > 0 && k.high > 0 && k.low > 0 && k.close > 0 &&
@@ -38,19 +39,20 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   const seen = new Set<number>();
   const valid = raw
     .filter(isValidCandle)
-    .sort((a, b) => a.timestamp - b.timestamp)
+    .sort((a, b) => (a.time || a.timestamp) - (b.time || b.timestamp))
     .filter((k) => {
-      if (seen.has(k.timestamp)) return false;
-      seen.add(k.timestamp);
+      const t = k.time || k.timestamp;
+      if (seen.has(t)) return false;
+      seen.add(t);
       return true;
     });
 
   const candles: CandlestickData[] = valid.map((k) => ({
-    time: (k.timestamp / 1000) as Time,
+    time: ((k.time || k.timestamp) / 1000) as Time,
     open: k.open, high: k.high, low: k.low, close: k.close,
   }));
   const volumes: HistogramData[] = valid.map((k) => ({
-    time: (k.timestamp / 1000) as Time,
+    time: ((k.time || k.timestamp) / 1000) as Time,
     value: k.volume ?? 0,
     color: k.close >= k.open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
   }));
@@ -66,105 +68,79 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
   const allRawRef = useRef<any[]>([]);
   const loadingMoreRef = useRef(false);
   const readyRef = useRef(false);
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
 
-  // Refs that the socket candle handler reads — avoids stale closures
   const activeTimeframeRef = useRef('');
   const activeExchangeRef = useRef('');
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
-  const ticker = useMarketStore(state => state.tickers.get(`${state.selectedExchange}:${symbol}`));
+  const ticker = useMarketStore(state => state.getTicker(symbol, state.selectedExchange));
   const [loading, setLoading] = useState(!initialData || initialData.length === 0);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
 
-  // Keep refs in sync with current values
   useEffect(() => {
     activeTimeframeRef.current = selectedTimeframe;
     activeExchangeRef.current = selectedExchange;
   }, [selectedTimeframe, selectedExchange]);
 
-  // ── Create socket ONCE per symbol (not per TF) ────────────
-  // Subscriptions change on TF/exchange change, socket stays alive.
   useEffect(() => {
     if (paused) return;
 
-    const socket = io(`${WS_URL}/market`, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionAttempts: Infinity,
-    });
+    const socket = new WebSocket(WS_URL);
     socketRef.current = socket;
 
-    socket.on('candle', (candle: any) => {
-      if (candle.symbol !== symbol) return;
-      // Use refs to always read current TF — avoids stale closure after TF switch
-      if (candle.timeframe !== activeTimeframeRef.current) return;
-      if (candle.exchange && candle.exchange !== activeExchangeRef.current) return;
-      if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
-
-      const { open, high, low, close, volume, timestamp } = candle;
-      if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
-      if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return;
-
-      const time = (timestamp / 1000) as Time;
-      try {
-        candleSeriesRef.current.update({ time, open, high, low, close });
-        volumeSeriesRef.current.update({
-          time,
-          value: volume ?? 0,
-          color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
-        });
-        setCurrentPrice(close);
-      } catch {
-        // chart may be transitioning
-      }
-    });
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [symbol, paused]); // Only recreate socket when symbol or active state changes
-
-  // ── Subscribe/unsubscribe when TF or exchange changes ─────
-  // Same socket, just change the subscription.
-  useEffect(() => {
-    if (paused) return;
-
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    const doSubscribe = () => {
-      socket.emit('subscribe', {
-        channel: 'candle',
-        symbol,
+    socket.onopen = () => {
+      console.log(`Chart ${symbol} socket opened`);
+      socket.send(JSON.stringify({
+        action: 'subscribe',
         exchange: selectedExchange,
-        timeframe: selectedTimeframe,
-      });
+        marketType: symbol.includes(':USDT') ? 'futures' : 'spot',
+        symbol,
+        timeframe: selectedTimeframe
+      }));
     };
 
-    socket.on('connect', doSubscribe);
-    if (socket.connected) doSubscribe();
+    socket.onmessage = (event) => {
+      try {
+        const { channel, data } = JSON.parse(event.data);
+        if (channel !== 'candle') return;
+
+        const candle = data as Candle;
+        if (candle.symbol !== symbol) return;
+        if (candle.timeframe !== activeTimeframeRef.current) return;
+        if (candle.exchange && candle.exchange !== activeExchangeRef.current) return;
+        if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+
+        const { open, high, low, close, volume, time: timestamp } = candle;
+        if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
+
+        const time = (timestamp / 1000) as Time;
+        try {
+          candleSeriesRef.current.update({ time, open, high, low, close });
+          volumeSeriesRef.current.update({
+            time,
+            value: volume ?? 0,
+            color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+          });
+          setCurrentPrice(close);
+        } catch { /* chart transitioning */ }
+      } catch { /* ignore */ }
+    };
+
+    socket.onclose = () => {
+      console.log(`Chart ${symbol} socket closed`);
+    };
 
     return () => {
-      socket.off('connect', doSubscribe);
-      if (socket.connected) {
-        socket.emit('unsubscribe', {
-          channel: 'candle',
-          symbol,
-          exchange: selectedExchange,
-          timeframe: selectedTimeframe,
-        });
-      }
+      socket.close();
+      socketRef.current = null;
     };
   }, [symbol, selectedExchange, selectedTimeframe, paused]);
 
-  // ── Init chart + load history via REST ────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -232,8 +208,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         if (initialData && initialData.length > 0) {
           raw = initialData;
         } else {
+          const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
           const resp = await fetch(
-            `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300`
+            `${API_BASE}/api/history?exchange=${selectedExchange}&marketType=${marketType}&symbol=${symbol}&timeframe=${selectedTimeframe}&limit=300`
           );
           if (!cancelled && resp.ok) {
             const data = await resp.json();
@@ -247,9 +224,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
           if (candles.length > 0) {
             candleSeries.setData(candles);
             volumeSeries.setData(volumes);
-            oldestTimeRef.current = raw[0].timestamp / 1000;
+            const firstCandleTime = raw[0].time || raw[0].timestamp;
+            oldestTimeRef.current = firstCandleTime / 1000;
 
-            // Show last INITIAL_VISIBLE_CANDLES with small right margin
             const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
             chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
 
@@ -270,15 +247,15 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
 
       const handleRangeChange = async (range: any) => {
         if (!range || !readyRef.current || loadingMoreRef.current || !oldestTimeRef.current) return;
-        // Trigger when user scrolls within 30 bars of the left edge
         if (range.from > 30) return;
 
         loadingMoreRef.current = true;
-        setLoadingHistory(true);
+        setLoadingHistory(false);
         try {
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
+          const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
           const resp = await fetch(
-            `${API_BASE}/api/market/candles/${symbol.replace('/', '-')}?timeframe=${selectedTimeframe}&exchange=${selectedExchange}&limit=300&endTime=${endTime}`
+            `${API_BASE}/api/history?exchange=${selectedExchange}&marketType=${marketType}&symbol=${symbol}&timeframe=${selectedTimeframe}&limit=300&endTime=${endTime}`
           );
           if (!resp.ok) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 
@@ -293,7 +270,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
           if (candleSeriesRef.current && volumeSeriesRef.current && candles.length > 0) {
             candleSeriesRef.current.setData(candles);
             volumeSeriesRef.current.setData(volumes);
-            oldestTimeRef.current = older[0].timestamp / 1000;
+            const firstOlderTime = older[0].time || older[0].timestamp;
+            oldestTimeRef.current = firstOlderTime / 1000;
             if (previousRange) {
               const addedBars = candles.length - previousLength;
               chart.timeScale().setVisibleLogicalRange({
@@ -302,9 +280,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
               });
             }
           }
-        } catch {
-          // silent
-        }
+        } catch { /* silent */ }
         loadingMoreRef.current = false;
         setLoadingHistory(false);
       };
@@ -312,8 +288,6 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
       chart.timeScale().subscribeVisibleLogicalRangeChange(handleRangeChange);
     };
 
-    // Defer chart init by one animation frame so it doesn't block ongoing
-    // CSS animations (e.g. modal open). Modal gets an extra frame to be safe.
     rafId = requestAnimationFrame(() => {
       if (cancelled) return;
       if (isModal) {
@@ -337,7 +311,6 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
     };
   }, [symbol, selectedExchange, selectedTimeframe]);
 
-  // ── Resize observer ────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver((entries) => {
@@ -358,7 +331,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
     };
   }, []);
 
-  const livePrice = ticker?.price ?? currentPrice;
+  const livePrice = ticker?.lastPrice ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
   const isPositive = (liveChange ?? 0) >= 0;
   const base = symbol.split('/')[0];

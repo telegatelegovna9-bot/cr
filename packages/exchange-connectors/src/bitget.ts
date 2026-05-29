@@ -243,44 +243,43 @@ export class BitgetConnector extends BaseExchangeConnector {
       const price = parseFloat(d.lastPr as string);
       const open = parseFloat(d.open24h as string);
       const ticker: Ticker = {
-        symbol,
         exchange: 'bitget',
         marketType: isFutures ? 'futures' : 'spot',
-        price,
+        symbol,
+        lastPrice: price,
         priceChange24h: price - open,
-        priceChangePercent24h: ((price - open) / open) * 100,
+        volume24h: parseFloat(d.baseVolume as string),
         high24h: parseFloat(d.high24h as string),
         low24h: parseFloat(d.low24h as string),
-        volume24h: parseFloat(d.baseVolume as string),
+        timestamp: Date.now(),
+        priceChangePercent24h: ((price - open) / open) * 100,
         quoteVolume24h: parseFloat(d.quoteVolume as string),
         trades24h: 0,
         bid: parseFloat(d.bestBid as string),
         ask: parseFloat(d.bestAsk as string),
         spread: parseFloat(d.bestAsk as string) - parseFloat(d.bestBid as string),
-        lastUpdate: Date.now(),
       };
       this.emit('ticker', ticker);
     } else if (channel.startsWith('candle')) {
       const symbol = isFutures
         ? this.fromBitgetFuturesSymbol(instId)
         : normalizeSymbol(instId, 'bitget');
-      // Extract timeframe from channel name e.g. "candle1m" -> "1m"
       const tfRaw = channel.replace('candle', '');
       const timeframe = this.reverseTimeframe(tfRaw);
       data.forEach((k: Record<string, unknown>) => {
-        const candle: Candle & { symbol: string; exchange: 'bitget'; timeframe: string; finalized: boolean; marketType: 'spot' | 'futures' } = {
-          symbol,
+        const candle: Candle = {
           exchange: 'bitget',
           marketType: isFutures ? 'futures' : 'spot',
+          symbol,
           timeframe,
-          timestamp: parseInt(k[0] as string, 10),
+          time: parseInt(k[0] as string, 10),
           open: parseFloat(k[1] as string),
           high: parseFloat(k[2] as string),
           low: parseFloat(k[3] as string),
           close: parseFloat(k[4] as string),
           volume: parseFloat(k[5] as string),
+          isClosed: (k[6] as string) === '1',
           trades: 0,
-          finalized: (k[6] as string) === '1',
         };
         this.emit('candle', candle);
       });
@@ -330,21 +329,21 @@ export class BitgetConnector extends BaseExchangeConnector {
       const spot = (spotRes.value.data || [])
         .filter(t => (t.symbol as string).endsWith('USDT'))
         .map((t): Ticker => ({
-          symbol: normalizeSymbol(t.symbol as string, 'bitget'),
           exchange: 'bitget',
           marketType: 'spot',
-          price: parseFloat(t.lastPr as string),
+          symbol: normalizeSymbol(t.symbol as string, 'bitget'),
+          lastPrice: parseFloat(t.lastPr as string),
           priceChange24h: parseFloat(t.change24h as string),
-          priceChangePercent24h: parseFloat(t.changeUtc24h as string) * 100,
+          volume24h: parseFloat(t.baseVolume as string),
           high24h: parseFloat(t.high24h as string),
           low24h: parseFloat(t.low24h as string),
-          volume24h: parseFloat(t.baseVolume as string),
+          timestamp: Date.now(),
+          priceChangePercent24h: parseFloat(t.changeUtc24h as string) * 100,
           quoteVolume24h: parseFloat(t.quoteVolume as string),
           trades24h: 0,
           bid: parseFloat(t.bestBid as string),
           ask: parseFloat(t.bestAsk as string),
           spread: parseFloat(t.bestAsk as string) - parseFloat(t.bestBid as string),
-          lastUpdate: Date.now(),
         }));
       results.push(...spot);
     }
@@ -356,21 +355,21 @@ export class BitgetConnector extends BaseExchangeConnector {
           const price = parseFloat(t.lastPr as string);
           const open = parseFloat(t.open24h as string);
           return {
-            symbol: this.fromBitgetFuturesSymbol(t.symbol as string),
             exchange: 'bitget',
             marketType: 'futures',
-            price,
+            symbol: this.fromBitgetFuturesSymbol(t.symbol as string),
+            lastPrice: price,
             priceChange24h: price - open,
-            priceChangePercent24h: ((price - open) / open) * 100,
+            volume24h: parseFloat(t.baseVolume as string),
             high24h: parseFloat(t.high24h as string),
             low24h: parseFloat(t.low24h as string),
-            volume24h: parseFloat(t.baseVolume as string),
+            timestamp: Date.now(),
+            priceChangePercent24h: ((price - open) / open) * 100,
             quoteVolume24h: parseFloat(t.quoteVolume as string),
             trades24h: 0,
             bid: price,
             ask: price,
             spread: 0,
-            lastUpdate: Date.now(),
           };
         });
       results.push(...futures);
@@ -390,14 +389,18 @@ export class BitgetConnector extends BaseExchangeConnector {
       if (endTime) url += `&endTime=${endTime}`;
       const data = await this.fetchRaw<{ data: string[][] }>(url);
       return (data.data || []).map((k): Candle => ({
-        timestamp: parseInt(k[0], 10),
+        exchange: 'bitget',
+        marketType: 'futures',
+        symbol,
+        timeframe,
+        time: parseInt(k[0], 10),
         open: parseFloat(k[1]),
         high: parseFloat(k[2]),
         low: parseFloat(k[3]),
         close: parseFloat(k[4]),
         volume: parseFloat(k[5]),
+        isClosed: true,
         trades: 0,
-        marketType: 'futures',
       }));
     }
 
@@ -406,14 +409,18 @@ export class BitgetConnector extends BaseExchangeConnector {
     if (endTime) url += `&endTime=${endTime}`;
     const data = await this.fetchRaw<{ data: string[][] }>(url);
     return (data.data || []).map((k): Candle => ({
-      timestamp: parseInt(k[0], 10),
+      exchange: 'bitget',
+      marketType: 'spot',
+      symbol,
+      timeframe,
+      time: parseInt(k[0], 10),
       open: parseFloat(k[1]),
       high: parseFloat(k[2]),
       low: parseFloat(k[3]),
       close: parseFloat(k[4]),
       volume: parseFloat(k[5]),
+      isClosed: true,
       trades: 0,
-      marketType: 'spot',
     }));
   }
 

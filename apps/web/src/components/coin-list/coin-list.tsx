@@ -234,9 +234,9 @@ export function CoinList() {
       const getVal = (sym: string, t: any) => {
         switch (sort.key) {
           case 'symbol':  return sym;
-          case 'price':   return t?.price ?? 0;
+          case 'price':   return t?.lastPrice ?? 0;
           case 'change':  return t?.priceChangePercent24h ?? 0;
-          case 'volume':  return t?.quoteVolume24h ?? 0;
+          case 'volume':  return t?.volume24h ?? 0;
           case 'trades':  return t?.trades24h ?? 0;
           default:        return 0;
         }
@@ -343,8 +343,8 @@ export function CoinList() {
             const ticker = getTicker(symbol, selectedExchange);
             const isPositive = (ticker?.priceChangePercent24h ?? 0) >= 0;
             const prevPrice = prevPrices.get(symbol);
-            const priceChanged = ticker && prevPrice && ticker.price !== prevPrice;
-            const priceDir = ticker && prevPrice ? (ticker.price > prevPrice ? 'up' : 'down') : null;
+            const priceChanged = ticker && prevPrice && ticker.lastPrice !== prevPrice;
+            const priceDir = ticker && prevPrice ? (ticker.lastPrice > prevPrice ? 'up' : 'down') : null;
             const isSelected = chartSymbol === symbol;
 
             return (
@@ -364,7 +364,7 @@ export function CoinList() {
                 <div className="w-[68px] text-right">
                   <div className={`text-xs font-bold font-mono text-text-primary transition-colors duration-300
                     ${priceChanged ? (priceDir === 'up' ? 'price-flash-up' : 'price-flash-down') : ''}`}>
-                    {ticker ? `$${formatPrice(ticker.price)}` : '—'}
+                    {ticker ? `$${formatPrice(ticker.lastPrice)}` : '—'}
                   </div>
                 </div>
 
@@ -380,7 +380,7 @@ export function CoinList() {
 
                 <div className="w-[44px] text-right">
                   <span className="text-[10px] text-text-muted font-mono">
-                    {ticker ? formatVolume(ticker.quoteVolume24h) : '—'}
+                    {ticker ? formatVolume(ticker.volume24h) : '—'}
                   </span>
                 </div>
               </div>

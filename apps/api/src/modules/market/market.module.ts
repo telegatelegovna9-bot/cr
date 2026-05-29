@@ -10,6 +10,6 @@ import { MarketGateway } from './market.gateway';
     { provide: MarketService, useClass: MarketService },
     { provide: MarketGateway, useClass: MarketGateway },
   ],
-  exports: [MarketService],
+  exports: [MarketService, MarketGateway],
 })
 export class MarketModule {}

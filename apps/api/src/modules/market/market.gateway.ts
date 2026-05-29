@@ -1,192 +1,147 @@
 import {
   WebSocketGateway,
   WebSocketServer,
-  SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  SubscribeMessage,
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
-import { Inject, forwardRef } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
+import { Inject, forwardRef, Logger } from '@nestjs/common';
+import { Server } from 'ws';
 import { MarketService } from './market.service';
 import type { ExchangeId, Timeframe } from '@crypto-screener/shared';
 
 interface SubscribePayload {
-  channel: 'ticker' | 'candle' | 'orderbook' | 'trades';
-  symbol?: string;
-  exchange?: ExchangeId;
+  exchange: ExchangeId;
+  marketType: 'spot' | 'futures';
+  symbol: string;
   timeframe?: Timeframe;
+  action?: 'subscribe' | 'unsubscribe';
 }
 
 @WebSocketGateway({
-  cors: {
-    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
-    credentials: true,
-  },
-  namespace: '/market',
-  transports: ['websocket', 'polling'],
+  path: '/ws',
 })
 export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  private readonly logger = new Logger(MarketGateway.name);
+
   @WebSocketServer()
   server!: Server;
 
-  private clientSubscriptions = new Map<string, Set<string>>();
+  // Track client subscriptions for cleanup on disconnect
+  private clientSubscriptions = new Map<any, Set<string>>();
 
   constructor(
     @Inject(forwardRef(() => MarketService)) private readonly marketService: MarketService,
   ) {}
 
-  handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
-    this.clientSubscriptions.set(client.id, new Set());
+  handleConnection(client: any) {
+    this.logger.log('Client connected to WebSocket');
+    this.clientSubscriptions.set(client, new Set());
+
+    // Handle raw messages from the client
+    client.on('message', (message: string) => {
+      try {
+        const payload = JSON.parse(message);
+        this.handleSubscription(client, payload);
+      } catch (err) {
+        this.logger.error('Failed to parse WebSocket message:', err);
+      }
+    });
   }
 
-  handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
-    const subs = this.clientSubscriptions.get(client.id);
+  handleDisconnect(client: any) {
+    this.logger.log('Client disconnected from WebSocket');
+    const subs = this.clientSubscriptions.get(client);
     if (subs) {
-      for (const key of subs) {
-        const [channel, symbol, exchange, timeframe] = key.split(':');
-        if (channel === 'candle' && symbol && symbol !== '*' && timeframe && timeframe !== '*') {
-          this.marketService.unsubscribeCandle(
-            symbol,
-            timeframe as Timeframe,
-            exchange && exchange !== '*' ? (exchange as ExchangeId) : undefined,
-          );
+      for (const subKey of subs) {
+        try {
+          const { exchange, marketType, symbol, timeframe } = JSON.parse(subKey);
+          if (timeframe) {
+            this.marketService.unsubscribeCandle(symbol, timeframe as Timeframe, exchange as ExchangeId);
+          } else {
+            this.marketService.unsubscribeSymbol(symbol);
+          }
+        } catch {
+          // Ignore parse errors
         }
       }
     }
-    this.clientSubscriptions.delete(client.id);
+    this.clientSubscriptions.delete(client);
   }
 
-  @SubscribeMessage('subscribe')
-  handleSubscribe(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: SubscribePayload,
-  ) {
-    const { channel, symbol, exchange, timeframe } = payload;
-    const key = `${channel}:${symbol || '*'}:${exchange || '*'}:${timeframe || '*'}`;
+  private handleSubscription(client: any, data: SubscribePayload) {
+    const { action = 'subscribe', exchange, marketType, symbol, timeframe } = data;
+    const subKey = JSON.stringify({ exchange, marketType, symbol, timeframe });
 
-    const subs = this.clientSubscriptions.get(client.id);
-    if (subs?.has(key)) {
-      return { event: 'subscribed', data: { channel, symbol, exchange, timeframe } };
-    }
+    const subs = this.clientSubscriptions.get(client);
+    if (!subs) return;
 
-    if (subs) subs.add(key);
+    if (action === 'subscribe') {
+      if (subs.has(subKey)) return;
+      subs.add(subKey);
 
-    // Join socket.io room for efficient broadcasting
-    client.join(key);
-
-    // If subscribing to ticker and we have cached data, send immediately
-    if (channel === 'ticker' && symbol) {
-      const tickers = this.marketService.getTickers(exchange, [symbol]);
-      if (tickers.length > 0) {
-        client.emit('ticker', tickers[0]);
+      // Subscribe via MarketService
+      if (timeframe) {
+        this.marketService.subscribeCandle(symbol, timeframe, exchange);
+      } else {
+        this.marketService.subscribeSymbol(symbol);
       }
-      // Subscribe to exchange updates
-      this.marketService.subscribeSymbol(symbol);
-    }
 
-    // Subscribe to candle stream on exchange
-    if (channel === 'candle' && symbol && timeframe) {
-      this.marketService.subscribeCandle(symbol, timeframe as Timeframe, exchange);
-    }
+      // Send confirmation
+      client.send(JSON.stringify({ event: 'subscribed', data: { exchange, marketType, symbol, timeframe } }));
 
-    return { event: 'subscribed', data: { channel, symbol, exchange, timeframe } };
-  }
-
-  @SubscribeMessage('unsubscribe')
-  handleUnsubscribe(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: SubscribePayload,
-  ) {
-    const { channel, symbol, exchange, timeframe } = payload;
-    const key = `${channel}:${symbol || '*'}:${exchange || '*'}:${timeframe || '*'}`;
-
-    const subs = this.clientSubscriptions.get(client.id);
-    if (subs) subs.delete(key);
-
-    client.leave(key);
-
-    if (channel === 'candle' && symbol && timeframe) {
-      this.marketService.unsubscribeCandle(symbol, timeframe as Timeframe, exchange);
-    }
-
-    return { event: 'unsubscribed', data: { channel, symbol, exchange, timeframe } };
-  }
-
-  @SubscribeMessage('get_tickers')
-  handleGetTickers(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { exchange?: ExchangeId; symbols?: string[] },
-  ) {
-    const tickers = this.marketService.getTickers(payload.exchange, payload.symbols);
-    client.emit('tickers', tickers);
-  }
-
-  @SubscribeMessage('get_top_gainers')
-  handleGetTopGainers(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { limit?: number },
-  ) {
-    client.emit('top_gainers', this.marketService.getTopGainers(payload.limit));
-  }
-
-  @SubscribeMessage('get_top_losers')
-  handleGetTopLosers(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { limit?: number },
-  ) {
-    client.emit('top_losers', this.marketService.getTopLosers(payload.limit));
-  }
-
-  @SubscribeMessage('get_top_volume')
-  handleGetTopVolume(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { limit?: number },
-  ) {
-    client.emit('top_volume', this.marketService.getTopVolume(payload.limit));
-  }
-
-  // Broadcast ticker updates to subscribed clients
-  broadcastTicker(ticker: unknown) {
-    const t = ticker as { symbol: string; exchange?: string };
-    this.server.to(`ticker:${t.symbol}:*:*`).emit('ticker', ticker);
-    if (t.exchange) {
-      this.server.to(`ticker:${t.symbol}:${t.exchange}:*`).emit('ticker', ticker);
-    }
-
-    // Also broadcast to wildcard subscribers
-    this.server.to('ticker:*:*:*').emit('ticker', ticker);
-  }
-
-  broadcastCandle(candle: unknown) {
-    const c = candle as { symbol: string; exchange?: string; timeframe?: string };
-    // Broadcast to wildcard room (clients subscribed with symbol only)
-    this.server.to(`candle:${c.symbol}:*:*`).emit('candle', candle);
-    // Broadcast to specific room (clients subscribed with exchange+timeframe)
-    if (c.exchange && c.timeframe) {
-      this.server.to(`candle:${c.symbol}:${c.exchange}:${c.timeframe}`).emit('candle', candle);
-      this.server.to(`candle:${c.symbol}:*:${c.timeframe}`).emit('candle', candle);
+      // Send initial data if available
+      if (!timeframe) {
+        const tickers = this.marketService.getTickers(exchange, [symbol]);
+        if (tickers.length > 0) {
+          client.send(JSON.stringify({ channel: 'ticker', data: tickers[0] }));
+        }
+      }
+    } else if (action === 'unsubscribe') {
+      subs.delete(subKey);
+      if (timeframe) {
+        this.marketService.unsubscribeCandle(symbol, timeframe, exchange);
+      } else {
+        this.marketService.unsubscribeSymbol(symbol);
+      }
+      client.send(JSON.stringify({ event: 'unsubscribed', data: { exchange, marketType, symbol, timeframe } }));
     }
   }
 
-  broadcastOrderBook(ob: unknown) {
-    const o = ob as { exchange: string; symbol: string };
-    this.server.to(`orderbook:${o.symbol}:${o.exchange}:*`).emit('orderbook', ob);
+  @SubscribeMessage('message')
+  handleSubscribeMessage(
+    @ConnectedSocket() client: any,
+    @MessageBody() payload: any,
+  ) {
+    // This is still here for compatibility but we prefer handleSubscription
+    this.handleSubscription(client, payload);
   }
 
-  broadcastTrade(trade: unknown) {
-    const t = trade as { symbol: string };
-    this.server.to(`trades:${t.symbol}:*:*`).emit('trade', trade);
-  }
-
-  broadcastAlert(alert: unknown) {
-    this.server.emit('alert', alert);
-  }
-
-  broadcastPattern(pattern: unknown) {
-    this.server.emit('pattern', pattern);
+  // Broadcasters used by MarketService (or Redis Relay)
+  broadcast(channel: string, data: any) {
+    const message = JSON.stringify({ channel, data });
+    this.server.clients.forEach((client: any) => {
+      if (client.readyState === 1) { // 1 = OPEN
+        // Filter based on client subscriptions
+        const subs = this.clientSubscriptions.get(client);
+        if (subs) {
+          for (const subKey of subs) {
+            try {
+              const sub = JSON.parse(subKey);
+              if (channel === 'ticker' && sub.symbol === data.symbol && (!sub.exchange || sub.exchange === data.exchange)) {
+                client.send(message);
+                break;
+              }
+              if (channel === 'candle' && sub.symbol === data.symbol && sub.timeframe === data.timeframe && (!sub.exchange || sub.exchange === data.exchange)) {
+                client.send(message);
+                break;
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
+    });
   }
 }

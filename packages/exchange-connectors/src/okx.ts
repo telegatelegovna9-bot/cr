@@ -138,38 +138,37 @@ export class OKXConnector extends BaseExchangeConnector {
     if (channel === 'tickers') {
       const d = data[0];
       const ticker: Ticker = {
-        symbol,
         exchange: 'okx',
         marketType: isFutures ? 'futures' : 'spot',
-        price: parseFloat(d.last as string),
+        symbol,
+        lastPrice: parseFloat(d.last as string),
         priceChange24h: parseFloat(d.last as string) - parseFloat(d.open24h as string),
-        priceChangePercent24h: ((parseFloat(d.last as string) - parseFloat(d.open24h as string)) / parseFloat(d.open24h as string)) * 100,
+        volume24h: parseFloat(d.vol24h as string),
         high24h: parseFloat(d.high24h as string),
         low24h: parseFloat(d.low24h as string),
-        volume24h: parseFloat(d.vol24h as string),
+        timestamp: Date.now(),
+        // Optional
+        priceChangePercent24h: ((parseFloat(d.last as string) - parseFloat(d.open24h as string)) / parseFloat(d.open24h as string)) * 100,
         quoteVolume24h: parseFloat(d.volCcy24h as string),
-        trades24h: 0,
         bid: parseFloat(d.bidPx as string),
         ask: parseFloat(d.askPx as string),
         spread: parseFloat(d.askPx as string) - parseFloat(d.bidPx as string),
-        lastUpdate: Date.now(),
       };
       this.emit('ticker', ticker);
     } else if (channel.startsWith('candle')) {
       const d = data[0];
-      const candle: Candle & { symbol: string; exchange: 'okx'; timeframe: Timeframe; finalized: boolean; marketType: 'spot' | 'futures' } = {
-        symbol,
+      const candle: Candle = {
         exchange: 'okx',
         marketType: isFutures ? 'futures' : 'spot',
+        symbol,
         timeframe: REVERSE_TIMEFRAME_MAP[channel] || '1m',
-        timestamp: parseInt(d.ts as string, 10),
-        open: parseFloat(d.o as string),
-        high: parseFloat(d.h as string),
-        low: parseFloat(d.l as string),
-        close: parseFloat(d.c as string),
-        volume: parseFloat(d.vol as string),
-        trades: 0,
-        finalized: true,
+        time: parseInt(d[0] as string, 10),
+        open: parseFloat(d[1] as string),
+        high: parseFloat(d[2] as string),
+        low: parseFloat(d[3] as string),
+        close: parseFloat(d[4] as string),
+        volume: parseFloat(d[5] as string),
+        isClosed: true, // OKX WS sends closed candles mostly, or needs check
       };
       this.emit('candle', candle);
     } else if (channel === 'books5') {
@@ -209,21 +208,20 @@ export class OKXConnector extends BaseExchangeConnector {
       const spot = spotRes.value.data
         .filter(t => (t.instId as string).endsWith('-USDT'))
         .map((t): Ticker => ({
-          symbol: normalizeSymbol(t.instId as string, 'okx'),
           exchange: 'okx',
           marketType: 'spot',
-          price: parseFloat(t.last as string),
+          symbol: normalizeSymbol(t.instId as string, 'okx'),
+          lastPrice: parseFloat(t.last as string),
           priceChange24h: parseFloat(t.last as string) - parseFloat(t.open24h as string),
-          priceChangePercent24h: ((parseFloat(t.last as string) - parseFloat(t.open24h as string)) / parseFloat(t.open24h as string)) * 100,
+          volume24h: parseFloat(t.vol24h as string),
           high24h: parseFloat(t.high24h as string),
           low24h: parseFloat(t.low24h as string),
-          volume24h: parseFloat(t.vol24h as string),
+          timestamp: Date.now(),
+          priceChangePercent24h: ((parseFloat(t.last as string) - parseFloat(t.open24h as string)) / parseFloat(t.open24h as string)) * 100,
           quoteVolume24h: parseFloat(t.volCcy24h as string),
-          trades24h: 0,
           bid: parseFloat(t.bidPx as string),
           ask: parseFloat(t.askPx as string),
           spread: parseFloat(t.askPx as string) - parseFloat(t.bidPx as string),
-          lastUpdate: Date.now(),
         }));
       results.push(...spot);
     }
@@ -232,21 +230,20 @@ export class OKXConnector extends BaseExchangeConnector {
       const futures = swapRes.value.data
         .filter(t => (t.instId as string).endsWith('-USDT-SWAP'))
         .map((t): Ticker => ({
-          symbol: this.fromOKXInstId(t.instId as string),
           exchange: 'okx',
           marketType: 'futures',
-          price: parseFloat(t.last as string),
+          symbol: this.fromOKXInstId(t.instId as string),
+          lastPrice: parseFloat(t.last as string),
           priceChange24h: parseFloat(t.last as string) - parseFloat(t.open24h as string),
-          priceChangePercent24h: ((parseFloat(t.last as string) - parseFloat(t.open24h as string)) / parseFloat(t.open24h as string)) * 100,
+          volume24h: parseFloat(t.vol24h as string),
           high24h: parseFloat(t.high24h as string),
           low24h: parseFloat(t.low24h as string),
-          volume24h: parseFloat(t.vol24h as string),
+          timestamp: Date.now(),
+          priceChangePercent24h: ((parseFloat(t.last as string) - parseFloat(t.open24h as string)) / parseFloat(t.open24h as string)) * 100,
           quoteVolume24h: parseFloat(t.volCcy24h as string),
-          trades24h: 0,
           bid: parseFloat(t.bidPx as string),
           ask: parseFloat(t.askPx as string),
           spread: parseFloat(t.askPx as string) - parseFloat(t.bidPx as string),
-          lastUpdate: Date.now(),
         }));
       results.push(...futures);
     }
@@ -264,14 +261,17 @@ export class OKXConnector extends BaseExchangeConnector {
 
     const data = await this.fetch<{ data: string[][] }>(url);
     return data.data.map((k): Candle => ({
-      timestamp: parseInt(k[0], 10),
+      exchange: 'okx',
+      marketType: isFutures ? 'futures' : 'spot',
+      symbol,
+      timeframe,
+      time: parseInt(k[0], 10),
       open: parseFloat(k[1]),
       high: parseFloat(k[2]),
       low: parseFloat(k[3]),
       close: parseFloat(k[4]),
       volume: parseFloat(k[5]),
-      trades: 0,
-      marketType: isFutures ? 'futures' : 'spot',
+      isClosed: true,
     }));
   }
 

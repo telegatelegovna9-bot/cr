@@ -24,32 +24,38 @@ export const ALL_EXCHANGES: ExchangeId[] = [
 // ============================================================
 
 export interface Ticker {
-  symbol: string;
-  exchange: ExchangeId;
+  exchange: string;
   marketType: 'spot' | 'futures';
-  price: number;
+  symbol: string;
+  lastPrice: number;
   priceChange24h: number;
-  priceChangePercent24h: number;
+  volume24h: number;
   high24h: number;
   low24h: number;
-  volume24h: number;
-  quoteVolume24h: number;
-  trades24h: number;
-  bid: number;
-  ask: number;
-  spread: number;
-  lastUpdate: number;
+  timestamp: number;
+  // Extended fields for screener (optional but useful)
+  priceChangePercent24h?: number;
+  quoteVolume24h?: number;
+  trades24h?: number;
+  bid?: number;
+  ask?: number;
+  spread?: number;
 }
 
 export interface Candle {
-  timestamp: number;
+  exchange: string;
+  marketType: 'spot' | 'futures';
+  symbol: string;
+  timeframe: string;
+  time: number; // timestamp in ms
   open: number;
   high: number;
   low: number;
   close: number;
   volume: number;
-  trades: number;
-  marketType?: 'spot' | 'futures';
+  isClosed: boolean;
+  // Extended fields
+  trades?: number;
 }
 
 export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w';
