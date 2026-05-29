@@ -267,6 +267,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
 
         if (loadingHistoryTimerRef.current) clearTimeout(loadingHistoryTimerRef.current);
         loadingHistoryTimerRef.current = setTimeout(async () => {
+        if (!oldestTimeRef.current) return;
         loadingMoreRef.current = true;
         setLoadingHistory(true);
         try {
