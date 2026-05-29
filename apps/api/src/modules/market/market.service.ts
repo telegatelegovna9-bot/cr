@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Inject, forwardRef, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { ExchangeManager } from '@crypto-screener/exchange-connectors';
 import type {
@@ -10,10 +10,7 @@ import type {
   Trade,
 } from '@crypto-screener/shared';
 import {
-  ALL_EXCHANGES,
   DEFAULT_SYMBOLS,
-  calculateVolatility,
-  calculateATR,
 } from '@crypto-screener/shared';
 import { DatabaseService } from '../../database/database.service';
 import { MarketGateway } from './market.gateway';
@@ -23,8 +20,15 @@ export interface TickerWithMeta extends Ticker {
   atr: number;
 }
 
+// Redis key prefix for subscription deduplication
+const REDIS_SUB_PREFIX = 'sub:';
+const REDIS_TICKER_PREFIX = 'ticker:';
+const REDIS_CANDLE_PREFIX = 'candle:';
+const EXCHANGE_HEALTH_KEY = 'exchange:health';
+
 @Injectable()
 export class MarketService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(MarketService.name);
   private exchangeManager!: ExchangeManager;
 
   // In-memory caches
@@ -36,6 +40,14 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private subscribedSymbols = new Set<string>();
   private subscribedCandles = new Map<string, { symbol: string; timeframe: Timeframe; exchange?: ExchangeId }>();
   private candleSubscriptionRefs = new Map<string, number>();
+
+  // Exchange health tracking
+  private exchangeHealth = new Map<ExchangeId, {
+    connected: boolean;
+    lastSeen: number;
+    reconnects: number;
+    errors: number;
+  }>();
 
   constructor(
     private readonly db: DatabaseService,
@@ -52,7 +64,8 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     this.exchangeManager.on('trade', (trade: Trade) => this.handleTrade(trade));
     this.exchangeManager.on('exchange_connected', (id: ExchangeId) => {
       this.connectedExchanges.add(id);
-      console.log(`✅ ${id} connected`);
+      this.updateExchangeHealth(id, true);
+      this.logger.log(`✅ ${id} connected`);
       // Re-subscribe active symbols
       for (const symbol of this.subscribedSymbols) {
         this.exchangeManager.subscribeTicker(symbol, [id]);
@@ -65,10 +78,12 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     });
     this.exchangeManager.on('exchange_disconnected', (id: ExchangeId) => {
       this.connectedExchanges.delete(id);
-      console.log(`❌ ${id} disconnected`);
+      this.updateExchangeHealth(id, false);
+      this.logger.warn(`❌ ${id} disconnected`);
     });
     this.exchangeManager.on('exchange_error', ({ exchange, error }: { exchange: ExchangeId; error: Error }) => {
-      console.error(`⚠️ ${exchange} error:`, error.message);
+      this.incrementExchangeErrors(exchange);
+      this.logger.error(`⚠️ ${exchange} error: ${error.message}`);
     });
 
     // Connect all exchanges
@@ -83,11 +98,29 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.exchangeManager.subscribeTicker(symbol);
     }
 
-    console.log(`📊 Market service initialized. Connected: ${Array.from(this.connectedExchanges).join(', ')}`);
+    this.logger.log(`📊 Market service initialized. Connected: ${Array.from(this.connectedExchanges).join(', ')}`);
   }
 
   onModuleDestroy() {
     this.exchangeManager.disconnectAll();
+  }
+
+  private updateExchangeHealth(id: ExchangeId, connected: boolean): void {
+    const existing = this.exchangeHealth.get(id) || { connected: false, lastSeen: 0, reconnects: 0, errors: 0 };
+    const reconnects = !existing.connected && connected ? existing.reconnects + 1 : existing.reconnects;
+    this.exchangeHealth.set(id, {
+      connected,
+      lastSeen: connected ? Date.now() : existing.lastSeen,
+      reconnects: existing.reconnects === 0 && connected ? 0 : reconnects,
+      errors: existing.errors,
+    });
+    // Persist health to Redis for monitoring
+    this.db.cacheSet(EXCHANGE_HEALTH_KEY, Object.fromEntries(this.exchangeHealth), 300).catch(() => {});
+  }
+
+  private incrementExchangeErrors(id: ExchangeId): void {
+    const existing = this.exchangeHealth.get(id) || { connected: false, lastSeen: 0, reconnects: 0, errors: 0 };
+    this.exchangeHealth.set(id, { ...existing, errors: existing.errors + 1 });
   }
 
   private async loadInitialTickers() {
@@ -100,10 +133,12 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
           volatility: 0,
           atr: 0,
         });
+        // Cache latest ticker in Redis (TTL 120s)
+        await this.db.cacheSet(`${REDIS_TICKER_PREFIX}${key}`, ticker, 120).catch(() => {});
       }
-      console.log(`📈 Loaded ${tickers.length} initial tickers`);
+      this.logger.log(`📈 Loaded ${tickers.length} initial tickers`);
     } catch (err) {
-      console.error('Failed to load initial tickers:', err);
+      this.logger.error('Failed to load initial tickers:', err);
     }
   }
 
@@ -116,6 +151,9 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       atr: existing?.atr || 0,
     });
 
+    // Cache in Redis
+    this.db.cacheSet(`${REDIS_TICKER_PREFIX}${key}`, ticker, 120).catch(() => {});
+
     // Publish to Redis for WebSocket relay
     this.db.publish('ticker', ticker);
     this.gateway?.broadcastTicker(ticker);
@@ -124,7 +162,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private handleCandle(candle: Candle & { symbol: string; exchange?: ExchangeId; timeframe?: Timeframe; finalized?: boolean }) {
     const key = `candle:${candle.symbol}:${candle.exchange || 'unknown'}:${candle.timeframe || 'unknown'}`;
     let candles = this.candleCache.get(key) || [];
-    
+
     // Update or add candle
     const idx = candles.findIndex(c => c.timestamp === candle.timestamp);
     if (idx >= 0) {
@@ -135,6 +173,9 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       if (candles.length > 5000) candles = candles.slice(-5000);
     }
     this.candleCache.set(key, candles);
+
+    // Cache latest candle in Redis
+    this.db.cacheSet(`${REDIS_CANDLE_PREFIX}${key}`, candle, 60).catch(() => {});
 
     // Store finalized candles in DB
     if (candle.finalized) {
@@ -170,6 +211,25 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     } catch {
       // Silent fail for candle storage
     }
+  }
+
+  // ── Redis-based subscription deduplication ─────────────────────────────────
+  // Ensures only ONE exchange WS subscription exists per symbol across all
+  // backend instances. The ref-count is stored in Redis so multiple pods
+  // coordinate without duplicate subscriptions.
+
+  private subKey(type: 'ticker' | 'candle', symbol: string, timeframe?: string, exchange?: string): string {
+    return `${REDIS_SUB_PREFIX}${type}:${symbol}:${exchange || 'all'}:${timeframe || 'all'}`;
+  }
+
+  private async redisIncrSub(key: string): Promise<number> {
+    return this.db.getRedis().incr(key);
+  }
+
+  private async redisDecrSub(key: string): Promise<number> {
+    const val = await this.db.getRedis().decr(key);
+    if (val <= 0) await this.db.getRedis().del(key);
+    return Math.max(0, val);
   }
 
   // Public API methods
@@ -236,7 +296,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       }
       return candles;
     } catch (err) {
-      console.error(`Failed to fetch candles for ${symbol}:`, err);
+      this.logger.error(`Failed to fetch candles for ${symbol}:`, err);
       return cached?.slice(-limit) || [];
     }
   }
@@ -288,6 +348,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
     this.subscribedCandles.set(key, { symbol, timeframe, exchange });
     this.exchangeManager.subscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
+
+    // Track in Redis for cross-instance dedup
+    const redisKey = this.subKey('candle', symbol, timeframe, exchange);
+    this.redisIncrSub(redisKey).catch(() => {});
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe, exchange?: ExchangeId): void {
@@ -297,6 +361,9 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.candleSubscriptionRefs.delete(key);
       this.subscribedCandles.delete(key);
       this.exchangeManager.unsubscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
+
+      const redisKey = this.subKey('candle', symbol, timeframe, exchange);
+      this.redisDecrSub(redisKey).catch(() => {});
       return;
     }
 
@@ -312,11 +379,28 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     return Array.from(this.connectedExchanges);
   }
 
+  getExchangeHealth(): Record<string, unknown> {
+    const health: Record<string, unknown> = {};
+    for (const [id, data] of this.exchangeHealth) {
+      health[id] = {
+        ...data,
+        uptime: data.connected ? Date.now() - data.lastSeen : 0,
+      };
+    }
+    // Include exchanges not yet seen
+    for (const id of this.connectedExchanges) {
+      if (!health[id]) {
+        health[id] = { connected: true, lastSeen: Date.now(), reconnects: 0, errors: 0 };
+      }
+    }
+    return health;
+  }
+
   // Refresh tickers periodically
   @Interval(30000)
   private async refreshTickers() {
     if (this.connectedExchanges.size === 0) return;
-    
+
     try {
       const tickers = await this.exchangeManager.fetchAllTickers(
         Array.from(this.subscribedSymbols),
@@ -333,5 +417,12 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     } catch {
       // Silent fail
     }
+  }
+
+  // Persist exchange health to Redis every minute
+  @Interval(60000)
+  private async persistHealth() {
+    const health = this.getExchangeHealth();
+    await this.db.cacheSet(EXCHANGE_HEALTH_KEY, health, 300).catch(() => {});
   }
 }

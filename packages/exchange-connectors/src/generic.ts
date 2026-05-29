@@ -28,6 +28,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol: normalizeSymbol(symbol, 'kucoin'),
         exchange: 'kucoin',
+        marketType: 'spot' as const,
         price,
         priceChange24h: price * (change / 100),
         priceChangePercent24h: change,
@@ -76,6 +77,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol: normalizeSymbol(symbol, 'bitget'),
         exchange: 'bitget',
+        marketType: 'spot' as const,
         price: parseFloat(t.lastPr as string),
         priceChange24h: parseFloat(t.change24h as string),
         priceChangePercent24h: parseFloat(t.change24h as string) / parseFloat(t.open24h as string) * 100,
@@ -124,6 +126,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol: normalizeSymbol(symbol, 'gate'),
         exchange: 'gate',
+        marketType: 'spot' as const,
         price: parseFloat(t.last as string),
         priceChange24h: parseFloat(t.last as string) - parseFloat(t.open24h as string),
         priceChangePercent24h: ((parseFloat(t.last as string) - parseFloat(t.open24h as string)) / parseFloat(t.open24h as string)) * 100,
@@ -172,6 +175,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol: normalizeSymbol(symbol, 'mexc'),
         exchange: 'mexc',
+        marketType: 'spot' as const,
         price: parseFloat(t.lastPrice as string),
         priceChange24h: parseFloat(t.priceChange as string),
         priceChangePercent24h: parseFloat(t.priceChangePercent as string),
@@ -221,6 +225,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol: normalizeSymbol(symbol, 'coinbase'),
         exchange: 'coinbase',
+        marketType: 'spot' as const,
         price,
         priceChange24h: 0,
         priceChangePercent24h: 0,
@@ -267,6 +272,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return d.universe.map((u, i): Ticker => ({
         symbol: `${u.name}/USDC`,
         exchange: 'hyperliquid',
+        marketType: 'spot',
         price: parseFloat(d.mids[i]),
         priceChange24h: 0,
         priceChangePercent24h: 0,
@@ -442,6 +448,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
         .map((t: Record<string, unknown>): Ticker => ({
           symbol: normalizeSymbol(t.symbol as string, 'kucoin'),
           exchange: 'kucoin',
+          marketType: 'spot',
           price: parseFloat(t.last as string),
           priceChange24h: parseFloat(t.last as string) * parseFloat(t.changeRate as string),
           priceChangePercent24h: parseFloat(t.changeRate as string) * 100,
@@ -469,6 +476,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
         .map((t: Record<string, unknown>): Ticker => ({
           symbol: normalizeSymbol(t.currency_pair as string, 'gate'),
           exchange: 'gate',
+          marketType: 'spot',
           price: parseFloat(t.last as string),
           priceChange24h: parseFloat(t.last as string) - parseFloat(t.open24h as string),
           priceChangePercent24h: ((parseFloat(t.last as string) - parseFloat(t.open24h as string)) / parseFloat(t.open24h as string)) * 100,
@@ -496,6 +504,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
         .map((t: Record<string, unknown>): Ticker => ({
           symbol: normalizeSymbol(t.symbol as string, 'mexc'),
           exchange: 'mexc',
+          marketType: 'spot',
           price: parseFloat(t.lastPrice as string),
           priceChange24h: parseFloat(t.priceChange as string),
           priceChangePercent24h: parseFloat(t.priceChangePercent as string),
@@ -523,6 +532,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
         .map((t: Record<string, unknown>): Ticker => ({
           symbol: normalizeSymbol(t.symbol as string, 'bitget'),
           exchange: 'bitget',
+          marketType: 'spot',
           price: parseFloat(t.lastPr as string),
           priceChange24h: parseFloat(t.change24h as string),
           priceChangePercent24h: parseFloat(t.changeRate24h as string) * 100,
@@ -551,6 +561,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
         .map((p: Record<string, unknown>): Ticker => ({
           symbol: `${p.base_currency}/${p.quote_currency}`,
           exchange: 'coinbase',
+          marketType: 'spot',
           price: parseFloat(p.price as string || '0'),
           priceChange24h: 0,
           priceChangePercent24h: 0,
@@ -569,7 +580,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
     return [];
   }
 
-  async fetchCandles(symbol: string, timeframe: Timeframe, limit = 200): Promise<Candle[]> {
+  async fetchCandles(symbol: string, timeframe: Timeframe, limit = 200, _endTime?: number): Promise<Candle[]> {
     const local = this.toLocalSymbol(symbol);
     const tf = this.tfMap[timeframe];
 

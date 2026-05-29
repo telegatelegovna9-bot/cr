@@ -111,6 +111,16 @@ export class MarketController {
     };
   }
 
+  @Get('health')
+  @ApiOperation({ summary: 'Get exchange health status' })
+  getHealth() {
+    return {
+      success: true,
+      data: this.marketService.getExchangeHealth(),
+      timestamp: Date.now(),
+    };
+  }
+
   @Get('exchanges')
   @ApiOperation({ summary: 'Get supported exchanges' })
   getExchanges() {

@@ -26,6 +26,7 @@ export const ALL_EXCHANGES: ExchangeId[] = [
 export interface Ticker {
   symbol: string;
   exchange: ExchangeId;
+  marketType: 'spot' | 'futures';
   price: number;
   priceChange24h: number;
   priceChangePercent24h: number;
@@ -48,6 +49,7 @@ export interface Candle {
   close: number;
   volume: number;
   trades: number;
+  marketType?: 'spot' | 'futures';
 }
 
 export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w';

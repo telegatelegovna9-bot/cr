@@ -213,6 +213,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     const ticker: Ticker = {
       symbol,
       exchange: 'binance',
+      marketType: isFutures ? 'futures' : 'spot',
       price: parseFloat(data.c as string),
       priceChange24h: parseFloat(data.p as string),
       priceChangePercent24h: parseFloat(data.P as string),
@@ -301,6 +302,7 @@ export class BinanceConnector extends BaseExchangeConnector {
         .map((t): Ticker => ({
           symbol: normalizeSymbol(t.symbol as string, 'binance'),
           exchange: 'binance',
+          marketType: 'spot',
           price: parseFloat(t.lastPrice as string),
           priceChange24h: parseFloat(t.priceChange as string),
           priceChangePercent24h: parseFloat(t.priceChangePercent as string),
@@ -329,6 +331,7 @@ export class BinanceConnector extends BaseExchangeConnector {
           return {
             symbol,
             exchange: 'binance',
+            marketType: 'futures',
             price: lastPrice,
             priceChange24h: parseFloat(t.priceChange as string),
             priceChangePercent24h: parseFloat(t.priceChangePercent as string),

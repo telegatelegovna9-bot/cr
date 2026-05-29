@@ -3,5 +3,7 @@ export type { ExchangeConnectorOptions } from './base';
 export { BinanceConnector } from './binance';
 export { BybitConnector } from './bybit';
 export { OKXConnector } from './okx';
+export { MexcConnector } from './mexc';
+export { BitgetConnector } from './bitget';
 export { GenericExchangeConnector } from './generic';
 export { ExchangeManager } from './manager';

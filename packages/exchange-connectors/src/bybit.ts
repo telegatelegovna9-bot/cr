@@ -1,4 +1,4 @@
-// Bybit exchange connector
+// Bybit exchange connector — spot + linear futures
 
 import WebSocket from 'ws';
 import type { Ticker, Candle, Timeframe, OrderBook, Trade } from '@crypto-screener/shared';
@@ -12,22 +12,62 @@ const REVERSE_TIMEFRAME_MAP: Record<string, Timeframe> = {
   '1': '1m', '5': '5m', '15': '15m', '60': '1h', '240': '4h', D: '1d', W: '1w',
 };
 
+const BYBIT_SPOT_WS = 'wss://stream.bybit.com/v5/public/spot';
+const BYBIT_LINEAR_WS = 'wss://stream.bybit.com/v5/public/linear';
+const BYBIT_REST = 'https://api.bybit.com';
+
 export class BybitConnector extends BaseExchangeConnector {
+  private spotWs: WebSocket | null = null;
+  private spotConnected = false;
+  private spotSubscriptions = new Set<string>();
+
   constructor() {
     super({
       id: 'bybit',
-      wsUrl: 'wss://stream.bybit.com/v5/public/linear',
-      restUrl: 'https://api.bybit.com',
+      wsUrl: BYBIT_LINEAR_WS,
+      restUrl: BYBIT_REST,
       rateLimit: 600,
     });
   }
 
   async connectWS(): Promise<void> {
-    const ws = new WebSocket(this.wsUrl);
-    this.setupWebSocket(ws);
-    return new Promise((resolve, reject) => {
-      ws.on('open', () => resolve());
-      ws.on('error', (err) => reject(err));
+    if (this.connected || this.ws) return;
+
+    // ── Linear (futures) WebSocket ─────────────────────────────
+    const linearWs = new WebSocket(this.wsUrl);
+    this.setupWebSocket(linearWs);
+    linearWs.on('close', () => {
+      console.warn('[bybit] Linear WS closed');
+    });
+
+    // ── Spot WebSocket ─────────────────────────────────────────
+    const spotWs = new WebSocket(BYBIT_SPOT_WS);
+    this.spotWs = spotWs;
+
+    spotWs.on('open', () => {
+      this.spotConnected = true;
+    });
+    spotWs.on('message', (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+        msg.__marketType = 'spot';
+        this.handleMessage(msg);
+      } catch { /* ignore */ }
+    });
+    spotWs.on('close', () => {
+      this.spotConnected = false;
+      this.spotSubscriptions.clear();
+    });
+    spotWs.on('error', (err: Error) => {
+      console.warn(`[bybit] Spot WS error: ${err.message}`);
+    });
+
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 10_000);
+      const done = () => { clearTimeout(timer); resolve(); };
+      linearWs.once('open', done);
+      linearWs.once('error', done);
+      linearWs.once('close', done);
     });
   }
 
@@ -35,20 +75,61 @@ export class BybitConnector extends BaseExchangeConnector {
     return { op: 'ping' };
   }
 
+  private isFuturesSymbol(symbol: string): boolean {
+    return symbol.includes(':USDT') || symbol.includes(':USD');
+  }
+
+  private toBybitSymbol(symbol: string): string {
+    if (this.isFuturesSymbol(symbol)) {
+      return `${symbol.split('/')[0]}USDT`;
+    }
+    return this.toLocalSymbol(symbol);
+  }
+
+  private toFuturesSymbol(raw: string): string {
+    const base = raw.toUpperCase().replace(/USDT$/, '');
+    return `${base}/USDT:USDT`;
+  }
+
+  private sendSpot(data: unknown): void {
+    if (this.spotWs && this.spotConnected) {
+      this.spotWs.send(JSON.stringify(data));
+    }
+  }
+
   subscribeTicker(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBybitSymbol(symbol);
+      const key = `ticker:${symbol}`;
+      if (this.subscriptions.has(key)) return;
+      this.subscriptions.add(key);
+      this.send({ op: 'subscribe', args: [`tickers.${local}`] });
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol);
     const key = `ticker:${symbol}`;
-    if (this.subscriptions.has(key)) return;
-    this.subscriptions.add(key);
-    this.send({ op: 'subscribe', args: [`tickers.${local}`] });
+    if (this.spotSubscriptions.has(key)) return;
+    this.spotSubscriptions.add(key);
+    this.sendSpot({ op: 'subscribe', args: [`tickers.${local}`] });
   }
 
   subscribeCandle(symbol: string, timeframe: Timeframe): void {
+    const tf = TIMEFRAME_MAP[timeframe];
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBybitSymbol(symbol);
+      const key = `candle:${symbol}:${timeframe}`;
+      if (this.subscriptions.has(key)) return;
+      this.subscriptions.add(key);
+      this.send({ op: 'subscribe', args: [`kline.${tf}.${local}`] });
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol);
     const key = `candle:${symbol}:${timeframe}`;
-    if (this.subscriptions.has(key)) return;
-    this.subscriptions.add(key);
-    this.send({ op: 'subscribe', args: [`kline.${TIMEFRAME_MAP[timeframe]}.${local}`] });
+    if (this.spotSubscriptions.has(key)) return;
+    this.spotSubscriptions.add(key);
+    this.sendSpot({ op: 'subscribe', args: [`kline.${tf}.${local}`] });
   }
 
   subscribeOrderBook(symbol: string): void {
@@ -68,15 +149,28 @@ export class BybitConnector extends BaseExchangeConnector {
   }
 
   unsubscribeTicker(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBybitSymbol(symbol);
+      this.subscriptions.delete(`ticker:${symbol}`);
+      this.send({ op: 'unsubscribe', args: [`tickers.${local}`] });
+      return;
+    }
     const local = this.toLocalSymbol(symbol);
-    this.subscriptions.delete(`ticker:${symbol}`);
-    this.send({ op: 'unsubscribe', args: [`tickers.${local}`] });
+    this.spotSubscriptions.delete(`ticker:${symbol}`);
+    this.sendSpot({ op: 'unsubscribe', args: [`tickers.${local}`] });
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe): void {
+    const tf = TIMEFRAME_MAP[timeframe];
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBybitSymbol(symbol);
+      this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
+      this.send({ op: 'unsubscribe', args: [`kline.${tf}.${local}`] });
+      return;
+    }
     const local = this.toLocalSymbol(symbol);
-    this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
-    this.send({ op: 'unsubscribe', args: [`kline.${TIMEFRAME_MAP[timeframe]}.${local}`] });
+    this.spotSubscriptions.delete(`candle:${symbol}:${timeframe}`);
+    this.sendSpot({ op: 'unsubscribe', args: [`kline.${tf}.${local}`] });
   }
 
   unsubscribeOrderBook(symbol: string): void {
@@ -95,12 +189,19 @@ export class BybitConnector extends BaseExchangeConnector {
     const topic = msg.topic as string;
     if (!topic) return;
 
+    const isSpot = msg.__marketType === 'spot';
+
     if (topic.startsWith('tickers.')) {
       const data = msg.data as Record<string, unknown>;
-      const symbol = this.fromLocalSymbol(data.symbol as string);
+      if (!data) return;
+      const rawSymbol = data.symbol as string;
+      const symbol = isSpot
+        ? this.fromLocalSymbol(rawSymbol)
+        : this.toFuturesSymbol(rawSymbol);
       const ticker: Ticker = {
         symbol,
         exchange: 'bybit',
+        marketType: isSpot ? 'spot' : 'futures',
         price: parseFloat(data.lastPrice as string),
         priceChange24h: parseFloat(data.price24hPcnt as string) * parseFloat(data.lastPrice as string),
         priceChangePercent24h: parseFloat(data.price24hPcnt as string) * 100,
@@ -119,10 +220,14 @@ export class BybitConnector extends BaseExchangeConnector {
       const data = (msg.data as Record<string, unknown>[])[0];
       if (!data) return;
       const [, interval] = topic.split('.');
-      const symbol = this.fromLocalSymbol(data.symbol as string);
-      const candle: Candle & { symbol: string; exchange: 'bybit'; timeframe: Timeframe; finalized: boolean } = {
+      const rawSymbol = data.symbol as string;
+      const symbol = isSpot
+        ? this.fromLocalSymbol(rawSymbol)
+        : this.toFuturesSymbol(rawSymbol);
+      const candle: Candle & { symbol: string; exchange: 'bybit'; timeframe: Timeframe; finalized: boolean; marketType: 'spot' | 'futures' } = {
         symbol,
         exchange: 'bybit',
+        marketType: isSpot ? 'spot' : 'futures',
         timeframe: REVERSE_TIMEFRAME_MAP[interval] || '1m',
         timestamp: data.start as number,
         open: parseFloat(data.open as string),
@@ -136,7 +241,8 @@ export class BybitConnector extends BaseExchangeConnector {
       this.emit('candle', candle);
     } else if (topic.startsWith('orderbook.')) {
       const data = msg.data as Record<string, unknown>;
-      const symbol = this.fromLocalSymbol(data.s as string || (msg.topic as string).split('.').pop()!);
+      const rawSymbol = data.s as string || (msg.topic as string).split('.').pop()!;
+      const symbol = this.fromLocalSymbol(rawSymbol);
       const bids = ((data.b as [string, string][]) || []).map(([p, q]) => ({
         price: parseFloat(p), quantity: parseFloat(q),
       }));
@@ -159,44 +265,72 @@ export class BybitConnector extends BaseExchangeConnector {
   }
 
   async fetchTickers(symbols?: string[]): Promise<Ticker[]> {
-    const data = await this.fetch<{ result: { list: Record<string, unknown>[] } }>(
-      '/v5/market/tickers?category=linear'
-    );
+    const [linearRes, spotRes] = await Promise.allSettled([
+      this.fetch<{ result: { list: Record<string, unknown>[] } }>('/v5/market/tickers?category=linear'),
+      this.fetch<{ result: { list: Record<string, unknown>[] } }>('/v5/market/tickers?category=spot'),
+    ]);
 
-    return data.result.list
-      .filter((t) => {
-        if (!(t.symbol as string).endsWith('USDT')) return false;
-        if (symbols) {
-          const normalized = normalizeSymbol(t.symbol as string, 'bybit');
-          return symbols.includes(normalized);
-        }
-        return true;
-      })
-      .map((t): Ticker => ({
-        symbol: normalizeSymbol(t.symbol as string, 'bybit'),
-        exchange: 'bybit',
-        price: parseFloat(t.lastPrice as string),
-        priceChange24h: parseFloat(t.price24hPcnt as string) * parseFloat(t.lastPrice as string),
-        priceChangePercent24h: parseFloat(t.price24hPcnt as string) * 100,
-        high24h: parseFloat(t.highPrice24h as string),
-        low24h: parseFloat(t.lowPrice24h as string),
-        volume24h: parseFloat(t.volume24h as string),
-        quoteVolume24h: parseFloat(t.turnover24h as string),
-        trades24h: 0,
-        bid: parseFloat(t.bid1Price as string),
-        ask: parseFloat(t.ask1Price as string),
-        spread: parseFloat(t.ask1Price as string) - parseFloat(t.bid1Price as string),
-        lastUpdate: Date.now(),
-      }));
+    const results: Ticker[] = [];
+
+    if (linearRes.status === 'fulfilled') {
+      const futures = linearRes.value.result.list
+        .filter(t => (t.symbol as string).endsWith('USDT'))
+        .map((t): Ticker => ({
+          symbol: this.toFuturesSymbol(t.symbol as string),
+          exchange: 'bybit',
+          marketType: 'futures',
+          price: parseFloat(t.lastPrice as string),
+          priceChange24h: parseFloat(t.price24hPcnt as string) * parseFloat(t.lastPrice as string),
+          priceChangePercent24h: parseFloat(t.price24hPcnt as string) * 100,
+          high24h: parseFloat(t.highPrice24h as string),
+          low24h: parseFloat(t.lowPrice24h as string),
+          volume24h: parseFloat(t.volume24h as string),
+          quoteVolume24h: parseFloat(t.turnover24h as string),
+          trades24h: 0,
+          bid: parseFloat(t.bid1Price as string),
+          ask: parseFloat(t.ask1Price as string),
+          spread: parseFloat(t.ask1Price as string) - parseFloat(t.bid1Price as string),
+          lastUpdate: Date.now(),
+        }));
+      results.push(...futures);
+    }
+
+    if (spotRes.status === 'fulfilled') {
+      const spot = spotRes.value.result.list
+        .filter(t => (t.symbol as string).endsWith('USDT'))
+        .map((t): Ticker => ({
+          symbol: normalizeSymbol(t.symbol as string, 'bybit'),
+          exchange: 'bybit',
+          marketType: 'spot',
+          price: parseFloat(t.lastPrice as string),
+          priceChange24h: parseFloat(t.price24hPcnt as string) * parseFloat(t.lastPrice as string),
+          priceChangePercent24h: parseFloat(t.price24hPcnt as string) * 100,
+          high24h: parseFloat(t.highPrice24h as string),
+          low24h: parseFloat(t.lowPrice24h as string),
+          volume24h: parseFloat(t.volume24h as string),
+          quoteVolume24h: parseFloat(t.turnover24h as string),
+          trades24h: 0,
+          bid: parseFloat(t.bid1Price as string),
+          ask: parseFloat(t.ask1Price as string),
+          spread: parseFloat(t.ask1Price as string) - parseFloat(t.bid1Price as string),
+          lastUpdate: Date.now(),
+        }));
+      results.push(...spot);
+    }
+
+    if (symbols) return results.filter(t => symbols.includes(t.symbol));
+    return results;
   }
 
-  async fetchCandles(symbol: string, timeframe: Timeframe, limit = 200): Promise<Candle[]> {
-    const local = this.toLocalSymbol(symbol);
+  async fetchCandles(symbol: string, timeframe: Timeframe, limit = 200, endTime?: number): Promise<Candle[]> {
+    const isFutures = this.isFuturesSymbol(symbol);
+    const local = this.toBybitSymbol(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
-    const data = await this.fetch<{ result: { list: string[][] } }>(
-      `/v5/market/kline?category=linear&symbol=${local}&interval=${tf}&limit=${limit}`
-    );
+    const category = isFutures ? 'linear' : 'spot';
+    let url = `/v5/market/kline?category=${category}&symbol=${local}&interval=${tf}&limit=${limit}`;
+    if (endTime) url += `&end=${endTime}`;
 
+    const data = await this.fetch<{ result: { list: string[][] } }>(url);
     return data.result.list.map((k): Candle => ({
       timestamp: parseInt(k[0], 10),
       open: parseFloat(k[1]),
@@ -205,6 +339,7 @@ export class BybitConnector extends BaseExchangeConnector {
       close: parseFloat(k[4]),
       volume: parseFloat(k[5]),
       trades: 0,
+      marketType: isFutures ? 'futures' : 'spot',
     })).reverse();
   }
 
@@ -221,5 +356,16 @@ export class BybitConnector extends BaseExchangeConnector {
       asks: data.result.a.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       timestamp: Date.now(),
     };
+  }
+
+  disconnect(): void {
+    super.disconnect();
+    if (this.spotWs) {
+      this.spotWs.removeAllListeners();
+      this.spotWs.close();
+      this.spotWs = null;
+    }
+    this.spotConnected = false;
+    this.spotSubscriptions.clear();
   }
 }

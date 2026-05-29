@@ -7,6 +7,8 @@ import { BaseExchangeConnector } from './base';
 import { BinanceConnector } from './binance';
 import { BybitConnector } from './bybit';
 import { OKXConnector } from './okx';
+import { MexcConnector } from './mexc';
+import { BitgetConnector } from './bitget';
 import { GenericExchangeConnector } from './generic';
 
 export class ExchangeManager extends EventEmitter {
@@ -24,10 +26,10 @@ export class ExchangeManager extends EventEmitter {
       binance: () => new BinanceConnector(),
       bybit: () => new BybitConnector(),
       okx: () => new OKXConnector(),
+      mexc: () => new MexcConnector(),
+      bitget: () => new BitgetConnector(),
       kucoin: () => new GenericExchangeConnector('kucoin'),
-      bitget: () => new GenericExchangeConnector('bitget'),
       gate: () => new GenericExchangeConnector('gate'),
-      mexc: () => new GenericExchangeConnector('mexc'),
       hyperliquid: () => new GenericExchangeConnector('hyperliquid'),
       coinbase: () => new GenericExchangeConnector('coinbase'),
     };
