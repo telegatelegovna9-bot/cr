@@ -5,6 +5,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { createChart, IChartApi, ISeriesApi, CandlestickData, HistogramData, ColorType, Time, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { Candle } from '@crypto-screener/shared';
+import { getChartPriceFormat } from '@/lib/format';
 
 interface ChartProps {
   candles: Candle[];
@@ -67,6 +68,7 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
       borderDownColor: '#ef4444',
       wickUpColor: '#22c55e',
       wickDownColor: '#ef4444',
+      priceFormat: getChartPriceFormat(),
     });
 
     // Volume series
@@ -130,6 +132,9 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
       color: c.close >= c.open ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)',
     }));
 
+    candleSeriesRef.current.applyOptions({
+      priceFormat: getChartPriceFormat(candles[candles.length - 1]?.close),
+    });
     candleSeriesRef.current.setData(candleData);
     volumeSeriesRef.current.setData(volumeData);
 

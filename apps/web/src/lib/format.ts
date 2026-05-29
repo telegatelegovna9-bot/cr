@@ -1,11 +1,36 @@
 // Format utilities for the frontend
 
+export function getPricePrecision(price?: number): number {
+  if (price === undefined || price === null || !Number.isFinite(price)) return 2;
+
+  const absPrice = Math.abs(price);
+  if (absPrice >= 1000) return 2;
+  if (absPrice >= 1) return 4;
+  if (absPrice >= 0.1) return 5;
+  if (absPrice >= 0.01) return 6;
+  if (absPrice >= 0.001) return 7;
+  if (absPrice >= 0.0001) return 8;
+  if (absPrice >= 0.000001) return 10;
+  return 12;
+}
+
+export function getChartPriceFormat(price?: number) {
+  const precision = getPricePrecision(price);
+
+  return {
+    type: 'price' as const,
+    precision,
+    minMove: 10 ** -precision,
+  };
+}
+
 export function formatPrice(price?: number): string {
   if (price === undefined || price === null) return '—';
-  if (price >= 1000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (price >= 1) return price.toFixed(4);
-  if (price >= 0.01) return price.toFixed(6);
-  return price.toFixed(8);
+  const precision = getPricePrecision(price);
+  return price.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: precision,
+  });
 }
 
 export function formatPercent(value?: number): string {

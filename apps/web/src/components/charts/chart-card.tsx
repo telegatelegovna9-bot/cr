@@ -6,9 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
 import { useMarketStore } from '@/stores';
+import { formatPrice, getChartPriceFormat } from '@/lib/format';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
-import type { Candle, Ticker } from '@crypto-screener/shared';
+import type { Candle } from '@crypto-screener/shared';
 
 interface ChartCardProps {
   symbol: string;
@@ -135,6 +136,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
 
         const time = (timestamp / 1000) as Time;
         try {
+          candleSeriesRef.current.applyOptions({ priceFormat: getChartPriceFormat(close) });
           candleSeriesRef.current.update({ time, open, high, low, close });
           volumeSeriesRef.current.update({
             time,
@@ -209,6 +211,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         upColor: '#22c55e', downColor: '#ef4444',
         borderUpColor: '#22c55e', borderDownColor: '#ef4444',
         wickUpColor: '#22c55e88', wickDownColor: '#ef444488',
+        priceFormat: getChartPriceFormat(ticker?.lastPrice ?? currentPrice ?? undefined),
       });
       candleSeriesRef.current = candleSeries;
 
@@ -247,6 +250,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
             chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
 
             const lastRaw = raw[raw.length - 1];
+            candleSeries.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
             setCurrentPrice(lastRaw.close);
             if (raw.length > 1) {
               setPriceChange(((lastRaw.close - raw[0].open) / raw[0].open) * 100);
@@ -387,7 +391,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
           {livePrice != null && (
             <div className="text-right mr-2">
               <div className="text-sm font-bold font-mono text-text-primary">
-                ${livePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                ${formatPrice(livePrice)}
               </div>
               {liveChange != null && (
                 <div className={`text-[10px] font-bold font-mono ${isPositive ? 'text-positive' : 'text-negative'}`}>
