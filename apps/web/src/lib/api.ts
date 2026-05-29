@@ -1,6 +1,14 @@
 // API client for the crypto screener backend
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const getApiBase = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window === 'undefined') return 'http://localhost:3001';
+  
+  // Use relative URL in production (proxied by Nginx)
+  return '';
+};
+
+const API_BASE = getApiBase();
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}/api${endpoint}`;
@@ -25,24 +33,24 @@ export const marketApi = {
     const params = new URLSearchParams();
     if (exchange) params.set('exchange', exchange);
     if (symbols?.length) params.set('symbols', symbols.join(','));
-    return fetchApi<{ success: boolean; data: unknown[] }>(`/market/tickers?${params}`);
+    return fetchApi<{ success: boolean; data: any[] }>(`/market/tickers?${params}`);
   },
 
   getTopGainers: (limit = 50) =>
-    fetchApi<{ success: boolean; data: unknown[] }>(`/market/tickers/top-gainers?limit=${limit}`),
+    fetchApi<{ success: boolean; data: any[] }>(`/market/tickers/top-gainers?limit=${limit}`),
 
   getTopLosers: (limit = 50) =>
-    fetchApi<{ success: boolean; data: unknown[] }>(`/market/tickers/top-losers?limit=${limit}`),
+    fetchApi<{ success: boolean; data: any[] }>(`/market/tickers/top-losers?limit=${limit}`),
 
   getTopVolume: (limit = 50) =>
-    fetchApi<{ success: boolean; data: unknown[] }>(`/market/tickers/top-volume?limit=${limit}`),
+    fetchApi<{ success: boolean; data: any[] }>(`/market/tickers/top-volume?limit=${limit}`),
 
   getCandles: (symbol: string, timeframe: string, exchange?: string, limit?: number) => {
     const params = new URLSearchParams();
     params.set('timeframe', timeframe);
     if (exchange) params.set('exchange', exchange);
     if (limit) params.set('limit', String(limit));
-    return fetchApi<{ success: boolean; data: unknown[] }>(
+    return fetchApi<{ success: boolean; data: any[] }>(
       `/market/candles/${symbol.replace('/', '-')}?${params}`
     );
   },
@@ -50,7 +58,7 @@ export const marketApi = {
   getOrderBook: (symbol: string, exchange?: string) => {
     const params = new URLSearchParams();
     if (exchange) params.set('exchange', exchange);
-    return fetchApi<{ success: boolean; data: unknown }>(
+    return fetchApi<{ success: boolean; data: any }>(
       `/market/orderbook/${symbol.replace('/', '-')}?${params}`
     );
   },
@@ -62,7 +70,7 @@ export const marketApi = {
 // Screener API
 export const screenerApi = {
   scan: (body: unknown) =>
-    fetchApi<{ success: boolean; results: unknown[]; total: number }>('/screener/scan', {
+    fetchApi<{ success: boolean; results: any[]; total: number }>('/screener/scan', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -71,7 +79,7 @@ export const screenerApi = {
     const params = new URLSearchParams();
     params.set('preset', preset);
     if (exchange) params.set('exchange', exchange);
-    return fetchApi<{ success: boolean; results: unknown[]; total: number }>(`/screener/quick?${params}`);
+    return fetchApi<{ success: boolean; results: any[]; total: number }>(`/screener/quick?${params}`);
   },
 };
 
@@ -82,11 +90,11 @@ export const alertsApi = {
     if (params?.type) searchParams.set('type', params.type);
     if (params?.symbol) searchParams.set('symbol', params.symbol);
     if (params?.limit) searchParams.set('limit', String(params.limit));
-    return fetchApi<{ success: boolean; alerts: unknown[]; total: number }>(`/alerts?${searchParams}`);
+    return fetchApi<{ success: boolean; alerts: any[]; total: number }>(`/alerts?${searchParams}`);
   },
 
   getRecent: (limit = 50) =>
-    fetchApi<{ success: boolean; data: unknown[] }>(`/alerts/recent?limit=${limit}`),
+    fetchApi<{ success: boolean; data: any[] }>(`/alerts/recent?limit=${limit}`),
 
   getUnreadCount: () =>
     fetchApi<{ success: boolean; data: { count: number } }>('/alerts/unread-count'),
@@ -105,17 +113,17 @@ export const patternsApi = {
     if (params?.symbol) searchParams.set('symbol', params.symbol);
     if (params?.type) searchParams.set('type', params.type);
     if (params?.timeframe) searchParams.set('timeframe', params.timeframe);
-    return fetchApi<{ success: boolean; data: unknown[] }>(`/patterns?${searchParams}`);
+    return fetchApi<{ success: boolean; data: any[] }>(`/patterns?${searchParams}`);
   },
 
   getActive: () =>
-    fetchApi<{ success: boolean; data: unknown[] }>('/patterns/active'),
+    fetchApi<{ success: boolean; data: any[] }>('/patterns/active'),
 };
 
 // Auth API
 export const authApi = {
   telegramAuth: (telegramId: number, username?: string) =>
-    fetchApi<{ success: boolean; data: { user: unknown; token: string } }>('/auth/telegram', {
+    fetchApi<{ success: boolean; data: { user: any; token: string } }>('/auth/telegram', {
       method: 'POST',
       body: JSON.stringify({ telegramId, username }),
     }),
@@ -124,7 +132,7 @@ export const authApi = {
     fetchApi<{ success: boolean; data: { token: string } }>('/auth/guest', { method: 'POST' }),
 
   getMe: (token: string) =>
-    fetchApi<{ success: boolean; data: unknown }>('/auth/me', {
+    fetchApi<{ success: boolean; data: any }>('/auth/me', {
       headers: { Authorization: `Bearer ${token}` },
     }),
 };
@@ -132,12 +140,12 @@ export const authApi = {
 // Watchlist API
 export const watchlistApi = {
   getWatchlists: (token?: string) =>
-    fetchApi<{ success: boolean; data: unknown[] }>('/watchlists', {
+    fetchApi<{ success: boolean; data: any[] }>('/watchlists', {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     }),
 
   createWatchlist: (name: string, symbols: string[] = [], token?: string) =>
-    fetchApi<{ success: boolean; data: unknown }>('/watchlists', {
+    fetchApi<{ success: boolean; data: any }>('/watchlists', {
       method: 'POST',
       body: JSON.stringify({ name, symbols }),
       headers: token ? { Authorization: `Bearer ${token}` } : {},
