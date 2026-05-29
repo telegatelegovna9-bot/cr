@@ -6,7 +6,7 @@ import { SCREENER_DEFAULT_PAGE_SIZE } from '@crypto-screener/shared';
 export interface ScreenerResult {
   symbol: string;
   exchange: ExchangeId;
-  price: number;
+  lastPrice: number;
   priceChange24h: number;
   priceChangePercent24h: number;
   volume24h: number;
@@ -38,18 +38,18 @@ export class ScreenerService {
     let results: ScreenerResult[] = tickers.map(t => ({
       symbol: t.symbol,
       exchange: t.exchange,
-      price: t.price,
+      lastPrice: t.lastPrice,
       priceChange24h: t.priceChange24h,
-      priceChangePercent24h: t.priceChangePercent24h,
+      priceChangePercent24h: t.priceChangePercent24h || 0,
       volume24h: t.volume24h,
-      quoteVolume24h: t.quoteVolume24h,
-      trades24h: t.trades24h,
+      quoteVolume24h: t.quoteVolume24h || 0,
+      trades24h: t.trades24h || 0,
       high24h: t.high24h,
       low24h: t.low24h,
       volatility: t.volatility || 0,
-      spread: t.spread,
-      bid: t.bid,
-      ask: t.ask,
+      spread: t.spread || 0,
+      bid: t.bid || 0,
+      ask: t.ask || 0,
     }));
 
     // Apply filters

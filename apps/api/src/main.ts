@@ -20,7 +20,7 @@ async function bootstrap() {
   app.useWebSocketAdapter(new WsAdapter(app));
 
   // Security
-...
+  app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
   }));

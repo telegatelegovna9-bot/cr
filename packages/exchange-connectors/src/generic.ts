@@ -10,7 +10,7 @@ interface ExchangeEndpoints {
   candles: string | ((symbol: string, tf: string) => string);
   orderbook: string | ((symbol: string) => string);
   parseTicker: (data: Record<string, unknown>, symbol: string) => Ticker | Ticker[];
-  parseCandles: (data: unknown) => Candle[];
+  parseCandles: (data: unknown, exchange: string, symbol: string, timeframe: string) => Candle[];
   parseOrderBook: (data: unknown, symbol: string) => OrderBook;
 }
 
@@ -26,10 +26,10 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       const price = parseFloat(t.last as string);
       const change = parseFloat(t.changeRate as string) * 100;
       return {
-        symbol: normalizeSymbol(symbol, 'kucoin'),
         exchange: 'kucoin',
         marketType: 'spot' as const,
-        price,
+        symbol: normalizeSymbol(symbol, 'kucoin'),
+        lastPrice: price,
         priceChange24h: price * (change / 100),
         priceChangePercent24h: change,
         high24h: parseFloat(t.high as string),
@@ -40,18 +40,23 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
         bid: price * 0.999,
         ask: price * 1.001,
         spread: price * 0.002,
-        lastUpdate: Date.now(),
+        timestamp: Date.now(),
       };
     },
-    parseCandles: (data) => {
+    parseCandles: (data, exchange, symbol, timeframe) => {
       const d = data as { data: string[][] };
       return d.data.map((k): Candle => ({
-        timestamp: parseInt(k[0], 10) * 1000,
+        exchange,
+        marketType: 'spot',
+        symbol,
+        timeframe,
+        time: parseInt(k[0], 10) * 1000,
         open: parseFloat(k[1]),
         close: parseFloat(k[2]),
         high: parseFloat(k[3]),
         low: parseFloat(k[4]),
         volume: parseFloat(k[5]),
+        isClosed: true,
         trades: 0,
       }));
     },
@@ -75,10 +80,10 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       const t = d.data.find((x: Record<string, unknown>) => x.symbol === symbol);
       if (!t) throw new Error('Symbol not found');
       return {
-        symbol: normalizeSymbol(symbol, 'bitget'),
         exchange: 'bitget',
         marketType: 'spot' as const,
-        price: parseFloat(t.lastPr as string),
+        symbol: normalizeSymbol(symbol, 'bitget'),
+        lastPrice: parseFloat(t.lastPr as string),
         priceChange24h: parseFloat(t.change24h as string),
         priceChangePercent24h: parseFloat(t.change24h as string) / parseFloat(t.open24h as string) * 100,
         high24h: parseFloat(t.high24h as string),
@@ -89,18 +94,23 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
         bid: parseFloat(t.bestBid as string),
         ask: parseFloat(t.bestAsk as string),
         spread: parseFloat(t.bestAsk as string) - parseFloat(t.bestBid as string),
-        lastUpdate: Date.now(),
+        timestamp: Date.now(),
       };
     },
-    parseCandles: (data) => {
+    parseCandles: (data, exchange, symbol, timeframe) => {
       const d = data as { data: string[][] };
       return d.data.map((k): Candle => ({
-        timestamp: parseInt(k[0], 10),
+        exchange,
+        marketType: 'spot',
+        symbol,
+        timeframe,
+        time: parseInt(k[0], 10),
         open: parseFloat(k[1]),
         high: parseFloat(k[2]),
         low: parseFloat(k[3]),
         close: parseFloat(k[4]),
         volume: parseFloat(k[5]),
+        isClosed: true,
         trades: 0,
       }));
     },
@@ -124,10 +134,10 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       const t = d.find((x: Record<string, unknown>) => x.currency_pair === symbol);
       if (!t) throw new Error('Symbol not found');
       return {
-        symbol: normalizeSymbol(symbol, 'gate'),
         exchange: 'gate',
         marketType: 'spot' as const,
-        price: parseFloat(t.last as string),
+        symbol: normalizeSymbol(symbol, 'gate'),
+        lastPrice: parseFloat(t.last as string),
         priceChange24h: parseFloat(t.last as string) - parseFloat(t.open24h as string),
         priceChangePercent24h: ((parseFloat(t.last as string) - parseFloat(t.open24h as string)) / parseFloat(t.open24h as string)) * 100,
         high24h: parseFloat(t.high_24h as string),
@@ -138,18 +148,23 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
         bid: parseFloat(t.highest_bid as string),
         ask: parseFloat(t.lowest_ask as string),
         spread: parseFloat(t.lowest_ask as string) - parseFloat(t.highest_bid as string),
-        lastUpdate: Date.now(),
+        timestamp: Date.now(),
       };
     },
-    parseCandles: (data) => {
+    parseCandles: (data, exchange, symbol, timeframe) => {
       const d = data as [string, string, string, string, string, string][];
       return d.map((k): Candle => ({
-        timestamp: parseInt(k[0], 10) * 1000,
+        exchange,
+        marketType: 'spot',
+        symbol,
+        timeframe,
+        time: parseInt(k[0], 10) * 1000,
         open: parseFloat(k[5]),
         close: parseFloat(k[2]),
         high: parseFloat(k[3]),
         low: parseFloat(k[4]),
         volume: parseFloat(k[1]),
+        isClosed: true,
         trades: 0,
       }));
     },
@@ -173,10 +188,10 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       const t = d.find((x: Record<string, unknown>) => x.symbol === symbol);
       if (!t) throw new Error('Symbol not found');
       return {
-        symbol: normalizeSymbol(symbol, 'mexc'),
         exchange: 'mexc',
         marketType: 'spot' as const,
-        price: parseFloat(t.lastPrice as string),
+        symbol: normalizeSymbol(symbol, 'mexc'),
+        lastPrice: parseFloat(t.lastPrice as string),
         priceChange24h: parseFloat(t.priceChange as string),
         priceChangePercent24h: parseFloat(t.priceChangePercent as string),
         high24h: parseFloat(t.highPrice as string),
@@ -187,18 +202,23 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
         bid: parseFloat(t.bidPrice as string),
         ask: parseFloat(t.askPrice as string),
         spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
-        lastUpdate: Date.now(),
+        timestamp: Date.now(),
       };
     },
-    parseCandles: (data) => {
+    parseCandles: (data, exchange, symbol, timeframe) => {
       const d = data as unknown[][];
       return d.map((k): Candle => ({
-        timestamp: k[0] as number,
+        exchange,
+        marketType: 'spot',
+        symbol,
+        timeframe,
+        time: k[0] as number,
         open: parseFloat(k[1] as string),
         high: parseFloat(k[2] as string),
         low: parseFloat(k[3] as string),
         close: parseFloat(k[4] as string),
         volume: parseFloat(k[5] as string),
+        isClosed: true,
         trades: 0,
       }));
     },
@@ -223,10 +243,10 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       if (!t) throw new Error('Symbol not found');
       const price = parseFloat(t.price as string);
       return {
-        symbol: normalizeSymbol(symbol, 'coinbase'),
         exchange: 'coinbase',
         marketType: 'spot' as const,
-        price,
+        symbol: normalizeSymbol(symbol, 'coinbase'),
+        lastPrice: price,
         priceChange24h: 0,
         priceChangePercent24h: 0,
         high24h: parseFloat(t.high_24h as string || '0'),
@@ -237,18 +257,23 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
         bid: price * 0.999,
         ask: price * 1.001,
         spread: price * 0.002,
-        lastUpdate: Date.now(),
+        timestamp: Date.now(),
       };
     },
-    parseCandles: (data) => {
+    parseCandles: (data, exchange, symbol, timeframe) => {
       const d = data as unknown[][];
       return d.map((k): Candle => ({
-        timestamp: (k[0] as number) * 1000,
+        exchange,
+        marketType: 'spot',
+        symbol,
+        timeframe,
+        time: (k[0] as number) * 1000,
         open: parseFloat(k[3] as string),
         high: parseFloat(k[2] as string),
         low: parseFloat(k[1] as string),
         close: parseFloat(k[4] as string),
         volume: parseFloat(k[5] as string),
+        isClosed: true,
         trades: 0,
       }));
     },
@@ -270,10 +295,10 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
     parseTicker: (data) => {
       const d = data as { universe: { name: string }[]; mids: string[] };
       return d.universe.map((u, i): Ticker => ({
-        symbol: `${u.name}/USDC`,
         exchange: 'hyperliquid',
         marketType: 'spot',
-        price: parseFloat(d.mids[i]),
+        symbol: `${u.name}/USDC`,
+        lastPrice: parseFloat(d.mids[i]),
         priceChange24h: 0,
         priceChangePercent24h: 0,
         high24h: 0,
@@ -284,7 +309,7 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
         bid: parseFloat(d.mids[i]) * 0.999,
         ask: parseFloat(d.mids[i]) * 1.001,
         spread: parseFloat(d.mids[i]) * 0.002,
-        lastUpdate: Date.now(),
+        timestamp: Date.now(),
       }));
     },
     parseCandles: () => [],
@@ -375,7 +400,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
       try {
         const candles = await this.fetchCandles(symbol, timeframe, 1);
         if (candles.length > 0) {
-          this.emit('candle', { ...candles[0], symbol, exchange: this.id, timeframe, finalized: true });
+          this.emit('candle', { ...candles[0] });
         }
       } catch { /* ignore */ }
     }, 10000);
@@ -446,10 +471,10 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
           return !symbols || symbols.includes(normalized);
         })
         .map((t: Record<string, unknown>): Ticker => ({
-          symbol: normalizeSymbol(t.symbol as string, 'kucoin'),
           exchange: 'kucoin',
           marketType: 'spot',
-          price: parseFloat(t.last as string),
+          symbol: normalizeSymbol(t.symbol as string, 'kucoin'),
+          lastPrice: parseFloat(t.last as string),
           priceChange24h: parseFloat(t.last as string) * parseFloat(t.changeRate as string),
           priceChangePercent24h: parseFloat(t.changeRate as string) * 100,
           high24h: parseFloat(t.high as string),
@@ -460,7 +485,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
           bid: parseFloat(t.buy as string),
           ask: parseFloat(t.sell as string),
           spread: parseFloat(t.sell as string) - parseFloat(t.buy as string),
-          lastUpdate: Date.now(),
+          timestamp: Date.now(),
         }));
     }
 
@@ -474,10 +499,10 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
           return !symbols || symbols.includes(normalized);
         })
         .map((t: Record<string, unknown>): Ticker => ({
-          symbol: normalizeSymbol(t.currency_pair as string, 'gate'),
           exchange: 'gate',
           marketType: 'spot',
-          price: parseFloat(t.last as string),
+          symbol: normalizeSymbol(t.currency_pair as string, 'gate'),
+          lastPrice: parseFloat(t.last as string),
           priceChange24h: parseFloat(t.last as string) - parseFloat(t.open24h as string),
           priceChangePercent24h: ((parseFloat(t.last as string) - parseFloat(t.open24h as string)) / parseFloat(t.open24h as string)) * 100,
           high24h: parseFloat(t.high_24h as string),
@@ -488,7 +513,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
           bid: parseFloat(t.highest_bid as string),
           ask: parseFloat(t.lowest_ask as string),
           spread: parseFloat(t.lowest_ask as string) - parseFloat(t.highest_bid as string),
-          lastUpdate: Date.now(),
+          timestamp: Date.now(),
         }));
     }
 
@@ -502,10 +527,10 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
           return !symbols || symbols.includes(normalized);
         })
         .map((t: Record<string, unknown>): Ticker => ({
-          symbol: normalizeSymbol(t.symbol as string, 'mexc'),
           exchange: 'mexc',
           marketType: 'spot',
-          price: parseFloat(t.lastPrice as string),
+          symbol: normalizeSymbol(t.symbol as string, 'mexc'),
+          lastPrice: parseFloat(t.lastPrice as string),
           priceChange24h: parseFloat(t.priceChange as string),
           priceChangePercent24h: parseFloat(t.priceChangePercent as string),
           high24h: parseFloat(t.highPrice as string),
@@ -516,7 +541,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
           bid: parseFloat(t.bidPrice as string),
           ask: parseFloat(t.askPrice as string),
           spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
-          lastUpdate: Date.now(),
+          timestamp: Date.now(),
         }));
     }
 
@@ -530,10 +555,10 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
           return !symbols || symbols.includes(normalized);
         })
         .map((t: Record<string, unknown>): Ticker => ({
-          symbol: normalizeSymbol(t.symbol as string, 'bitget'),
           exchange: 'bitget',
           marketType: 'spot',
-          price: parseFloat(t.lastPr as string),
+          symbol: normalizeSymbol(t.symbol as string, 'bitget'),
+          lastPrice: parseFloat(t.lastPr as string),
           priceChange24h: parseFloat(t.change24h as string),
           priceChangePercent24h: parseFloat(t.changeRate24h as string) * 100,
           high24h: parseFloat(t.high24h as string),
@@ -544,7 +569,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
           bid: parseFloat(t.bestBid as string),
           ask: parseFloat(t.bestAsk as string),
           spread: parseFloat(t.bestAsk as string) - parseFloat(t.bestBid as string),
-          lastUpdate: Date.now(),
+          timestamp: Date.now(),
         }));
     }
 
@@ -559,10 +584,10 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
         })
         .slice(0, 100)
         .map((p: Record<string, unknown>): Ticker => ({
-          symbol: `${p.base_currency}/${p.quote_currency}`,
           exchange: 'coinbase',
           marketType: 'spot',
-          price: parseFloat(p.price as string || '0'),
+          symbol: `${p.base_currency}/${p.quote_currency}`,
+          lastPrice: parseFloat(p.price as string || '0'),
           priceChange24h: 0,
           priceChangePercent24h: 0,
           high24h: parseFloat(p.high_24h as string || '0'),
@@ -573,7 +598,7 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
           bid: 0,
           ask: 0,
           spread: 0,
-          lastUpdate: Date.now(),
+          timestamp: Date.now(),
         }));
     }
 
@@ -584,42 +609,34 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
     const local = this.toLocalSymbol(symbol);
     const tf = this.tfMap[timeframe];
 
-    if (this.id === 'hyperliquid') {
-      const data = await this.fetch<unknown>(`${this.endpoints.candles}?type=candleSnapshot&coin=${local}&interval=${tf}`);
-      return (data as unknown[][]).map((k): Candle => ({
-        timestamp: k[0] as number,
-        open: parseFloat(k[1] as string),
-        high: parseFloat(k[2] as string),
-        low: parseFloat(k[3] as string),
-        close: parseFloat(k[4] as string),
-        volume: parseFloat(k[5] as string),
-        trades: 0,
-      }));
-    }
-
     let endpoint: string;
     switch (this.id) {
-      case 'kucoin':
-        endpoint = `/api/v1/market/candles?type=${tf}&symbol=${local}`;
-        break;
-      case 'bitget':
-        endpoint = `/api/v2/spot/market/candles?symbol=${local}&granularity=${tf}&limit=${limit}`;
-        break;
-      case 'gate':
-        endpoint = `/api/v4/spot/candlesticks?currency_pair=${local}&interval=${tf}&limit=${limit}`;
-        break;
-      case 'mexc':
-        endpoint = `/api/v3/klines?symbol=${local}&interval=${tf}&limit=${limit}`;
-        break;
-      case 'coinbase':
-        endpoint = `/products/${local}/candles?granularity=${tf}`;
-        break;
-      default:
-        return [];
+      case 'kucoin': endpoint = `/api/v1/market/candles?type=${tf}&symbol=${local}`; break;
+      case 'bitget': endpoint = `/api/v2/spot/market/candles?symbol=${local}&granularity=${tf}&limit=${limit}`; break;
+      case 'gate': endpoint = `/api/v4/spot/candlesticks?currency_pair=${local}&interval=${tf}&limit=${limit}`; break;
+      case 'mexc': endpoint = `/api/v3/klines?symbol=${local}&interval=${tf}&limit=${limit}`; break;
+      case 'coinbase': endpoint = `/products/${local}/candles?granularity=${tf}`; break;
+      case 'hyperliquid': 
+        const data = await this.fetch<unknown>(`${this.endpoints.tickers}?type=candleSnapshot&coin=${local}&interval=${tf}`);
+        return (data as unknown[][]).map((k): Candle => ({
+          exchange: 'hyperliquid',
+          marketType: 'spot',
+          symbol,
+          timeframe,
+          time: k[0] as number,
+          open: parseFloat(k[1] as string),
+          high: parseFloat(k[2] as string),
+          low: parseFloat(k[3] as string),
+          close: parseFloat(k[4] as string),
+          volume: parseFloat(k[5] as string),
+          isClosed: true,
+          trades: 0,
+        }));
+      default: return [];
     }
 
     const data = await this.fetch<unknown>(endpoint);
-    return this.endpoints.parseCandles(data);
+    return this.endpoints.parseCandles(data, this.id, symbol, timeframe);
   }
 
   async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
