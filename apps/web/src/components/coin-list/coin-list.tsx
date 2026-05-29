@@ -161,7 +161,7 @@ export function CoinListToggle() {
 // ─── Main Coin List ───────────────────────────────────────────
 
 export function CoinList() {
-  const { selectedExchange, getTicker, getTickersArray, setSelectedSymbol } = useMarketStore();
+  const { selectedExchange, getTicker, getTickersArray, setSelectedSymbol, tickersLoaded } = useMarketStore();
   const { coinListOpen, toggleCoinList, setSelectedCoin } = useUIStore();
   const [search, setSearch] = useState('');
   const [marketType, setMarketType] = useState<MarketType>('spot');
@@ -194,27 +194,9 @@ export function CoinList() {
   const symbols = useMemo(() => {
     const allTickers = getTickersArray();
     const exchangeTickers = allTickers.filter((t) => t.exchange === selectedExchange);
-
-    let filtered: string[];
-    if (marketType === 'spot') {
-      // Spot: symbol ends with /USDT and no colon (no perpetuals)
-      filtered = exchangeTickers
-        .filter((t) => t.symbol.endsWith('/USDT') && !t.symbol.includes(':'))
-        .map((t) => t.symbol);
-    } else {
-      // Futures/Perp: symbol contains :USDT
-      filtered = exchangeTickers
-        .filter((t) => t.symbol.includes(':USDT'))
-        .map((t) => t.symbol);
-    }
-
-    // Fallback to known symbols if store is empty
-    if (filtered.length === 0) {
-      filtered = Object.keys(COIN_META).map((base) =>
-        marketType === 'futures' ? `${base}/USDT:USDT` : `${base}/USDT`
-      );
-    }
-
+    const filtered = exchangeTickers
+      .filter((t) => t.marketType === marketType)
+      .map((t) => t.symbol);
     return [...new Set(filtered)];
   }, [getTickersArray, selectedExchange, marketType]);
 
@@ -387,7 +369,19 @@ export function CoinList() {
             );
           })}
 
-          {sortedSymbols.length === 0 && (
+          {sortedSymbols.length === 0 && !search && !tickersLoaded && (
+            <div className="flex flex-col items-center justify-center h-32 text-text-muted">
+              <div className="w-5 h-5 mb-2 border-2 border-text-muted/30 border-t-accent rounded-full animate-spin" />
+              <p className="text-xs">Loading...</p>
+            </div>
+          )}
+          {sortedSymbols.length === 0 && !search && tickersLoaded && (
+            <div className="flex flex-col items-center justify-center h-32 text-text-muted">
+              <Activity className="w-6 h-6 mb-2 opacity-30" />
+              <p className="text-xs">No {marketType} data for {selectedExchange}</p>
+            </div>
+          )}
+          {sortedSymbols.length === 0 && search && (
             <div className="flex flex-col items-center justify-center h-32 text-text-muted">
               <Search className="w-6 h-6 mb-2 opacity-30" />
               <p className="text-xs">No results</p>

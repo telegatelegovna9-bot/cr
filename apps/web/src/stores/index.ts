@@ -9,6 +9,7 @@ import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candl
 
 interface MarketStore {
   tickers: Map<string, Ticker>;
+  tickersLoaded: boolean;
   latestCandle: Candle | null;
   selectedSymbol: string;
   selectedExchange: ExchangeId;
@@ -30,6 +31,7 @@ interface MarketStore {
 
 export const useMarketStore = create<MarketStore>((set, get) => ({
   tickers: new Map(),
+  tickersLoaded: false,
   latestCandle: null,
   selectedSymbol: 'BTC/USDT',
   selectedExchange: 'binance',
@@ -40,7 +42,7 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   setTickers: (tickers) => {
     const map = new Map<string, Ticker>();
     tickers.forEach(t => map.set(`${t.exchange}:${t.symbol}`, t));
-    set({ tickers: map });
+    set({ tickers: map, tickersLoaded: true });
   },
 
   updateTicker: (ticker) => {
