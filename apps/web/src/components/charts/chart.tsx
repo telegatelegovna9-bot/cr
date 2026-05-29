@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
-import { createChart, IChartApi, ISeriesApi, CandlestickData, HistogramData, ColorType, Time } from 'lightweight-charts';
+import { createChart, IChartApi, ISeriesApi, CandlestickData, HistogramData, ColorType, Time, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { Candle } from '@crypto-screener/shared';
 
 interface ChartProps {
@@ -41,9 +41,9 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
         horzLines: { color: '#1a1a2e' },
       },
       crosshair: {
-        mode: 0,
-        vertLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#6366f1' },
-        horzLine: { color: '#6366f1', width: 1, style: 2, labelBackgroundColor: '#6366f1' },
+        mode: CrosshairMode.Normal,
+        vertLine: { color: '#6366f1', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#6366f1' },
+        horzLine: { color: '#6366f1', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#6366f1' },
       },
       rightPriceScale: {
         borderColor: '#2a2a3e',
@@ -54,6 +54,9 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
         timeVisible: true,
         secondsVisible: false,
       },
+      handleScroll: { vertTouchDrag: false, mouseWheel: true, pressedMouseMove: true },
+      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: true, price: true } },
+      kineticScroll: { touch: true, mouse: false },
     });
 
     // Candlestick series
