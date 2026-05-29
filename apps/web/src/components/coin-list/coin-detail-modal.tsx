@@ -2,10 +2,10 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useMarketStore, useUIStore } from '@/stores';
-import { useCandles, useOrderBook } from '@/hooks/useData';
-import { Chart } from '@/components/charts/chart';
+import { useOrderBook } from '@/hooks/useData';
+import { ChartCard } from '@/components/charts/chart-card';
 import { cn } from '@/lib/utils';
 import { formatPrice, formatPercent, formatVolume } from '@/lib/format';
 
@@ -15,11 +15,25 @@ export function CoinDetailModal() {
   const symbol = selectedCoin || selectedSymbol;
   const ticker = getTicker(symbol, selectedExchange);
   
-  const { data: candles } = useCandles(symbol, '1h', selectedExchange);
   const { data: orderBook } = useOrderBook(symbol, selectedExchange);
   const [activeTab, setActiveTab] = useState<'chart' | 'orderbook' | 'info'>('chart');
 
   if (!selectedCoin) return null;
+
+  if (activeTab === 'chart') {
+    return (
+      <div className="fixed inset-x-0 top-20 bottom-0 z-[70] flex items-start justify-center bg-black/80 p-4">
+        <div className="w-full max-w-6xl h-[calc(100vh-7.5rem)] min-h-[560px] max-h-[920px]">
+          <ChartCard
+            symbol={symbol}
+            index={0}
+            onExpand={() => setSelectedCoin(null)}
+            isModal
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-x-0 top-20 bottom-0 z-[70] flex items-start justify-center bg-black/80 p-4">
@@ -90,18 +104,6 @@ export function CoinDetailModal() {
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-4 min-h-0">
-          {activeTab === 'chart' && (
-            <div className="flex-1 min-h-0 h-full">
-              {candles && candles.length > 0 ? (
-                <Chart candles={candles as any} symbol={symbol} height={560} />
-              ) : (
-                <div className="flex items-center justify-center h-full text-terminal-muted">
-                  Loading chart...
-                </div>
-              )}
-            </div>
-          )}
-
           {activeTab === 'orderbook' && !!orderBook && (
             <div className="grid grid-cols-2 gap-4">
               {/* Bids */}
