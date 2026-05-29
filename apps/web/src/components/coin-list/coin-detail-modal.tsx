@@ -91,7 +91,7 @@ export function CoinDetailModal() {
         {/* Content */}
         <div className="flex-1 overflow-auto p-4">
           {activeTab === 'chart' && (
-            <div className="h-[400px]">
+            <div className="flex-1 min-h-0">
               {candles && candles.length > 0 ? (
                 <Chart candles={candles as any} symbol={symbol} height={400} />
               ) : (
