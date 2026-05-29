@@ -80,13 +80,7 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
       scaleMargins: { top: 0.8, bottom: 0 },
     });
 
-    // Crosshair move handler
-    if (onCrosshairMove) {
-      chart.subscribeCrosshairMove((param) => {
-        const price = param.seriesData.get(candleSeries) as CandlestickData | undefined;
-        onCrosshairMove(price?.close ?? null);
-      });
-    }
+    // Crosshair move handler disabled to reduce rendering overhead
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
