@@ -84,6 +84,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
   const readyRef = useRef(false);
   const socketRef = useRef<WebSocket | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
+  const loadingHistoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeTimeframeRef = useRef('');
   const activeExchangeRef = useRef('');
@@ -140,7 +141,6 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
             value: volume ?? 0,
             color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
           });
-          setCurrentPrice(close);
         } catch { /* chart transitioning */ }
       } catch { /* ignore */ }
     };
@@ -197,7 +197,9 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         },
         rightPriceScale: { borderColor: 'rgba(255,255,255,0.06)', scaleMargins: { top: 0.1, bottom: 0.25 } },
         timeScale: { borderColor: 'rgba(255,255,255,0.06)', timeVisible: true, secondsVisible: false },
-        handleScroll: { vertTouchDrag: false },
+        handleScroll: { vertTouchDrag: false, mouseWheel: true, pressedMouseMove: true },
+        handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: true, price: true } },
+        kineticScroll: { touch: true, mouse: false },
       });
 
       if (cancelled) { chart.remove(); return; }
@@ -259,10 +261,12 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
       setLoading(false);
       readyTimer = setTimeout(() => { readyRef.current = true; }, 200);
 
-      const handleRangeChange = async (range: any) => {
+      const handleRangeChange = (range: any) => {
         if (!range || !readyRef.current || loadingMoreRef.current || !oldestTimeRef.current) return;
         if (range.from > 30) return;
 
+        if (loadingHistoryTimerRef.current) clearTimeout(loadingHistoryTimerRef.current);
+        loadingHistoryTimerRef.current = setTimeout(async () => {
         loadingMoreRef.current = true;
         setLoadingHistory(true);
         try {
@@ -297,6 +301,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         } catch { /* silent */ }
         loadingMoreRef.current = false;
         setLoadingHistory(false);
+        }, 150);
       };
 
       chart.timeScale().subscribeVisibleLogicalRangeChange(handleRangeChange);
@@ -316,6 +321,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
       readyRef.current = false;
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       if (readyTimer) { clearTimeout(readyTimer); readyTimer = null; }
+      if (loadingHistoryTimerRef.current) { clearTimeout(loadingHistoryTimerRef.current); loadingHistoryTimerRef.current = null; }
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
