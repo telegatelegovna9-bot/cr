@@ -41,7 +41,9 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
         horzLines: { color: '#1a1a2e' },
       },
       crosshair: {
-        mode: 2,
+        mode: CrosshairMode.Normal,
+        vertLine: { color: '#6366f1', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#6366f1' },
+        horzLine: { color: '#6366f1', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#6366f1' },
       },
       rightPriceScale: {
         borderColor: '#2a2a3e',
@@ -71,7 +73,7 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
     const volumeSeries = chart.addHistogramSeries({
       color: '#6366f1',
       priceFormat: { type: 'volume' },
-      priceScaleId: '',
+      priceScaleId: 'volume',
     });
 
     volumeSeries.priceScale().applyOptions({
@@ -79,12 +81,12 @@ export function Chart({ candles, symbol, height = 300, onCrosshairMove }: ChartP
     });
 
     // Crosshair move handler
-    chart.subscribeCrosshairMove((param) => {
-      if (onCrosshairMove) {
+    if (onCrosshairMove) {
+      chart.subscribeCrosshairMove((param) => {
         const price = param.seriesData.get(candleSeries) as CandlestickData | undefined;
         onCrosshairMove(price?.close ?? null);
-      }
-    });
+      });
+    }
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
