@@ -65,7 +65,7 @@ export function HeatmapView() {
       let bestExchange: ExchangeId = 'binance';
       for (const ex of exchangesToCheck) {
         const t = getTicker(symbol, ex);
-        if (t && (!bestTicker || t.quoteVolume24h > bestTicker.quoteVolume24h)) {
+        if (t && (!bestTicker || (t.volume24h || 0) > (bestTicker.volume24h || 0))) {
           bestTicker = t;
           bestExchange = ex;
         }
@@ -74,9 +74,9 @@ export function HeatmapView() {
       let value: number;
       if (mode === 'price') {
         change = bestTicker?.priceChangePercent24h ?? 0;
-        value = bestTicker?.price ?? 0;
+        value = bestTicker?.lastPrice ?? 0;
       } else if (mode === 'volume') {
-        change = bestTicker ? (bestTicker.quoteVolume24h / 1e6) : 0;
+        change = bestTicker ? ((bestTicker.volume24h || 0) / 1e6) : 0;
         value = change;
       } else {
         change = bestTicker?.trades24h ?? 0;
@@ -86,9 +86,9 @@ export function HeatmapView() {
       return {
         symbol, base, change, value,
         marketCap: MARKET_CAP[symbol] ?? 1e9,
-        price: bestTicker?.price ?? 0,
+        price: bestTicker?.lastPrice ?? 0,
         priceChange: bestTicker?.priceChangePercent24h ?? 0,
-        volume: bestTicker?.quoteVolume24h ?? 0,
+        volume: bestTicker?.volume24h ?? 0,
         trades: bestTicker?.trades24h ?? 0,
         exchange: bestExchange,
         ticker: bestTicker,

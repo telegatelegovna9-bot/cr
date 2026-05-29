@@ -13,6 +13,7 @@ import {
   BarChart3,
   Loader2,
 } from 'lucide-react';
+import { formatPrice, formatPercent, formatVolume } from '@/lib/format';
 
 // ─── Data ────────────────────────────────────────────────────
 
@@ -32,22 +33,8 @@ type SortKey = 'symbol' | 'price' | 'change' | 'volume' | 'trades';
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-function formatPrice(price: number): string {
-  if (price >= 10000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (price >= 100) return price.toFixed(2);
-  if (price >= 1) return price.toFixed(3);
-  if (price >= 0.01) return price.toFixed(4);
-  return price.toFixed(6);
-}
-
-function formatVolume(vol: number): string {
-  if (vol >= 1e9) return (vol / 1e9).toFixed(2) + 'B';
-  if (vol >= 1e6) return (vol / 1e6).toFixed(2) + 'M';
-  if (vol >= 1e3) return (vol / 1e3).toFixed(1) + 'K';
-  return vol.toFixed(0);
-}
-
-function formatTrades(trades: number): string {
+function formatTrades(trades?: number): string {
+  if (trades === undefined || trades === null) return '—';
   if (trades >= 1e6) return (trades / 1e6).toFixed(1) + 'M';
   if (trades >= 1e3) return (trades / 1e3).toFixed(1) + 'K';
   return trades.toString();
@@ -82,9 +69,9 @@ export function ScreenerView() {
       const getVal = (ticker: any) => {
         switch (sort.key) {
           case 'symbol': return ticker?.symbol || '';
-          case 'price': return ticker?.price ?? 0;
+          case 'price': return ticker?.lastPrice ?? 0;
           case 'change': return ticker?.priceChangePercent24h ?? 0;
-          case 'volume': return ticker?.quoteVolume24h ?? 0;
+          case 'volume': return ticker?.volume24h ?? 0;
           case 'trades': return ticker?.trades24h ?? 0;
           default: return 0;
         }
@@ -210,7 +197,7 @@ export function ScreenerView() {
                 {/* Price */}
                 <div className="w-[130px] text-right">
                   <span className="text-xs font-bold font-mono text-text-primary">
-                    {ticker ? `$${formatPrice(ticker.price)}` : '—'}
+                    {ticker ? `$${formatPrice(ticker.lastPrice)}` : '—'}
                   </span>
                 </div>
 
@@ -219,7 +206,7 @@ export function ScreenerView() {
                   {ticker ? (
                     <span className={`inline-flex items-center gap-1 text-xs font-bold font-mono ${isPositive ? 'text-positive' : 'text-negative'}`}>
                       {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      {isPositive ? '+' : ''}{(ticker.priceChangePercent24h ?? 0).toFixed(2)}%
+                      {formatPercent(ticker.priceChangePercent24h)}
                     </span>
                   ) : (
                     <span className="text-xs text-text-muted">—</span>
@@ -229,7 +216,7 @@ export function ScreenerView() {
                 {/* Volume */}
                 <div className="w-[120px] text-right">
                   <span className="text-xs font-mono text-text-secondary">
-                    {ticker ? `$${formatVolume(ticker.quoteVolume24h)}` : '—'}
+                    {ticker ? `$${formatVolume(ticker.volume24h)}` : '—'}
                   </span>
                 </div>
 

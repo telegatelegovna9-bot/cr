@@ -32,7 +32,7 @@ export function CoinDetailModal() {
             {ticker && (
               <span className={cn(
                 'px-2 py-0.5 rounded text-sm font-mono',
-                ticker.priceChangePercent24h >= 0 ? 'bg-price-up/20 price-up' : 'bg-price-down/20 price-down'
+                (ticker.priceChangePercent24h ?? 0) >= 0 ? 'bg-price-up/20 price-up' : 'bg-price-down/20 price-down'
               )}>
                 {formatPercent(ticker.priceChangePercent24h)}
               </span>
@@ -51,7 +51,7 @@ export function CoinDetailModal() {
           <div className="grid grid-cols-4 gap-4 p-4 border-b border-terminal-border">
             <div>
               <div className="text-xs text-terminal-muted">Price</div>
-              <div className="text-xl font-mono font-medium">{formatPrice(ticker.price)}</div>
+              <div className="text-xl font-mono font-medium">{formatPrice(ticker.lastPrice)}</div>
             </div>
             <div>
               <div className="text-xs text-terminal-muted">24h High</div>
@@ -63,7 +63,7 @@ export function CoinDetailModal() {
             </div>
             <div>
               <div className="text-xs text-terminal-muted">24h Volume</div>
-              <div className="font-mono">{formatVolume(ticker.quoteVolume24h)}</div>
+              <div className="font-mono">{formatVolume(ticker.volume24h)}</div>
             </div>
           </div>
         )}
