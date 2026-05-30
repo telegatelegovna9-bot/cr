@@ -197,10 +197,8 @@ export function CoinList() {
     const filtered = exchangeTickers
       .filter((t) => t.marketType === marketType)
       .map((t) => t.symbol);
-    console.log(`[CoinList] exchange=${selectedExchange} marketType=${marketType} allTickers=${allTickers.length} exchangeTickers=${exchangeTickers.length} filtered=${filtered.length}`);
     if (marketType === 'futures' && exchangeTickers.length > 0) {
-      const types = [...new Set(exchangeTickers.map(t => t.marketType))];
-      console.log('[CoinList] marketTypes in exchange:', types);
+      console.log('[CoinList] sample binance ticker:', exchangeTickers[0]);
     }
     return [...new Set(filtered)];
   }, [getTickersArray, selectedExchange, marketType]);
