@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { Pool, QueryResult } from 'pg';
+import { Pool, QueryResult, QueryResultRow } from 'pg';
 import Redis from 'ioredis';
 
 @Injectable()
@@ -32,7 +32,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     this.redis.disconnect();
   }
 
-  async query<T = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
+  async query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
     return this.pool.query<T>(text, params);
   }
 
