@@ -14,6 +14,7 @@ import type { Candle } from '@crypto-screener/shared';
 interface ChartCardProps {
   symbol: string;
   index: number;
+  exchange?: string;
   onExpand?: () => void;
   isModal?: boolean;
   paused?: boolean;
@@ -74,7 +75,7 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
-export function ChartCard({ symbol, index, onExpand, isModal = false, paused = false, initialData, onDataLoaded }: ChartCardProps) {
+export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, onDataLoaded }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -92,7 +93,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
-  const ticker = useMarketStore(state => state.getTicker(symbol, state.selectedExchange));
+  const exchange = exchangeProp || selectedExchange;
+  const ticker = useMarketStore(state => state.getTicker(symbol, exchange));
   const [loading, setLoading] = useState(!initialData || initialData.length === 0);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
@@ -100,8 +102,8 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
 
   useEffect(() => {
     activeTimeframeRef.current = selectedTimeframe;
-    activeExchangeRef.current = selectedExchange;
-  }, [selectedTimeframe, selectedExchange]);
+    activeExchangeRef.current = exchange;
+  }, [selectedTimeframe, exchange]);
 
   useEffect(() => {
     if (paused) return;
@@ -113,7 +115,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
       console.log(`[Chart] ${symbol} socket connected`);
       socket.send(JSON.stringify({
         action: 'subscribe',
-        exchange: selectedExchange,
+        exchange: exchange,
         marketType: symbol.includes(':USDT') ? 'futures' : 'spot',
         symbol,
         timeframe: selectedTimeframe
@@ -155,7 +157,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
       socket.close();
       socketRef.current = null;
     };
-  }, [symbol, selectedExchange, selectedTimeframe, paused]);
+  }, [symbol, exchange, selectedTimeframe, paused]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -229,7 +231,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         } else {
           const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
           const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${selectedExchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${selectedTimeframe}&limit=300`
+            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${selectedTimeframe}&limit=300`
           );
           if (!cancelled && resp.ok) {
             const data = await resp.json();
@@ -278,7 +280,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
           const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
           const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${selectedExchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${selectedTimeframe}&limit=300&endTime=${endTime}`
+            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${selectedTimeframe}&limit=300&endTime=${endTime}`
           );
           if (!resp.ok) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 
@@ -334,7 +336,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         volumeSeriesRef.current = null;
       }
     };
-  }, [symbol, selectedExchange, selectedTimeframe]);
+  }, [symbol, exchange, selectedTimeframe]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -382,7 +384,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
           <div>
             <div className="text-xs font-bold text-text-primary">{symbol}</div>
             <div className="text-[10px] text-text-muted uppercase tracking-wider">
-              {selectedExchange} · {selectedTimeframe}
+              {exchange} · {selectedTimeframe}
             </div>
           </div>
         </div>
