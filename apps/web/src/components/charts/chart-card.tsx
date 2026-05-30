@@ -76,6 +76,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const resizeFrameRef = useRef<number | null>(null);
   const loadingHistoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialRangeSetRef = useRef(false);
+  const dataLoadedRef = useRef(false);
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
@@ -137,6 +138,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     if (latestCandle.exchange && latestCandle.exchange !== exchange) return;
     if (latestCandle.marketType && latestCandle.marketType !== marketType) return;
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+    if (!dataLoadedRef.current) return; // ignore WS updates until REST data is loaded
 
     const { open, high, low, close, volume, time: timestamp } = latestCandle;
     if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
@@ -163,6 +165,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     allRawRef.current = [];
     loadingMoreRef.current = false;
     initialRangeSetRef.current = false;
+    dataLoadedRef.current = false;
     setLoadingHistory(false);
 
     if (chartRef.current) {
@@ -245,6 +248,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           if (candles.length > 0) {
             candleSeries.setData(candles);
             volumeSeries.setData(volumes);
+            dataLoadedRef.current = true;
             const firstCandleTime = raw[0].time || raw[0].timestamp;
             oldestTimeRef.current = firstCandleTime / 1000;
 
