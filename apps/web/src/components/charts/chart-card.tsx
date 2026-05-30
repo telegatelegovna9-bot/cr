@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
-import { useMarketStore } from '@/stores';
+import { useMarketStore, useUIStore } from '@/stores';
 import { formatPrice, getChartPriceFormat } from '@/lib/format';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
@@ -93,12 +93,15 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
+  const showHeatmap = useUIStore(state => state.showHeatmap);
   const exchange = exchangeProp || selectedExchange;
   const ticker = useMarketStore(state => state.getTicker(symbol, exchange));
   const [loading, setLoading] = useState(!initialData || initialData.length === 0);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
+
+  const orderbookPriceLinesRef = useRef<any[]>([]);
 
   useEffect(() => {
     activeTimeframeRef.current = selectedTimeframe;
@@ -112,52 +115,88 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     socketRef.current = socket;
 
     socket.onopen = () => {
-      console.log(`[Chart] ${symbol} socket connected`);
+      const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
       socket.send(JSON.stringify({
         action: 'subscribe',
         exchange: exchange,
-        marketType: symbol.includes(':USDT') ? 'futures' : 'spot',
+        marketType,
         symbol,
         timeframe: selectedTimeframe
       }));
+
+      if (showHeatmap) {
+        socket.send(JSON.stringify({
+          action: 'subscribe',
+          channel: 'orderbook',
+          exchange: exchange,
+          marketType,
+          symbol,
+        }));
+      }
     };
 
     socket.onmessage = (event) => {
       try {
         const { channel, data } = JSON.parse(event.data);
-        if (channel !== 'candle') return;
+        
+        if (channel === 'candle') {
+          const candle = data as Candle;
+          if (candle.symbol !== symbol) return;
+          if (candle.timeframe !== activeTimeframeRef.current) return;
+          if (candle.exchange && candle.exchange !== activeExchangeRef.current) return;
+          if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
 
-        const candle = data as Candle;
-        if (candle.symbol !== symbol) return;
-        if (candle.timeframe !== activeTimeframeRef.current) return;
-        if (candle.exchange && candle.exchange !== activeExchangeRef.current) return;
-        if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+          const { open, high, low, close, volume, time: timestamp } = candle;
+          if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
 
-        const { open, high, low, close, volume, time: timestamp } = candle;
-        if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
+          const time = (timestamp / 1000) as Time;
+          try {
+            candleSeriesRef.current.applyOptions({ priceFormat: getChartPriceFormat(close) });
+            candleSeriesRef.current.update({ time, open, high, low, close });
+            volumeSeriesRef.current.update({
+              time,
+              value: volume ?? 0,
+              color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+            });
+          } catch { /* chart transitioning */ }
+        } else if (channel === 'orderbook' && showHeatmap && candleSeriesRef.current) {
+          if (data.symbol !== symbol && data.symbol !== 'unknown') return;
+          
+          const bids = (data.bids || []).slice(0, 5);
+          const asks = (data.asks || []).slice(0, 5);
+          const maxVol = Math.max(...bids.map((b: any) => b.quantity), ...asks.map((a: any) => a.quantity), 1);
 
-        const time = (timestamp / 1000) as Time;
-        try {
-          candleSeriesRef.current.applyOptions({ priceFormat: getChartPriceFormat(close) });
-          candleSeriesRef.current.update({ time, open, high, low, close });
-          volumeSeriesRef.current.update({
-            time,
-            value: volume ?? 0,
-            color: close >= open ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+          orderbookPriceLinesRef.current.forEach(line => {
+            try { candleSeriesRef.current?.removePriceLine(line); } catch { /* ignore */ }
           });
-        } catch { /* chart transitioning */ }
+          orderbookPriceLinesRef.current = [];
+
+          [...bids, ...asks].forEach((level: any, i: number) => {
+            const isBid = i < bids.length;
+            const opacity = Math.min(0.15 + (level.quantity / maxVol) * 0.5, 0.7);
+            const color = isBid ? `rgba(34, 197, 94, ${opacity})` : `rgba(239, 68, 68, ${opacity})`;
+            
+            const line = candleSeriesRef.current?.createPriceLine({
+              price: level.price,
+              color,
+              lineWidth: 1,
+              lineStyle: LineStyle.Solid,
+              axisLabelVisible: true,
+              title: `${(level.quantity).toFixed(1)}`,
+            });
+            if (line) orderbookPriceLinesRef.current.push(line);
+          });
+        }
       } catch { /* ignore */ }
     };
 
-    socket.onclose = () => {
-      console.log(`[Chart] ${symbol} socket disconnected`);
-    };
+    socket.onclose = () => {};
 
     return () => {
       socket.close();
       socketRef.current = null;
     };
-  }, [symbol, exchange, selectedTimeframe, paused]);
+  }, [symbol, exchange, selectedTimeframe, paused, showHeatmap]);
 
   useEffect(() => {
     if (!containerRef.current) return;
