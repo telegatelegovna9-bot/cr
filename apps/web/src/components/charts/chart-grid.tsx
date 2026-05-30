@@ -40,16 +40,15 @@ const SORT_OPTIONS: { id: SortMode; label: string; icon: typeof TrendingUp }[] =
 export function ChartGrid() {
   const { chartGridSize, setChartGridSize } = useUIStore();
   const selectedExchange = useMarketStore(state => state.selectedExchange);
-  const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
   const tickers = useMarketStore(state => state.tickers);
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
   const chartDataCache = useRef<Map<string, any[]>>(new Map());
 
-  // Clear cache when exchange or timeframe changes so modal gets fresh data
+  // Clear cache when exchange changes so modal gets fresh data
   useEffect(() => {
     chartDataCache.current.clear();
-  }, [selectedExchange, selectedTimeframe]);
+  }, [selectedExchange]);
 
   const handleDataLoaded = useCallback((symbol: string, data: any[]) => {
     chartDataCache.current.set(symbol, data);

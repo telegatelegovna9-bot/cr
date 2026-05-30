@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
 import { useMarketStore, useUIStore } from '@/stores';
@@ -24,6 +24,8 @@ interface ChartCardProps {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const INITIAL_VISIBLE_CANDLES = 100;
+const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
+type TF = typeof TIMEFRAMES[number];
 
 function isValidCandle(k: any): boolean {
   const time = k.time || k.timestamp;
@@ -76,9 +78,16 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
   const latestCandle = useMarketStore(state => state.latestCandle);
   const showHeatmap = useUIStore(state => state.showHeatmap);
+  const chartGridSize = useUIStore(state => state.chartGridSize);
   const exchange = exchangeProp || selectedExchange;
   const ticker = useMarketStore(state => state.getTicker(symbol, exchange));
-  
+
+  // Per-card local state
+  const [timeframe, setTimeframe] = useState<TF>(selectedTimeframe as TF);
+  const [marketType, setMarketType] = useState<'spot' | 'futures'>(
+    symbol.includes(':USDT') ? 'futures' : 'spot'
+  );
+
   const [loading, setLoading] = useState(!initialData || initialData.length === 0);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
@@ -87,30 +96,31 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const { subscribe, unsubscribe } = useWebSocket();
   const orderbookPriceLinesRef = useRef<any[]>([]);
 
+  const showMarketToggle = isModal || chartGridSize === 1;
+
   // ─── Shared WebSocket Subscription ──────────────────────────
   useEffect(() => {
     if (paused) return;
 
-    const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
-    subscribe(exchange, marketType, symbol, selectedTimeframe);
+    subscribe(exchange, marketType, symbol, timeframe);
 
     if (showHeatmap) {
       subscribe(exchange, marketType, symbol, undefined, 'orderbook');
     }
 
     return () => {
-      unsubscribe(exchange, marketType, symbol, selectedTimeframe);
+      unsubscribe(exchange, marketType, symbol, timeframe);
       if (showHeatmap) {
         unsubscribe(exchange, marketType, symbol, undefined, 'orderbook');
       }
     };
-  }, [symbol, exchange, selectedTimeframe, paused, showHeatmap, subscribe, unsubscribe]);
+  }, [symbol, exchange, timeframe, marketType, paused, showHeatmap, subscribe, unsubscribe]);
 
   // ─── Handle Incoming Candle Updates from Global Store ───────
   useEffect(() => {
     if (!latestCandle || paused) return;
     if (latestCandle.symbol !== symbol) return;
-    if (latestCandle.timeframe !== selectedTimeframe) return;
+    if (latestCandle.timeframe !== timeframe) return;
     if (latestCandle.exchange && latestCandle.exchange !== exchange) return;
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
 
@@ -128,7 +138,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       });
       setCurrentPrice(close);
     } catch { /* chart transitioning */ }
-  }, [latestCandle, symbol, exchange, selectedTimeframe, paused]);
+  }, [latestCandle, symbol, exchange, timeframe, paused]);
 
   // ─── Chart Initialization ───────────────────────────────────
   useEffect(() => {
@@ -201,9 +211,8 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         if (initialData && initialData.length > 0) {
           raw = initialData;
         } else {
-          const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
           const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${selectedTimeframe}&limit=300`
+            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&limit=300`
           );
           if (!cancelled && resp.ok) {
             const data = await resp.json();
@@ -250,9 +259,8 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         setLoadingHistory(true);
         try {
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
-          const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
           const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${selectedTimeframe}&limit=300&endTime=${endTime}`
+            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&limit=300&endTime=${endTime}`
           );
           if (!resp.ok) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 
@@ -289,7 +297,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     rafId = requestAnimationFrame(() => {
       if (cancelled) return;
       if (isModal) {
-        // Delay modal chart initialization to avoid animation lag
         readyTimer = setTimeout(() => {
           if (!cancelled) initChart();
         }, 300);
@@ -311,7 +318,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         volumeSeriesRef.current = null;
       }
     };
-  }, [symbol, exchange, selectedTimeframe, isModal]); // Added isModal to deps
+  }, [symbol, exchange, timeframe, marketType, isModal]);
 
   // ─── Optimized Resize Observer ──────────────────────────────
   useEffect(() => {
@@ -319,9 +326,9 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     const observer = new ResizeObserver((entries) => {
       if (!chartRef.current || !readyRef.current) return;
       const { width, height } = entries[0].contentRect;
-      
-      if (resizeFrameRef.current != null) return; // Already scheduled
-      
+
+      if (resizeFrameRef.current != null) return;
+
       resizeFrameRef.current = requestAnimationFrame(() => {
         if (chartRef.current) {
           chartRef.current.applyOptions({ width, height });
@@ -351,40 +358,70 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       transition={{ duration: 0.2 }}
       className="glass-card overflow-hidden flex flex-col relative ambient-glow h-full"
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold"
-            style={{
-              background: isPositive ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-              color: isPositive ? '#22c55e' : '#ef4444',
-            }}
-          >
-            {base.charAt(0)}
-          </div>
-          <div>
-            <div className="text-xs font-bold text-text-primary">{symbol}</div>
-            <div className="text-[10px] text-text-muted uppercase tracking-wider">
-              {exchange} · {selectedTimeframe}
-            </div>
-          </div>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 gap-2">
+        {/* Left: badge */}
+        <div
+          className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold shrink-0"
+          style={{
+            background: isPositive ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+            color: isPositive ? '#22c55e' : '#ef4444',
+          }}
+        >
+          {base.charAt(0)}
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Center: TF pills */}
+        <div className="flex items-center gap-0.5 flex-1 min-w-0">
+          {TIMEFRAMES.map(tf => (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              className={`px-1.5 py-0.5 text-[10px] rounded font-mono transition-colors cursor-pointer shrink-0
+                ${timeframe === tf
+                  ? 'bg-accent/20 text-accent-light'
+                  : 'text-text-muted hover:text-text-secondary'
+                }`}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+
+        {/* Spot/Futures toggle — only in modal or single mode */}
+        {showMarketToggle && (
+          <div className="flex items-center gap-0.5 bg-bg-primary/40 rounded-lg p-0.5 border border-border shrink-0">
+            {(['spot', 'futures'] as const).map(mt => (
+              <button
+                key={mt}
+                onClick={() => setMarketType(mt)}
+                className={`px-2 py-0.5 text-[10px] rounded font-medium capitalize transition-colors cursor-pointer
+                  ${marketType === mt
+                    ? 'bg-accent/15 text-accent-light'
+                    : 'text-text-muted hover:text-text-secondary'
+                  }`}
+              >
+                {mt}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Right: price + expand */}
+        <div className="flex items-center gap-1.5 shrink-0">
           {livePrice != null && (
-            <div className="text-right mr-2">
-              <div className="text-sm font-bold font-mono text-text-primary">
+            <div className="text-right">
+              <div className="text-xs font-bold font-mono text-text-primary leading-tight">
                 ${formatPrice(livePrice)}
               </div>
               {liveChange != null && (
-                <div className={`text-[10px] font-bold font-mono ${isPositive ? 'text-positive' : 'text-negative'}`}>
+                <div className={`text-[10px] font-bold font-mono leading-tight ${isPositive ? 'text-positive' : 'text-negative'}`}>
                   {isPositive ? '+' : ''}{(liveChange ?? 0).toFixed(2)}%
                 </div>
               )}
             </div>
           )}
-          <button onClick={onExpand} className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer">
-            {isModal ? <X className="w-4 h-4 text-text-muted" /> : <Maximize2 className="w-4 h-4 text-text-muted" />}
+          <button onClick={onExpand} className="p-1 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer">
+            {isModal ? <X className="w-3.5 h-3.5 text-text-muted" /> : <Maximize2 className="w-3.5 h-3.5 text-text-muted" />}
           </button>
         </div>
       </div>
