@@ -198,7 +198,7 @@ export function CoinList() {
       .filter((t) => t.marketType === marketType)
       .map((t) => t.symbol);
     return [...new Set(filtered)];
-  }, [getTickersArray, selectedExchange, marketType]);
+  }, [getTickersArray, selectedExchange, marketType, tickersLoaded]);
 
   // Filter + sort
   const sortedSymbols = useMemo(() => {
