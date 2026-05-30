@@ -243,8 +243,12 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             const firstCandleTime = raw[0].time || raw[0].timestamp;
             oldestTimeRef.current = firstCandleTime / 1000;
 
-            const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
-            chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
+            // Defer range setting so the chart has time to measure its container
+            requestAnimationFrame(() => {
+              if (cancelled || !chartRef.current) return;
+              const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
+              chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
+            });
 
             const lastRaw = raw[raw.length - 1];
             candleSeries.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
