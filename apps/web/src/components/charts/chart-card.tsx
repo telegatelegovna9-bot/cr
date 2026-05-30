@@ -344,12 +344,15 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const isPositive = (liveChange ?? 0) >= 0;
   const base = symbol.split('/')[0];
 
+  const chartGridSize = useUIStore(state => state.chartGridSize);
+  const isFullSize = isModal || chartGridSize === 1;
+
   return (
     <motion.div
       initial={isModal ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.2 }}
-      className="glass-card overflow-hidden flex flex-col relative ambient-glow h-full"
+      className={`glass-card${isFullSize ? ' glass-card-no-blur' : ''} overflow-hidden flex flex-col relative ambient-glow h-full`}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <div className="flex items-center gap-3">
@@ -401,7 +404,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             Loading history...
           </div>
         )}
-        <div ref={containerRef} className="w-full h-full" />
+        <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict' }} />
       </div>
     </motion.div>
   );
