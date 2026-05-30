@@ -75,6 +75,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const readyRef = useRef(false);
   const resizeFrameRef = useRef<number | null>(null);
   const loadingHistoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialRangeSetRef = useRef(false);
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
@@ -161,6 +162,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     oldestTimeRef.current = null;
     allRawRef.current = [];
     loadingMoreRef.current = false;
+    initialRangeSetRef.current = false;
     setLoadingHistory(false);
 
     if (chartRef.current) {
@@ -252,13 +254,9 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
 
             const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
-            // Double-rAF: first frame applies size, second frame sets range with correct layout
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                if (cancelled || !chartRef.current) return;
-                chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
-              });
-            });
+            const to = candles.length + 3;
+            chart.timeScale().setVisibleLogicalRange({ from, to });
+            initialRangeSetRef.current = true;
 
             const lastRaw = raw[raw.length - 1];
             candleSeries.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
@@ -352,14 +350,22 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver((entries) => {
-      if (!chartRef.current || !readyRef.current) return;
+      if (!chartRef.current) return;
       const { width, height } = entries[0].contentRect;
+      if (width === 0 || height === 0) return;
 
       if (resizeFrameRef.current != null) return;
 
       resizeFrameRef.current = requestAnimationFrame(() => {
         if (chartRef.current) {
           chartRef.current.applyOptions({ width, height });
+          // If initial range hasn't been confirmed by user interaction yet,
+          // re-apply it after resize since applyOptions resets the visible range
+          if (!readyRef.current && initialRangeSetRef.current && allRawRef.current.length > 0) {
+            const total = allRawRef.current.length;
+            const from = Math.max(0, total - INITIAL_VISIBLE_CANDLES);
+            chartRef.current.timeScale().setVisibleLogicalRange({ from, to: total + 3 });
+          }
         }
         resizeFrameRef.current = null;
       });
