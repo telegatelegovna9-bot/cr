@@ -131,27 +131,38 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const message = JSON.stringify({ channel, data });
     this.server.clients.forEach((client: any) => {
       if (client.readyState === 1) { // 1 = OPEN
-        // Filter based on client subscriptions
         const subs = this.clientSubscriptions.get(client);
-        if (subs) {
-          for (const subKey of subs) {
-            try {
-              const sub = JSON.parse(subKey);
-              
-              if (channel === 'ticker' && sub.symbol === data.symbol && (!sub.exchange || sub.exchange === data.exchange)) {
+        if (!subs) return;
+
+        for (const subKey of subs) {
+          try {
+            const sub = JSON.parse(subKey);
+            
+            // Channel-specific matching logic
+            if (channel === 'ticker') {
+              if (sub.symbol === data.symbol && (!sub.exchange || sub.exchange === data.exchange)) {
                 client.send(message);
                 break;
               }
-              if (channel === 'candle' && sub.symbol === data.symbol && sub.timeframe === data.timeframe && (!sub.exchange || sub.exchange === data.exchange)) {
+            } else if (channel === 'candle') {
+              if (sub.symbol === data.symbol && sub.timeframe === data.timeframe && (!sub.exchange || sub.exchange === data.exchange)) {
                 client.send(message);
                 break;
               }
-              if (channel === 'orderbook' && (sub.symbol === data.symbol || data.symbol === 'unknown') && sub.channel === 'orderbook' && (!sub.exchange || sub.exchange === data.exchange)) {
+            } else if (channel === 'orderbook') {
+              // Match if it's an orderbook subscription for this symbol/exchange
+              const isOrderbookSub = sub.channel === 'orderbook' || (!sub.channel && !sub.timeframe);
+              if (isOrderbookSub && (sub.symbol === data.symbol || data.symbol === 'unknown') && (!sub.exchange || sub.exchange === data.exchange)) {
                 client.send(message);
                 break;
               }
-            } catch { /* ignore */ }
-          }
+            } else if (channel === 'trade') {
+              if (sub.symbol === data.symbol && (!sub.exchange || sub.exchange === data.exchange)) {
+                client.send(message);
+                break;
+              }
+            }
+          } catch { /* ignore */ }
         }
       }
     });

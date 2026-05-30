@@ -196,7 +196,36 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       socket.close();
       socketRef.current = null;
     };
-  }, [symbol, exchange, selectedTimeframe, paused, showHeatmap]);
+  }, [symbol, exchange, selectedTimeframe, paused]); // Removed showHeatmap from here to use separate effect
+
+  // Separate effect to handle heatmap toggle without reconnecting
+  useEffect(() => {
+    if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN || paused) return;
+
+    const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
+    if (showHeatmap) {
+      socketRef.current.send(JSON.stringify({
+        action: 'subscribe',
+        channel: 'orderbook',
+        exchange,
+        marketType,
+        symbol,
+      }));
+    } else {
+      socketRef.current.send(JSON.stringify({
+        action: 'unsubscribe',
+        channel: 'orderbook',
+        exchange,
+        marketType,
+        symbol,
+      }));
+      // Clear lines immediately
+      orderbookPriceLinesRef.current.forEach(line => {
+        try { candleSeriesRef.current?.removePriceLine(line); } catch { /* ignore */ }
+      });
+      orderbookPriceLinesRef.current = [];
+    }
+  }, [showHeatmap, symbol, exchange, paused]);
 
   useEffect(() => {
     if (!containerRef.current) return;
