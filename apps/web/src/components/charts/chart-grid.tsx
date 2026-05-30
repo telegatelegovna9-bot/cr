@@ -43,15 +43,15 @@ export function ChartGrid() {
   const tickers = useMarketStore(state => state.tickers);
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
-  const chartDataCache = useRef<Map<string, any[]>>(new Map());
+  const chartDataCache = useRef<Map<string, { data: any[]; timeframe: string }>>(new Map());
 
   // Clear cache when exchange changes so modal gets fresh data
   useEffect(() => {
     chartDataCache.current.clear();
   }, [selectedExchange]);
 
-  const handleDataLoaded = useCallback((symbol: string, data: any[]) => {
-    chartDataCache.current.set(symbol, data);
+  const handleDataLoaded = useCallback((symbol: string, data: any[], timeframe: string) => {
+    chartDataCache.current.set(symbol, { data, timeframe });
   }, []);
 
   const sortedSymbols = useMemo(() => {
@@ -161,7 +161,8 @@ export function ChartGrid() {
                 index={0}
                 onExpand={() => setExpandedSymbol(null)}
                 isModal
-                initialData={chartDataCache.current.get(expandedSymbol)}
+                initialData={chartDataCache.current.get(expandedSymbol)?.data}
+                initialTimeframe={chartDataCache.current.get(expandedSymbol)?.timeframe}
               />
             </motion.div>
           </motion.div>

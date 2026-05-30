@@ -19,7 +19,8 @@ interface ChartCardProps {
   isModal?: boolean;
   paused?: boolean;
   initialData?: any[];
-  onDataLoaded?: (symbol: string, data: any[]) => void;
+  initialTimeframe?: string;
+  onDataLoaded?: (symbol: string, data: any[], timeframe: string) => void;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
@@ -62,7 +63,7 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
-export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, onDataLoaded }: ChartCardProps) {
+export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, onDataLoaded }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -208,7 +209,8 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
       try {
         let raw: any[] = [];
-        if (initialData && initialData.length > 0) {
+        // Use initialData only if it matches the current timeframe
+        if (initialData && initialData.length > 0 && (!initialTimeframe || initialTimeframe === timeframe)) {
           raw = initialData;
         } else {
           const resp = await fetch(
@@ -221,7 +223,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         }
         if (raw.length && !cancelled) {
           allRawRef.current = raw;
-          onDataLoaded?.(symbol, raw);
+          onDataLoaded?.(symbol, raw, timeframe);
           const { candles, volumes } = buildCandles(raw);
           if (candles.length > 0) {
             candleSeries.setData(candles);
