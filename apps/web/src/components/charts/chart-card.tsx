@@ -90,6 +90,12 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     initialMarketType ?? (symbol.includes(':USDT') ? 'futures' : 'spot')
   );
 
+  // Refs that always hold the latest values so async closures don't go stale
+  const timeframeRef = useRef<TF>(timeframe);
+  const marketTypeRef = useRef<'spot' | 'futures'>(marketType);
+  const exchangeRef = useRef<string>(exchange);
+  exchangeRef.current = exchange;
+
   const [loading, setLoading] = useState(!initialData || initialData.length === 0);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
@@ -97,6 +103,10 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
   const { subscribe, unsubscribe } = useWebSocket();
   const orderbookPriceLinesRef = useRef<any[]>([]);
+
+  // Keep refs in sync with state so closures always read current values
+  useEffect(() => { timeframeRef.current = timeframe; }, [timeframe]);
+  useEffect(() => { marketTypeRef.current = marketType; }, [marketType]);
 
   const showMarketToggle = isModal || chartGridSize === 1;
 
@@ -264,7 +274,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         try {
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
           const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&limit=300&endTime=${endTime}`
+            `${API_BASE}/api/history?exchange=${exchangeRef.current}&marketType=${marketTypeRef.current}&symbol=${encodeURIComponent(symbol)}&timeframe=${timeframeRef.current}&limit=300&endTime=${endTime}`
           );
           if (!resp.ok) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 
