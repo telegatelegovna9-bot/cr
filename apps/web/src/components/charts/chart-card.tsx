@@ -229,7 +229,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
         } else {
           const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
           const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${selectedExchange}&marketType=${marketType}&symbol=${symbol}&timeframe=${selectedTimeframe}&limit=300`
+            `${API_BASE}/api/history?exchange=${selectedExchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${selectedTimeframe}&limit=300`
           );
           if (!cancelled && resp.ok) {
             const data = await resp.json();
@@ -278,7 +278,7 @@ export function ChartCard({ symbol, index, onExpand, isModal = false, paused = f
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
           const marketType = symbol.includes(':USDT') ? 'futures' : 'spot';
           const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${selectedExchange}&marketType=${marketType}&symbol=${symbol}&timeframe=${selectedTimeframe}&limit=300&endTime=${endTime}`
+            `${API_BASE}/api/history?exchange=${selectedExchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${selectedTimeframe}&limit=300&endTime=${endTime}`
           );
           if (!resp.ok) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 

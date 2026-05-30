@@ -24,9 +24,8 @@ export class HistoryController {
     @Query('limit') limit?: string,
     @Query('endTime') endTime?: string,
   ) {
-    // Normalize symbol if needed (e.g., BTC-USDT to BTC/USDT)
-    const normalizedSymbol = symbol.includes('-') ? symbol.replace('-', '/') : symbol;
-    
+    const normalizedSymbol = symbol.replace(/-/g, '/');
+
     const candles = await this.marketService.getCandles(
       normalizedSymbol,
       timeframe || '1h',
