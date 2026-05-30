@@ -252,7 +252,13 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
 
             const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
-            chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
+            // Double-rAF: first frame applies size, second frame sets range with correct layout
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                if (cancelled || !chartRef.current) return;
+                chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
+              });
+            });
 
             const lastRaw = raw[raw.length - 1];
             candleSeries.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
