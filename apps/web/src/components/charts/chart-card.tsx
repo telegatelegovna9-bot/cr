@@ -178,7 +178,10 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       const hasInitialData = initialData && initialData.length > 0;
       if (!hasInitialData) setLoading(true);
 
-      const chart = createChart(containerRef.current!, {
+      const container = containerRef.current!;
+      const chart = createChart(container, {
+        width: container.clientWidth || container.offsetWidth || 400,
+        height: container.clientHeight || container.offsetHeight || 300,
         layout: {
           background: { type: ColorType.Solid, color: 'transparent' },
           textColor: '#6B6B8A',
@@ -243,12 +246,13 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             const firstCandleTime = raw[0].time || raw[0].timestamp;
             oldestTimeRef.current = firstCandleTime / 1000;
 
-            // Defer range setting so the chart has time to measure its container
-            requestAnimationFrame(() => {
-              if (cancelled || !chartRef.current) return;
-              const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
-              chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
-            });
+            // Force chart to know its real size before setting range
+            const w = container.clientWidth || container.offsetWidth;
+            const h = container.clientHeight || container.offsetHeight;
+            if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
+
+            const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
+            chart.timeScale().setVisibleLogicalRange({ from, to: candles.length + 3 });
 
             const lastRaw = raw[raw.length - 1];
             candleSeries.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
