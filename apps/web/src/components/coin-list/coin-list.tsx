@@ -119,7 +119,7 @@ function SortButton({ label, sortKey, currentSort, onSort }: {
 
 // ─── Chart Modal ──────────────────────────────────────────────
 
-function CoinChartModal({ symbol, exchange, onClose }: { symbol: string; exchange: string; onClose: () => void }) {
+function CoinChartModal({ symbol, exchange, marketType, onClose }: { symbol: string; exchange: string; marketType: 'spot' | 'futures'; onClose: () => void }) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -136,7 +136,7 @@ function CoinChartModal({ symbol, exchange, onClose }: { symbol: string; exchang
         className="w-full max-w-5xl h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <ChartCard symbol={symbol} index={0} exchange={exchange} onExpand={onClose} isModal />
+        <ChartCard symbol={symbol} index={0} exchange={exchange} onExpand={onClose} isModal initialMarketType={marketType} />
       </motion.div>
     </motion.div>
   );
@@ -401,7 +401,7 @@ export function CoinList() {
       {/* Chart modal on coin click */}
       <AnimatePresence>
         {chartSymbol && (
-          <CoinChartModal symbol={chartSymbol} exchange={selectedExchange} onClose={() => setChartSymbol(null)} />
+          <CoinChartModal symbol={chartSymbol} exchange={selectedExchange} marketType={marketType} onClose={() => setChartSymbol(null)} />
         )}
       </AnimatePresence>
     </>

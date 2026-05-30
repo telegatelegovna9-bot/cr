@@ -20,6 +20,7 @@ interface ChartCardProps {
   paused?: boolean;
   initialData?: any[];
   initialTimeframe?: string;
+  initialMarketType?: 'spot' | 'futures';
   onDataLoaded?: (symbol: string, data: any[], timeframe: string) => void;
 }
 
@@ -63,7 +64,7 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
-export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, onDataLoaded }: ChartCardProps) {
+export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onDataLoaded }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -86,7 +87,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   // Per-card local state
   const [timeframe, setTimeframe] = useState<TF>(selectedTimeframe as TF);
   const [marketType, setMarketType] = useState<'spot' | 'futures'>(
-    symbol.includes(':USDT') ? 'futures' : 'spot'
+    initialMarketType ?? (symbol.includes(':USDT') ? 'futures' : 'spot')
   );
 
   const [loading, setLoading] = useState(!initialData || initialData.length === 0);
