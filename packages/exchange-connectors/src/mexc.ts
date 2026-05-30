@@ -462,30 +462,51 @@ export class MexcConnector extends BaseExchangeConnector {
     };
   }
 
+  private get spotHeaders(): Record<string, string> {
+    return {
+      Accept: 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    };
+  }
+
   private async fetchRaw<T>(url: string): Promise<T> {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    });
+    const isSpot = url.includes('api.mexc.com');
+    const headers = isSpot ? this.spotHeaders : { Accept: 'application/json' };
+    let response: Response;
+    try {
+      response = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
+    } catch (err) {
+      console.error(`[mexc] fetch error for ${url}:`, err);
+      throw err;
+    }
     if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.error(`[mexc] HTTP ${response.status} for ${url}: ${body.slice(0, 200)}`);
       throw new Error(`[mexc] HTTP ${response.status}: ${response.statusText}`);
     }
     return response.json() as Promise<T>;
   }
 
   private async fetchArray<T>(url: string, label: string): Promise<T[]> {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    });
+    const isSpot = url.includes('api.mexc.com');
+    const headers = isSpot ? this.spotHeaders : { Accept: 'application/json' };
+    let response: Response;
+    try {
+      response = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
+    } catch (err) {
+      console.error(`[mexc] fetch error for ${label} (${url}):`, err);
+      throw err;
+    }
     if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.error(`[mexc] HTTP ${response.status} for ${label} (${url}): ${body.slice(0, 200)}`);
       throw new Error(`[mexc] Failed to fetch ${label}: HTTP ${response.status}`);
     }
     const data = await response.json();
     if (!Array.isArray(data)) {
-      // Some endpoints wrap in { data: [] }
       const wrapped = (data as { data?: T[] }).data;
       if (Array.isArray(wrapped)) return wrapped;
+      console.error(`[mexc] Unexpected response for ${label}:`, JSON.stringify(data).slice(0, 200));
       throw new Error(`[mexc] Unexpected response for ${label}`);
     }
     return data as T[];

@@ -8,25 +8,26 @@ import type { Timeframe, ExchangeId } from './types';
 export function normalizeSymbol(raw: string, exchange: ExchangeId): string {
   let s = raw.toUpperCase().replace(/[^A-Z0-9/._-]/g, '');
 
-  // Common quote currencies to detect
+  // Handle exchange-specific separators before generic quote stripping,
+  // otherwise "BTC-USDT" would produce "BTC-/USDT" (hyphen left in base).
+  if (exchange === 'okx' && s.includes('-') && !s.includes('/')) {
+    const parts = s.split('-');
+    if (parts.length >= 2 && parts[1]) return `${parts[0]}/${parts[1]}`;
+  }
+
+  if (s.includes('_') && !s.includes('/')) {
+    const parts = s.split('_');
+    if (parts.length >= 2 && parts[1]) return `${parts[0]}/${parts[1]}`;
+  }
+
+  // Common quote currencies to detect (no separator — e.g. MEXC "BTCUSDT")
   const quotes = ['USDT', 'USDC', 'BUSD', 'USD', 'BTC', 'ETH', 'EUR', 'GBP'];
 
   for (const q of quotes) {
     if (s.endsWith(q) && s.length > q.length) {
       const base = s.slice(0, -q.length);
-      return `${base}/${q}`;
+      if (!base.includes('-') && !base.includes('_')) return `${base}/${q}`;
     }
-  }
-
-  // Handle exchange-specific formats
-  if (exchange === 'okx' && s.includes('-')) {
-    const parts = s.split('-');
-    return `${parts[0]}/${parts[1]}`;
-  }
-
-  if (s.includes('_')) {
-    const parts = s.split('_');
-    return `${parts[0]}/${parts[1]}`;
   }
 
   return s;
