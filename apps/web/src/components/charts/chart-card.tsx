@@ -359,15 +359,21 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       className="glass-card overflow-hidden flex flex-col relative ambient-glow h-full"
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 gap-2">
-        {/* Left: badge */}
-        <div
-          className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold shrink-0"
-          style={{
-            background: isPositive ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-            color: isPositive ? '#22c55e' : '#ef4444',
-          }}
-        >
-          {base.charAt(0)}
+        {/* Left: badge + symbol */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div
+            className="w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold shrink-0"
+            style={{
+              background: isPositive ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+              color: isPositive ? '#22c55e' : '#ef4444',
+            }}
+          >
+            {base.charAt(0)}
+          </div>
+          <div className="leading-tight">
+            <div className="text-xs font-bold text-text-primary">{symbol}</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wider">{exchange}</div>
+          </div>
         </div>
 
         {/* Center: TF pills */}

@@ -25,10 +25,8 @@ export function Header() {
   const {
     viewMode, setViewMode, showHeatmap, toggleHeatmap, toggleAlerts, unreadAlertCount,
   } = useUIStore();
-  const { selectedSymbol, selectedTimeframe, setSelectedTimeframe, selectedExchange, setSelectedExchange } = useMarketStore();
+  const { selectedExchange, setSelectedExchange } = useMarketStore();
   const { connected, reconnecting } = useWSStore();
-
-  const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
 
   return (
     <motion.header
@@ -63,30 +61,6 @@ export function Header() {
               <option key={ex} value={ex} className="bg-bg-secondary">{ex}</option>
             ))}
           </select>
-        </div>
-
-        {/* Symbol & Timeframe */}
-        <div className="flex items-center gap-2 ml-1">
-          <span className="text-sm font-bold text-text-primary tracking-wide">
-            {selectedSymbol}
-          </span>
-
-          {/* Timeframes */}
-          <div className="hidden md:flex items-center gap-0.5 ml-2">
-            {timeframes.map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setSelectedTimeframe(tf as any)}
-                className={`px-2.5 py-1 text-xs rounded-lg transition-all duration-200 cursor-pointer font-medium
-                  ${selectedTimeframe === tf
-                    ? 'bg-accent/15 text-accent-light border border-accent/20'
-                    : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'
-                  }`}
-              >
-                {tf}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Spacer */}
