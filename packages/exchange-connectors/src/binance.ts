@@ -272,6 +272,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     this.emit('orderbook', {
       symbol: 'unknown', // Binance doesn't include symbol in depth updates
       exchange: 'binance',
+      marketType: data.__marketType === 'futures' ? 'futures' : 'spot',
       bids,
       asks,
       timestamp: Date.now(),
@@ -284,6 +285,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       id: String(data.t),
       symbol,
       exchange: 'binance',
+      marketType: data.__marketType === 'futures' ? 'futures' : 'spot',
       price: parseFloat(data.p as string),
       quantity: parseFloat(data.q as string),
       side: (data.m as boolean) ? 'sell' : 'buy',

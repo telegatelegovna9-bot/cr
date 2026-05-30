@@ -71,6 +71,7 @@ export interface OrderBookLevel {
 export interface OrderBook {
   symbol: string;
   exchange: ExchangeId;
+  marketType?: 'spot' | 'futures';
   bids: OrderBookLevel[];
   asks: OrderBookLevel[];
   timestamp: number;
@@ -80,6 +81,7 @@ export interface Trade {
   id: string;
   symbol: string;
   exchange: ExchangeId;
+  marketType?: 'spot' | 'futures';
   price: number;
   quantity: number;
   side: 'buy' | 'sell';

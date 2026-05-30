@@ -285,7 +285,14 @@ export class MexcConnector extends BaseExchangeConnector {
       const asks = ((data.asks || data.a) as [string, string][]).map(([p, q]) => ({
         price: parseFloat(p), quantity: parseFloat(q),
       }));
-      this.emit('orderbook', { symbol, exchange: 'mexc', bids, asks, timestamp: Date.now() } as OrderBook);
+      this.emit('orderbook', {
+        symbol,
+        exchange: 'mexc',
+        marketType: 'spot',
+        bids,
+        asks,
+        timestamp: Date.now(),
+      } as OrderBook);
     } else if (channel.includes('deals')) {
       const data = msg.d as Record<string, unknown>;
       if (!data) return;

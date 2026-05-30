@@ -175,13 +175,21 @@ export class OKXConnector extends BaseExchangeConnector {
       const asks = ((d.asks || d.a) as string[][]).map(([p, q]) => ({
         price: parseFloat(p), quantity: parseFloat(q),
       }));
-      this.emit('orderbook', { symbol, exchange: 'okx', bids, asks, timestamp: Date.now() } as OrderBook);
+      this.emit('orderbook', {
+        symbol,
+        exchange: 'okx',
+        marketType: isFutures ? 'futures' : 'spot',
+        bids,
+        asks,
+        timestamp: Date.now(),
+      } as OrderBook);
     } else if (channel === 'trades') {
       data.forEach((t: Record<string, unknown>) => {
         const trade: Trade = {
           id: String(t.tradeId),
           symbol,
           exchange: 'okx',
+          marketType: isFutures ? 'futures' : 'spot',
           price: parseFloat(t.px as string),
           quantity: parseFloat(t.sz as string),
           side: (t.side as string) === 'buy' ? 'buy' : 'sell',
