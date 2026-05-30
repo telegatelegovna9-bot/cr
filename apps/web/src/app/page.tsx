@@ -6,6 +6,7 @@ import { TerminalView } from '@/components/terminal/terminal-view';
 import { CoinList, CoinListToggle } from '@/components/coin-list/coin-list';
 import { ChartGrid } from '@/components/charts/chart-grid';
 import { ScreenerView } from '@/components/screener/screener-view';
+import { HeatmapView } from '@/components/terminal/heatmap-view';
 import { SettingsView } from '@/components/terminal/settings-view';
 import { AlertToast } from '@/components/alerts/alert-toast';
 import { useUIStore, useMarketStore } from '@/stores';
@@ -54,6 +55,7 @@ export default function TerminalPage() {
         <TerminalView>
           {viewMode === 'terminal' && <ChartGrid />}
           {viewMode === 'screener' && <ScreenerView />}
+          {viewMode === 'heatmap' && <HeatmapView />}
           {viewMode === 'settings' && <SettingsView />}
         </TerminalView>
       </div>

@@ -373,6 +373,14 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     this.candleSubscriptionRefs.set(key, currentRefs - 1);
   }
 
+  subscribeOrderBook(symbol: string, exchange?: ExchangeId): void {
+    this.exchangeManager.subscribeOrderBook(symbol, exchange ? [exchange] : undefined);
+  }
+
+  unsubscribeOrderBook(symbol: string, exchange?: ExchangeId): void {
+    this.exchangeManager.unsubscribeOrderBook(symbol, exchange ? [exchange] : undefined);
+  }
+
   getConnectedExchanges(): ExchangeId[] {
     return Array.from(this.connectedExchanges);
   }

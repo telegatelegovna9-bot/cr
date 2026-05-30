@@ -269,10 +269,16 @@ export class BinanceConnector extends BaseExchangeConnector {
       quantity: parseFloat(q),
     })) || [];
 
+    const isFutures = data.__marketType === 'futures';
+    const rawSymbol = (data.s as string) || '';
+    const symbol = rawSymbol 
+      ? (isFutures ? this.toFuturesSymbol(rawSymbol) : this.fromLocalSymbol(rawSymbol))
+      : 'unknown';
+
     this.emit('orderbook', {
-      symbol: 'unknown', // Binance doesn't include symbol in depth updates
+      symbol,
       exchange: 'binance',
-      marketType: data.__marketType === 'futures' ? 'futures' : 'spot',
+      marketType: isFutures ? 'futures' : 'spot',
       bids,
       asks,
       timestamp: Date.now(),

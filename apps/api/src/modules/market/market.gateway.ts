@@ -17,6 +17,7 @@ interface SubscribePayload {
   marketType: 'spot' | 'futures';
   symbol: string;
   timeframe?: Timeframe;
+  channel?: string;
   action?: 'subscribe' | 'unsubscribe';
 }
 
@@ -57,8 +58,10 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (subs) {
       for (const subKey of subs) {
         try {
-          const { exchange, marketType, symbol, timeframe } = JSON.parse(subKey);
-          if (timeframe) {
+          const { exchange, symbol, timeframe, channel } = JSON.parse(subKey);
+          if (channel === 'orderbook') {
+            this.marketService.unsubscribeOrderBook(symbol, exchange as ExchangeId);
+          } else if (timeframe) {
             this.marketService.unsubscribeCandle(symbol, timeframe as Timeframe, exchange as ExchangeId);
           } else {
             this.marketService.unsubscribeSymbol(symbol);
@@ -72,8 +75,8 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private handleSubscription(client: any, data: SubscribePayload) {
-    const { action = 'subscribe', exchange, marketType, symbol, timeframe } = data;
-    const subKey = JSON.stringify({ exchange, marketType, symbol, timeframe });
+    const { action = 'subscribe', exchange, marketType, symbol, timeframe, channel } = data;
+    const subKey = JSON.stringify({ exchange, marketType, symbol, timeframe, channel });
 
     const subs = this.clientSubscriptions.get(client);
     if (!subs) return;
@@ -83,17 +86,19 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       subs.add(subKey);
 
       // Subscribe via MarketService
-      if (timeframe) {
+      if (channel === 'orderbook') {
+        this.marketService.subscribeOrderBook(symbol, exchange);
+      } else if (timeframe) {
         this.marketService.subscribeCandle(symbol, timeframe, exchange);
       } else {
         this.marketService.subscribeSymbol(symbol);
       }
 
       // Send confirmation
-      client.send(JSON.stringify({ event: 'subscribed', data: { exchange, marketType, symbol, timeframe } }));
+      client.send(JSON.stringify({ event: 'subscribed', data: { exchange, marketType, symbol, timeframe, channel } }));
 
       // Send initial data if available
-      if (!timeframe) {
+      if (!timeframe && !channel) {
         const tickers = this.marketService.getTickers(exchange, [symbol]);
         if (tickers.length > 0) {
           client.send(JSON.stringify({ channel: 'ticker', data: tickers[0] }));
@@ -101,12 +106,14 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
     } else if (action === 'unsubscribe') {
       subs.delete(subKey);
-      if (timeframe) {
+      if (channel === 'orderbook') {
+        this.marketService.unsubscribeOrderBook(symbol, exchange);
+      } else if (timeframe) {
         this.marketService.unsubscribeCandle(symbol, timeframe, exchange);
       } else {
         this.marketService.unsubscribeSymbol(symbol);
       }
-      client.send(JSON.stringify({ event: 'unsubscribed', data: { exchange, marketType, symbol, timeframe } }));
+      client.send(JSON.stringify({ event: 'unsubscribed', data: { exchange, marketType, symbol, timeframe, channel } }));
     }
   }
 
@@ -130,11 +137,16 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
           for (const subKey of subs) {
             try {
               const sub = JSON.parse(subKey);
+              
               if (channel === 'ticker' && sub.symbol === data.symbol && (!sub.exchange || sub.exchange === data.exchange)) {
                 client.send(message);
                 break;
               }
               if (channel === 'candle' && sub.symbol === data.symbol && sub.timeframe === data.timeframe && (!sub.exchange || sub.exchange === data.exchange)) {
+                client.send(message);
+                break;
+              }
+              if (channel === 'orderbook' && (sub.symbol === data.symbol || data.symbol === 'unknown') && sub.channel === 'orderbook' && (!sub.exchange || sub.exchange === data.exchange)) {
                 client.send(message);
                 break;
               }
