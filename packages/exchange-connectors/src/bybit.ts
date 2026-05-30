@@ -20,6 +20,7 @@ export class BybitConnector extends BaseExchangeConnector {
   private spotWs: WebSocket | null = null;
   private spotConnected = false;
   private spotSubscriptions = new Set<string>();
+  private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super({
@@ -46,6 +47,7 @@ export class BybitConnector extends BaseExchangeConnector {
 
     spotWs.on('open', () => {
       this.spotConnected = true;
+      this.startSpotHeartbeat();
     });
     spotWs.on('message', (data: Buffer) => {
       try {
@@ -57,6 +59,7 @@ export class BybitConnector extends BaseExchangeConnector {
     spotWs.on('close', () => {
       this.spotConnected = false;
       this.spotSubscriptions.clear();
+      this.stopSpotHeartbeat();
     });
     spotWs.on('error', (err: Error) => {
       console.warn(`[bybit] Spot WS error: ${err.message}`);
@@ -69,6 +72,22 @@ export class BybitConnector extends BaseExchangeConnector {
       linearWs.once('error', done);
       linearWs.once('close', done);
     });
+  }
+
+  private startSpotHeartbeat(): void {
+    this.stopSpotHeartbeat();
+    this.spotHeartbeatTimer = setInterval(() => {
+      if (this.spotWs && this.spotConnected) {
+        this.spotWs.send(JSON.stringify({ op: 'ping' }));
+      }
+    }, 20000);
+  }
+
+  private stopSpotHeartbeat(): void {
+    if (this.spotHeartbeatTimer) {
+      clearInterval(this.spotHeartbeatTimer);
+      this.spotHeartbeatTimer = null;
+    }
   }
 
   protected getPingMessage(): unknown {
@@ -242,24 +261,40 @@ export class BybitConnector extends BaseExchangeConnector {
     } else if (topic.startsWith('orderbook.')) {
       const data = msg.data as Record<string, unknown>;
       const rawSymbol = data.s as string || (msg.topic as string).split('.').pop()!;
-      const symbol = this.fromLocalSymbol(rawSymbol);
+      const symbol = isSpot
+        ? this.fromLocalSymbol(rawSymbol)
+        : this.toFuturesSymbol(rawSymbol);
       const bids = ((data.b as [string, string][]) || []).map(([p, q]) => ({
         price: parseFloat(p), quantity: parseFloat(q),
       }));
       const asks = ((data.a as [string, string][]) || []).map(([p, q]) => ({
         price: parseFloat(p), quantity: parseFloat(q),
       }));
-      this.emit('orderbook', { symbol, exchange: 'bybit', bids, asks, timestamp: Date.now() } as OrderBook);
-    } else if (topic.startsWith('publicTrade.')) {
-      const trades = (msg.data as Record<string, unknown>[]).map((t): Trade => ({
-        id: String(t.i),
-        symbol: this.fromLocalSymbol(t.s as string),
+      this.emit('orderbook', {
+        symbol,
         exchange: 'bybit',
-        price: parseFloat(t.p as string),
-        quantity: parseFloat(t.v as string),
-        side: (t.S as string) === 'Buy' ? 'buy' : 'sell',
-        timestamp: t.T as number,
-      }));
+        marketType: isSpot ? 'spot' : 'futures',
+        bids,
+        asks,
+        timestamp: Date.now(),
+      } as OrderBook);
+    } else if (topic.startsWith('publicTrade.')) {
+      const trades = (msg.data as Record<string, unknown>[]).map((t): Trade => {
+        const rawSymbol = t.s as string;
+        const symbol = isSpot
+          ? this.fromLocalSymbol(rawSymbol)
+          : this.toFuturesSymbol(rawSymbol);
+        return {
+          id: String(t.i),
+          symbol,
+          exchange: 'bybit',
+          marketType: isSpot ? 'spot' : 'futures',
+          price: parseFloat(t.p as string),
+          quantity: parseFloat(t.v as string),
+          side: (t.S as string) === 'Buy' ? 'buy' : 'sell',
+          timestamp: t.T as number,
+        };
+      });
       trades.forEach(t => this.emit('trade', t));
     }
   }
@@ -368,6 +403,7 @@ export class BybitConnector extends BaseExchangeConnector {
 
   disconnect(): void {
     super.disconnect();
+    this.stopSpotHeartbeat();
     if (this.spotWs) {
       this.spotWs.removeAllListeners();
       this.spotWs.close();

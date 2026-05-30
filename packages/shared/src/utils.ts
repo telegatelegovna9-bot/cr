@@ -6,7 +6,7 @@ import type { Timeframe, ExchangeId } from './types';
  * Normalize a symbol to unified format (e.g., "BTC/USDT")
  */
 export function normalizeSymbol(raw: string, exchange: ExchangeId): string {
-  let s = raw.toUpperCase().replace(/[^A-Z0-9/._-]/g, '');
+  let s = raw.toUpperCase().replace(/[^A-Z0-9/._:-]/g, '');
 
   // Handle exchange-specific separators before generic quote stripping,
   // otherwise "BTC-USDT" would produce "BTC-/USDT" (hyphen left in base).

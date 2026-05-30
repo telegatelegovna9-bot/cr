@@ -40,10 +40,6 @@ export class OKXConnector extends BaseExchangeConnector {
     });
   }
 
-  protected getPingMessage(): unknown {
-    return 'ping';
-  }
-
   private isFuturesSymbol(symbol: string): boolean {
     return symbol.includes(':USDT') || symbol.includes(':USD');
   }

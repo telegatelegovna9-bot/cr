@@ -14,7 +14,7 @@ const REST_TF_MAP: Record<Timeframe, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '1h': '60m', '4h': '4h', '1d': '1d', '1w': '1W',
 };
 
-const MEXC_SPOT_WS = 'wss://wbs.mexc.com/ws';
+const MEXC_SPOT_WS = 'wss://wbs-api.mexc.com/ws';
 const MEXC_FUTURES_WS = 'wss://contract.mexc.com/edge';
 const MEXC_SPOT_REST = 'https://api.mexc.com';
 const MEXC_FUTURES_REST = 'https://contract.mexc.com';
@@ -23,6 +23,7 @@ export class MexcConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
+  private futuresHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super({
@@ -49,6 +50,7 @@ export class MexcConnector extends BaseExchangeConnector {
 
     futuresWs.on('open', () => {
       this.futuresConnected = true;
+      this.startFuturesHeartbeat();
     });
     futuresWs.on('message', (data: Buffer) => {
       try {
@@ -60,6 +62,7 @@ export class MexcConnector extends BaseExchangeConnector {
     futuresWs.on('close', () => {
       this.futuresConnected = false;
       this.futuresSubscriptions.clear();
+      this.stopFuturesHeartbeat();
     });
     futuresWs.on('error', (err: Error) => {
       console.warn(`[mexc] Futures WS error: ${err.message}`);
@@ -72,6 +75,22 @@ export class MexcConnector extends BaseExchangeConnector {
       spotWs.once('error', done);
       spotWs.once('close', done);
     });
+  }
+
+  private startFuturesHeartbeat(): void {
+    this.stopFuturesHeartbeat();
+    this.futuresHeartbeatTimer = setInterval(() => {
+      if (this.futuresWs && this.futuresConnected) {
+        this.futuresWs.send(JSON.stringify({ method: 'ping' }));
+      }
+    }, 20000);
+  }
+
+  private stopFuturesHeartbeat(): void {
+    if (this.futuresHeartbeatTimer) {
+      clearInterval(this.futuresHeartbeatTimer);
+      this.futuresHeartbeatTimer = null;
+    }
   }
 
   protected getPingMessage(): unknown {
@@ -201,31 +220,35 @@ export class MexcConnector extends BaseExchangeConnector {
     if (!channel) return;
 
     if (channel.includes('miniTickers')) {
-      const data = msg.d as Record<string, unknown>;
-      if (!data) return;
-      const rawSymbol = data.s as string;
-      if (!rawSymbol?.endsWith('USDT')) return;
-      const symbol = normalizeSymbol(rawSymbol, 'mexc');
-      const price = parseFloat(data.c as string);
-      const open = parseFloat(data.o as string);
-      const ticker: Ticker = {
-        exchange: 'mexc',
-        marketType: 'spot',
-        symbol,
-        lastPrice: price,
-        priceChange24h: price - open,
-        volume24h: parseFloat(data.v as string),
-        high24h: parseFloat(data.h as string),
-        low24h: parseFloat(data.l as string),
-        timestamp: Date.now(),
-        priceChangePercent24h: ((price - open) / open) * 100,
-        quoteVolume24h: parseFloat(data.qv as string),
-        trades24h: 0,
-        bid: price,
-        ask: price,
-        spread: 0,
-      };
-      this.emit('ticker', ticker);
+      const d = msg.d;
+      if (!d) return;
+      const tickers = Array.isArray(d) ? d : [d];
+      
+      tickers.forEach((data: Record<string, unknown>) => {
+        const rawSymbol = data.s as string;
+        if (!rawSymbol?.endsWith('USDT')) return;
+        const symbol = normalizeSymbol(rawSymbol, 'mexc');
+        const price = parseFloat(data.c as string);
+        const open = parseFloat(data.o as string);
+        const ticker: Ticker = {
+          exchange: 'mexc',
+          marketType: 'spot',
+          symbol,
+          lastPrice: price,
+          priceChange24h: price - open,
+          volume24h: parseFloat(data.v as string),
+          high24h: parseFloat(data.h as string),
+          low24h: parseFloat(data.l as string),
+          timestamp: Date.now(),
+          priceChangePercent24h: ((price - open) / open) * 100,
+          quoteVolume24h: parseFloat(data.qv as string),
+          trades24h: 0,
+          bid: price,
+          ask: price,
+          spread: 0,
+        };
+        this.emit('ticker', ticker);
+      });
     } else if (channel.includes('kline')) {
       const data = msg.d as Record<string, unknown>;
       if (!data) return;
@@ -514,6 +537,7 @@ export class MexcConnector extends BaseExchangeConnector {
 
   disconnect(): void {
     super.disconnect();
+    this.stopFuturesHeartbeat();
     if (this.futuresWs) {
       this.futuresWs.removeAllListeners();
       this.futuresWs.close();

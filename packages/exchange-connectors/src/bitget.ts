@@ -19,6 +19,7 @@ export class BitgetConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
+  private futuresHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super({
@@ -45,6 +46,7 @@ export class BitgetConnector extends BaseExchangeConnector {
 
     futuresWs.on('open', () => {
       this.futuresConnected = true;
+      this.startFuturesHeartbeat();
     });
     futuresWs.on('message', (data: Buffer) => {
       try {
@@ -56,6 +58,7 @@ export class BitgetConnector extends BaseExchangeConnector {
     futuresWs.on('close', () => {
       this.futuresConnected = false;
       this.futuresSubscriptions.clear();
+      this.stopFuturesHeartbeat();
     });
     futuresWs.on('error', (err: Error) => {
       console.warn(`[bitget] Futures WS error: ${err.message}`);
@@ -68,6 +71,22 @@ export class BitgetConnector extends BaseExchangeConnector {
       spotWs.once('error', done);
       spotWs.once('close', done);
     });
+  }
+
+  private startFuturesHeartbeat(): void {
+    this.stopFuturesHeartbeat();
+    this.futuresHeartbeatTimer = setInterval(() => {
+      if (this.futuresWs && this.futuresConnected) {
+        this.futuresWs.send('ping');
+      }
+    }, 20000);
+  }
+
+  private stopFuturesHeartbeat(): void {
+    if (this.futuresHeartbeatTimer) {
+      clearInterval(this.futuresHeartbeatTimer);
+      this.futuresHeartbeatTimer = null;
+    }
   }
 
   protected getPingMessage(): unknown {
@@ -147,6 +166,17 @@ export class BitgetConnector extends BaseExchangeConnector {
   }
 
   subscribeOrderBook(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBitgetFuturesSymbol(symbol);
+      const key = `orderbook:${symbol}`;
+      if (this.futuresSubscriptions.has(key)) return;
+      this.futuresSubscriptions.add(key);
+      this.sendFutures({
+        op: 'subscribe',
+        args: [{ instType: 'USDT-FUTURES', channel: 'books15', instId: local }],
+      });
+      return;
+    }
     const local = this.toBitgetSpotSymbol(symbol);
     const key = `orderbook:${symbol}`;
     if (this.subscriptions.has(key)) return;
@@ -158,6 +188,17 @@ export class BitgetConnector extends BaseExchangeConnector {
   }
 
   subscribeTrades(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBitgetFuturesSymbol(symbol);
+      const key = `trades:${symbol}`;
+      if (this.futuresSubscriptions.has(key)) return;
+      this.futuresSubscriptions.add(key);
+      this.sendFutures({
+        op: 'subscribe',
+        args: [{ instType: 'USDT-FUTURES', channel: 'trade', instId: local }],
+      });
+      return;
+    }
     const local = this.toBitgetSpotSymbol(symbol);
     const key = `trades:${symbol}`;
     if (this.subscriptions.has(key)) return;
@@ -206,6 +247,15 @@ export class BitgetConnector extends BaseExchangeConnector {
   }
 
   unsubscribeOrderBook(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBitgetFuturesSymbol(symbol);
+      this.futuresSubscriptions.delete(`orderbook:${symbol}`);
+      this.sendFutures({
+        op: 'unsubscribe',
+        args: [{ instType: 'USDT-FUTURES', channel: 'books15', instId: local }],
+      });
+      return;
+    }
     const local = this.toBitgetSpotSymbol(symbol);
     this.subscriptions.delete(`orderbook:${symbol}`);
     this.send({
@@ -215,6 +265,15 @@ export class BitgetConnector extends BaseExchangeConnector {
   }
 
   unsubscribeTrades(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBitgetFuturesSymbol(symbol);
+      this.futuresSubscriptions.delete(`trades:${symbol}`);
+      this.sendFutures({
+        op: 'unsubscribe',
+        args: [{ instType: 'USDT-FUTURES', channel: 'trade', instId: local }],
+      });
+      return;
+    }
     const local = this.toBitgetSpotSymbol(symbol);
     this.subscriptions.delete(`trades:${symbol}`);
     this.send({
@@ -285,21 +344,33 @@ export class BitgetConnector extends BaseExchangeConnector {
       });
     } else if (channel === 'books15') {
       const d = data[0];
-      const symbol = normalizeSymbol(instId, 'bitget');
+      const symbol = isFutures
+        ? this.fromBitgetFuturesSymbol(instId)
+        : normalizeSymbol(instId, 'bitget');
       const bids = ((d.bids || d.b) as [string, string][]).map(([p, q]) => ({
         price: parseFloat(p), quantity: parseFloat(q),
       }));
       const asks = ((d.asks || d.a) as [string, string][]).map(([p, q]) => ({
         price: parseFloat(p), quantity: parseFloat(q),
       }));
-      this.emit('orderbook', { symbol, exchange: 'bitget', bids, asks, timestamp: Date.now() } as OrderBook);
+      this.emit('orderbook', {
+        symbol,
+        exchange: 'bitget',
+        marketType: isFutures ? 'futures' : 'spot',
+        bids,
+        asks,
+        timestamp: Date.now(),
+      } as OrderBook);
     } else if (channel === 'trade') {
-      const symbol = normalizeSymbol(instId, 'bitget');
+      const symbol = isFutures
+        ? this.fromBitgetFuturesSymbol(instId)
+        : normalizeSymbol(instId, 'bitget');
       data.forEach((t: Record<string, unknown>) => {
         const trade: Trade = {
           id: String(t.tradeId || Date.now()),
           symbol,
           exchange: 'bitget',
+          marketType: isFutures ? 'futures' : 'spot',
           price: parseFloat(t.price as string),
           quantity: parseFloat(t.size as string),
           side: (t.side as string) === 'buy' ? 'buy' : 'sell',
@@ -451,6 +522,7 @@ export class BitgetConnector extends BaseExchangeConnector {
 
   disconnect(): void {
     super.disconnect();
+    this.stopFuturesHeartbeat();
     if (this.futuresWs) {
       this.futuresWs.removeAllListeners();
       this.futuresWs.close();

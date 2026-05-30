@@ -67,6 +67,9 @@ export class BinanceConnector extends BaseExchangeConnector {
       try {
         const msg = JSON.parse(data.toString()) as Record<string, unknown>;
         msg.__marketType = 'futures';
+        if (msg.data && typeof msg.data === 'object') {
+          (msg.data as Record<string, unknown>).__marketType = 'futures';
+        }
         this.handleMessage(msg);
       } catch { /* ignore non-JSON */ }
     });
