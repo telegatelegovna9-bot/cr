@@ -322,7 +322,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     }
 
     if (futuresRes.status === 'rejected') {
-      console.error('[binance] Failed to fetch futures tickers:', futuresRes.reason?.message || futuresRes.reason);
+      // fapi.binance.com may be geo-restricted (HTTP 451) on some hosting providers
     }
 
     if (futuresRes.status === 'fulfilled') {

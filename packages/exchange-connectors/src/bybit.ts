@@ -272,6 +272,13 @@ export class BybitConnector extends BaseExchangeConnector {
 
     const results: Ticker[] = [];
 
+    if (linearRes.status === 'rejected') {
+      console.error('[bybit] Failed to fetch linear futures tickers:', linearRes.reason?.message || linearRes.reason);
+    }
+    if (spotRes.status === 'rejected') {
+      console.error('[bybit] Failed to fetch spot tickers:', spotRes.reason?.message || spotRes.reason);
+    }
+
     if (linearRes.status === 'fulfilled') {
       const futures = linearRes.value.result.list
         .filter(t => (t.symbol as string).endsWith('USDT'))
