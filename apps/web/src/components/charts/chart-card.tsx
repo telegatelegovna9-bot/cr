@@ -200,7 +200,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           horzLine: { color: 'rgba(99,102,241,0.3)', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#6366f1' },
         },
         rightPriceScale: { borderColor: 'rgba(255,255,255,0.06)', scaleMargins: { top: 0.1, bottom: 0.25 } },
-        timeScale: { borderColor: 'rgba(255,255,255,0.06)', timeVisible: true, secondsVisible: false },
+        timeScale: { borderColor: 'rgba(255,255,255,0.06)', timeVisible: true, secondsVisible: false, rightOffset: 3, fixLeftEdge: false, fixRightEdge: false, lockVisibleTimeRangeOnResize: true },
         handleScroll: { vertTouchDrag: false, mouseWheel: true, pressedMouseMove: true },
         handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: true, price: true } },
         kineticScroll: { touch: true, mouse: false },
@@ -359,13 +359,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       resizeFrameRef.current = requestAnimationFrame(() => {
         if (chartRef.current) {
           chartRef.current.applyOptions({ width, height });
-          // If initial range hasn't been confirmed by user interaction yet,
-          // re-apply it after resize since applyOptions resets the visible range
-          if (!readyRef.current && initialRangeSetRef.current && allRawRef.current.length > 0) {
-            const total = allRawRef.current.length;
-            const from = Math.max(0, total - INITIAL_VISIBLE_CANDLES);
-            chartRef.current.timeScale().setVisibleLogicalRange({ from, to: total + 3 });
-          }
         }
         resizeFrameRef.current = null;
       });
