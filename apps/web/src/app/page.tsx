@@ -29,7 +29,10 @@ export default function TerminalPage() {
         ]);
         
         if (tickersRes.success) {
-          console.log(`[Terminal] Loaded ${tickersRes.data.length} tickers`);
+          const futures = tickersRes.data.filter((t: any) => t.marketType === 'futures');
+          const spot = tickersRes.data.filter((t: any) => t.marketType === 'spot');
+          console.log(`[Terminal] Loaded ${tickersRes.data.length} tickers: ${spot.length} spot, ${futures.length} futures`);
+          if (futures.length > 0) console.log('[Terminal] Sample futures:', futures.slice(0, 3).map((t: any) => `${t.exchange}:${t.symbol}`));
           setTickers(tickersRes.data as any);
         }
         if (exchangesRes.success) {
