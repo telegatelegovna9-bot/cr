@@ -80,7 +80,7 @@ export class MexcConnector extends BaseExchangeConnector {
   private startFuturesHeartbeat(): void {
     this.stopFuturesHeartbeat();
     this.futuresHeartbeatTimer = setInterval(() => {
-      if (this.futuresWs && this.futuresConnected) {
+      if (this.futuresWs && this.futuresConnected && this.futuresWs.readyState === 1 /* OPEN */) {
         this.futuresWs.send(JSON.stringify({ method: 'ping' }));
       }
     }, 20000);
@@ -115,7 +115,7 @@ export class MexcConnector extends BaseExchangeConnector {
   }
 
   private sendFutures(data: unknown): void {
-    if (this.futuresWs && this.futuresConnected) {
+    if (this.futuresWs && this.futuresConnected && this.futuresWs.readyState === 1 /* OPEN */) {
       this.futuresWs.send(JSON.stringify(data));
     }
   }

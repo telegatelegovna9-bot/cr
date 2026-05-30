@@ -144,7 +144,7 @@ export abstract class BaseExchangeConnector extends EventEmitter {
   protected abstract handleMessage(msg: unknown): void;
 
   protected send(data: unknown): void {
-    if (this.ws && this.connected) {
+    if (this.ws && this.connected && this.ws.readyState === 1 /* OPEN */) {
       this.ws.send(JSON.stringify(data));
     }
   }
@@ -154,7 +154,7 @@ export abstract class BaseExchangeConnector extends EventEmitter {
     const ping = this.getPingMessage();
     if (ping === null) return; // exchange handles ping/pong natively
     this.heartbeatTimer = setInterval(() => {
-      if (this.ws && this.connected) {
+      if (this.ws && this.connected && this.ws.readyState === 1 /* OPEN */) {
         this.send(ping);
       }
     }, WS_HEARTBEAT_INTERVAL);
