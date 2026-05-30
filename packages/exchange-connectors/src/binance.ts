@@ -321,6 +321,10 @@ export class BinanceConnector extends BaseExchangeConnector {
       results.push(...spot);
     }
 
+    if (futuresRes.status === 'rejected') {
+      console.error('[binance] Failed to fetch futures tickers:', futuresRes.reason?.message || futuresRes.reason);
+    }
+
     if (futuresRes.status === 'fulfilled') {
       const futures = futuresRes.value
         .filter(t => (t.symbol as string).endsWith('USDT'))
