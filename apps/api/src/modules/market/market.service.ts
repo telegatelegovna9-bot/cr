@@ -136,12 +136,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
         // Cache latest ticker in Redis (TTL 120s)
         await this.db.cacheSet(`${REDIS_TICKER_PREFIX}${key}`, ticker, 120).catch(() => {});
       }
-      const byExchange: Record<string, { spot: number; futures: number }> = {};
-      for (const t of tickers) {
-        if (!byExchange[t.exchange]) byExchange[t.exchange] = { spot: 0, futures: 0 };
-        byExchange[t.exchange][t.marketType === 'futures' ? 'futures' : 'spot']++;
-      }
-      this.logger.log(`📈 Loaded ${tickers.length} initial tickers: ${JSON.stringify(byExchange)}`);
+      this.logger.log(`📈 Loaded ${tickers.length} initial tickers`);
     } catch (err) {
       this.logger.error('Failed to load initial tickers:', err);
     }
