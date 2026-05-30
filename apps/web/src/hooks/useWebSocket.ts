@@ -1,8 +1,8 @@
-// WebSocket hook for real-time market data
+// WebSocket hook for real-time market data with singleton connection management
 
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useMarketStore, useUIStore, useWSStore } from '@/stores';
 
 // Dynamic WS URL logic for production
@@ -17,15 +17,19 @@ const getWsUrl = () => {
 
 const WS_URL = getWsUrl();
 
+// Singleton state outside the hook
+let sharedSocket: WebSocket | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+const activeSubscriptions = new Set<string>();
+
 export function useWebSocket() {
-  const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { updateTicker, updateCandle } = useMarketStore();
   const { addAlert, addPattern } = useUIStore();
   const { setConnected, setReconnecting } = useWSStore();
+  const [, forceUpdate] = useState({});
 
   const connect = useCallback(() => {
-    if (socketRef.current && (socketRef.current.readyState === WebSocket.OPEN || socketRef.current.readyState === WebSocket.CONNECTING)) {
+    if (sharedSocket && (sharedSocket.readyState === WebSocket.OPEN || sharedSocket.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
@@ -36,10 +40,21 @@ export function useWebSocket() {
       console.log('[WS] Connection established');
       setConnected(true);
       setReconnecting(false);
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
       }
+
+      // Re-subscribe to all active channels
+      activeSubscriptions.forEach(subJson => {
+        try {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(subJson);
+          }
+        } catch (err) {
+          console.error('[WS] Re-subscribe error:', err);
+        }
+      });
     };
 
     socket.onmessage = (event) => {
@@ -72,11 +87,12 @@ export function useWebSocket() {
     socket.onclose = (e) => {
       console.log(`[WS] Connection closed: ${e.code} ${e.reason}`);
       setConnected(false);
-      // Exponential backoff or simple delay
-      if (!reconnectTimerRef.current) {
-        reconnectTimerRef.current = setTimeout(() => {
+      sharedSocket = null;
+      
+      if (!reconnectTimer) {
+        reconnectTimer = setTimeout(() => {
           setReconnecting(true);
-          reconnectTimerRef.current = null;
+          reconnectTimer = null;
           connect();
         }, 3000);
       }
@@ -86,48 +102,55 @@ export function useWebSocket() {
       console.error('[WS] Error:', err);
     };
 
-    socketRef.current = socket;
+    sharedSocket = socket;
+    forceUpdate({}); // Trigger re-render to update socket reference in hook return
   }, [updateTicker, updateCandle, addAlert, addPattern, setConnected, setReconnecting]);
 
-  const disconnect = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.close();
-      socketRef.current = null;
-    }
-    if (reconnectTimerRef.current) {
-      clearTimeout(reconnectTimerRef.current);
-      reconnectTimerRef.current = null;
-    }
-  }, []);
-
-  const subscribe = useCallback((exchange: string, marketType: 'spot' | 'futures', symbol: string, timeframe?: string) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
-        action: 'subscribe',
-        exchange,
-        marketType,
-        symbol,
-        timeframe
-      }));
+  const subscribe = useCallback((exchange: string, marketType: 'spot' | 'futures', symbol: string, timeframe?: string, channel?: string) => {
+    const sub = JSON.stringify({
+      action: 'subscribe',
+      exchange,
+      marketType,
+      symbol,
+      timeframe,
+      channel
+    });
+    
+    activeSubscriptions.add(sub);
+    
+    if (sharedSocket?.readyState === WebSocket.OPEN) {
+      sharedSocket.send(sub);
     }
   }, []);
 
-  const unsubscribe = useCallback((exchange: string, marketType: 'spot' | 'futures', symbol: string, timeframe?: string) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({
+  const unsubscribe = useCallback((exchange: string, marketType: 'spot' | 'futures', symbol: string, timeframe?: string, channel?: string) => {
+    const subStr = JSON.stringify({
+      action: 'subscribe', // We need to match the original sub to remove it
+      exchange,
+      marketType,
+      symbol,
+      timeframe,
+      channel
+    });
+    
+    activeSubscriptions.delete(subStr);
+
+    if (sharedSocket?.readyState === WebSocket.OPEN) {
+      sharedSocket.send(JSON.stringify({
         action: 'unsubscribe',
         exchange,
         marketType,
         symbol,
-        timeframe
+        timeframe,
+        channel
       }));
     }
   }, []);
 
   useEffect(() => {
     connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+    // No disconnect on unmount as it's a shared connection
+  }, [connect]);
 
-  return { subscribe, unsubscribe, socket: socketRef.current };
+  return { subscribe, unsubscribe, socket: sharedSocket, connected: !!(sharedSocket && sharedSocket.readyState === WebSocket.OPEN) };
 }

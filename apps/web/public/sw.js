@@ -38,7 +38,6 @@ self.addEventListener('fetch', (event) => {
   // Skip API and WebSocket requests
   if (
     event.request.url.includes('/api/') ||
-    event.request.url.includes('/socket.io/') ||
     event.request.url.includes('wss://')
   ) {
     return;

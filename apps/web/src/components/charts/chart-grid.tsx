@@ -150,10 +150,10 @@ export function ChartGrid() {
             onClick={() => setExpandedSymbol(null)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
               className="w-full max-w-6xl h-[calc(100vh-7.5rem)] min-h-[560px] max-h-[920px]"
               onClick={(e) => e.stopPropagation()}
             >
