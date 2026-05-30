@@ -9,9 +9,9 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
   '1m': 'Min1', '5m': 'Min5', '15m': 'Min15', '1h': 'Min60', '4h': 'Hour4', '1d': 'Day1', '1w': 'Week1',
 };
 
-// MEXC REST timeframe map (different from WS)
+// MEXC spot REST timeframe map — v3 API uses '60m' not '1h'
 const REST_TF_MAP: Record<Timeframe, string> = {
-  '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1W',
+  '1m': '1m', '5m': '5m', '15m': '15m', '1h': '60m', '4h': '4h', '1d': '1d', '1w': '1W',
 };
 
 const MEXC_SPOT_WS = 'wss://wbs.mexc.com/ws';
