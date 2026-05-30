@@ -9,6 +9,11 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1H', '4h': '4H', '1d': '1D', '1w': '1W',
 };
 
+// Spot uses different granularity names than futures
+const TIMEFRAME_MAP_SPOT: Record<Timeframe, string> = {
+  '1m': '1min', '5m': '5min', '15m': '15min', '1h': '1h', '4h': '4h', '1d': '1day', '1w': '1week',
+};
+
 const BITGET_SPOT_WS = 'wss://ws.bitget.com/v2/ws/public';
 const BITGET_FUTURES_WS = 'wss://ws.bitget.com/v2/ws/public';
 const BITGET_REST = 'https://api.bitget.com';
@@ -476,7 +481,8 @@ export class BitgetConnector extends BaseExchangeConnector {
     }
 
     const local = this.toBitgetSpotSymbol(symbol);
-    let url = `${BITGET_REST}/api/v2/spot/market/candles?symbol=${local}&granularity=${tf}&limit=${limit}`;
+    const tfSpot = TIMEFRAME_MAP_SPOT[timeframe];
+    let url = `${BITGET_REST}/api/v2/spot/market/candles?symbol=${local}&granularity=${tfSpot}&limit=${limit}`;
     if (endTime) url += `&endTime=${endTime}`;
     const data = await this.fetchRaw<{ data: string[][] }>(url);
     return (data.data || []).map((k): Candle => ({
