@@ -124,6 +124,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     if (latestCandle.symbol !== symbol) return;
     if (latestCandle.timeframe !== timeframe) return;
     if (latestCandle.exchange && latestCandle.exchange !== exchange) return;
+    if (latestCandle.marketType && latestCandle.marketType !== marketType) return;
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
 
     const { open, high, low, close, volume, time: timestamp } = latestCandle;
