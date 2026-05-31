@@ -135,10 +135,10 @@ export class BinanceConnector extends BaseExchangeConnector {
   subscribeOrderBook(symbol: string): void {
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const key = `orderbook:${symbol}`;
-    console.log('[binance] subscribeOrderBook:', symbol, '→', `${local}@depth20@100ms`, 'already subscribed:', this.subscriptions.has(key));
+    console.log('[binance] subscribeOrderBook:', symbol, '→', `${local}@depth@100ms`, 'already subscribed:', this.subscriptions.has(key));
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.enqueueSpotControl('SUBSCRIBE', `${local}@depth20@100ms`);
+    this.enqueueSpotControl('SUBSCRIBE', `${local}@depth@100ms`);
     console.log('[binance] Enqueued orderbook subscription for', symbol);
   }
 
@@ -181,7 +181,7 @@ export class BinanceConnector extends BaseExchangeConnector {
   unsubscribeOrderBook(symbol: string): void {
     const local = this.toLocalSymbol(symbol).toLowerCase();
     this.subscriptions.delete(`orderbook:${symbol}`);
-    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@depth20@100ms`);
+    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@depth@100ms`);
   }
 
   unsubscribeTrades(symbol: string): void {
