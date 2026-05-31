@@ -60,7 +60,6 @@ export function ChartGrid() {
   const sortedSymbols = useMemo(() => {
     if (sortMode === 'default') return ALL_SYMBOLS.slice(0, chartGridSize);
 
-    // Collect tickers for the selected exchange and market type
     const filtered = Array.from(tickers.values()).filter(
       t => t.exchange === selectedExchange && t.marketType === marketType
     );
@@ -81,6 +80,19 @@ export function ChartGrid() {
       .slice(0, chartGridSize)
       .map(t => t.symbol);
   }, [sortMode, chartGridSize, tickers, selectedExchange, marketType]);
+
+  // Stabilise the symbol list — only update keys when the actual set of symbols changes.
+  // Without this, every ticker update (100ms) would produce a new sortedSymbols reference,
+  // potentially remounting ChartCard components and losing heatmap state.
+  const stableSymbolsRef = useRef<string[]>([]);
+  const displaySymbols = useMemo(() => {
+    const prev = stableSymbolsRef.current;
+    const same =
+      prev.length === sortedSymbols.length &&
+      sortedSymbols.every((s, i) => prev[i] === s);
+    if (!same) stableSymbolsRef.current = sortedSymbols;
+    return stableSymbolsRef.current;
+  }, [sortedSymbols]);
 
   const gridClass = chartGridSize === 1
     ? 'grid-cols-1 grid-rows-1'
@@ -158,7 +170,7 @@ export function ChartGrid() {
 
       {/* Chart grid */}
       <div className={`flex-1 grid ${gridClass} gap-3 min-h-0`}>
-        {sortedSymbols.map((symbol, index) => (
+        {displaySymbols.map((symbol, index) => (
           <ChartCard
             key={symbol}
             symbol={symbol}

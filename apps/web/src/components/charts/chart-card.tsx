@@ -188,6 +188,18 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       const engine = heatmapEngineRef.current;
       if (!canvas || !series || !engine) return;
 
+      // Auto-sync canvas size from container — handles any timing edge case
+      // (initial mount with 0×0 canvas, sort-mode remount, etc.)
+      const container = containerRef.current;
+      if (container) {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+      }
+
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
@@ -491,7 +503,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver((entries) => {
-      if (!chartRef.current) return;
       const { width, height } = entries[0].contentRect;
       if (width === 0 || height === 0) return;
 
@@ -501,12 +512,12 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         if (chartRef.current) {
           chartRef.current.applyOptions({ width, height });
         }
-        // Sync canvas size only if changed (setting width/height clears canvas)
+        // Sync canvas size — independent of whether chart is initialized
         const canvas = heatmapCanvasRef.current;
         if (canvas && (canvas.width !== width || canvas.height !== height)) {
           canvas.width = width;
           canvas.height = height;
-          heatmapDirtyRef.current = true; // trigger immediate redraw after resize
+          heatmapDirtyRef.current = true;
         }
         resizeFrameRef.current = null;
       });
