@@ -186,35 +186,29 @@ export class LiquidityEngine {
       const age = now - lvl.lastSeen;
       if (settings.autoFade && age > FADE_MS * 1.1) continue;
 
-      // Compute opacity layers
       let opacity = 1.0;
 
       if (settings.autoFade) {
         opacity *= Math.max(0, 1 - age / FADE_MS);
       }
 
-      // Persistence = brightness: dim for new, bright for persistent
-      opacity *= 0.15 + 0.85 * (lvl.persistenceScore / 100);
+      // Persistence brightness: new levels are dim, persistent ones brighter
+      opacity *= 0.1 + 0.9 * (lvl.persistenceScore / 100);
 
-      // Distance from mid-price: near = visible, far = fades
+      // Distance fade: levels far from mid-price are nearly invisible
       if (currentPrice > 0) {
         const distPct = Math.abs(currentPrice - lvl.price) / currentPrice;
-        opacity *= Math.max(0.1, 1 - distPct * 7);
+        opacity *= Math.max(0.05, 1 - distPct * 8);
       }
 
-      // Type modifiers
       if (lvl.type === 'spoof') opacity *= 0.5;
       if (lvl.type === 'iceberg') opacity *= 0.85;
+      if (lvl.type === 'spoof') opacity *= 0.65 + 0.35 * Math.sin(now * 0.0025);
 
-      // Subtle spoof pulse (time-based, no extra re-renders needed)
-      if (lvl.type === 'spoof') {
-        opacity *= 0.65 + 0.35 * Math.sin(now * 0.0025);
-      }
+      // Cap at 0.45 — heatmap is a background layer, candles must stay readable
+      opacity = Math.min(opacity * settings.intensity, 0.45);
+      if (opacity < 0.025) continue;
 
-      opacity = Math.min(opacity * settings.intensity, 1.0);
-      if (opacity < 0.03) continue;
-
-      // Log-normalized intensity for color gradient
       const logAccum = Math.log1p(lvl.totalAccumQty);
       const logMax = Math.log1p(maxAccum);
       const intensity = Math.min(logAccum / logMax, 1);

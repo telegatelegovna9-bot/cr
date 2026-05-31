@@ -623,7 +623,12 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         <canvas
           ref={heatmapCanvasRef}
           className="absolute inset-0 pointer-events-none"
-          style={{ zIndex: 1, display: showHeatmap ? 'block' : 'none' }}
+          style={{
+            zIndex: 1,
+            display: showHeatmap ? 'block' : 'none',
+            filter: 'blur(2.5px)',
+            mixBlendMode: 'screen',
+          }}
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
         {/* Heatmap controls overlay */}
