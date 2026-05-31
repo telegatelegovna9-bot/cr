@@ -2,6 +2,8 @@
 
 import { create } from 'zustand';
 import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle, OrderBook } from '@crypto-screener/shared';
+import type { HeatmapSettings } from '@/lib/liquidity-engine';
+import { DEFAULT_HEATMAP_SETTINGS } from '@/lib/liquidity-engine';
 
 // ============================================================
 // Market Store
@@ -84,6 +86,7 @@ interface UIStore {
   alerts: Alert[];
   unreadAlertCount: number;
   patterns: any[];
+  heatmapSettings: HeatmapSettings;
 
   setViewMode: (mode: ViewMode) => void;
   toggleSidebar: () => void;
@@ -99,6 +102,7 @@ interface UIStore {
   setAlerts: (alerts: Alert[]) => void;
   setPatterns: (patterns: any[]) => void;
   addPattern: (pattern: any) => void;
+  setHeatmapSettings: (patch: Partial<HeatmapSettings>) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -114,6 +118,7 @@ export const useUIStore = create<UIStore>((set) => ({
   alerts: [],
   unreadAlertCount: 0,
   patterns: [],
+  heatmapSettings: DEFAULT_HEATMAP_SETTINGS,
 
   setViewMode: (mode) => set({ viewMode: mode }),
   toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
@@ -123,6 +128,9 @@ export const useUIStore = create<UIStore>((set) => ({
   toggleHeatmap: () => set(state => ({ showHeatmap: !state.showHeatmap })),
   toggleAlerts: () => set(state => ({ alertsOpen: !state.alertsOpen })),
   toggleSettings: () => set(state => ({ settingsOpen: !state.settingsOpen })),
+  setHeatmapSettings: (patch) => set(state => ({
+    heatmapSettings: { ...state.heatmapSettings, ...patch },
+  })),
 
   addAlert: (alert) => set(state => ({
     alerts: [alert, ...state.alerts].slice(0, 200),
