@@ -96,9 +96,15 @@ export class ExchangeManager extends EventEmitter {
 
   subscribeOrderBook(symbol: string, exchanges?: ExchangeId[]): void {
     const targets = exchanges || Array.from(this.connectors.keys());
+    console.log('[ExchangeManager] subscribeOrderBook:', symbol, 'targets:', targets);
     for (const id of targets) {
       const c = this.connectors.get(id);
-      if (c?.isConnected()) c.subscribeOrderBook(symbol);
+      if (c?.isConnected()) {
+        console.log('[ExchangeManager] Calling', id, '.subscribeOrderBook(', symbol, ')');
+        c.subscribeOrderBook(symbol);
+      } else {
+        console.log('[ExchangeManager]', id, 'not connected, skipping');
+      }
     }
   }
 

@@ -135,9 +135,11 @@ export class BinanceConnector extends BaseExchangeConnector {
   subscribeOrderBook(symbol: string): void {
     const local = this.toLocalSymbol(symbol).toLowerCase();
     const key = `orderbook:${symbol}`;
+    console.log('[binance] subscribeOrderBook:', symbol, '→', `${local}@depth20@100ms`, 'already subscribed:', this.subscriptions.has(key));
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
     this.enqueueSpotControl('SUBSCRIBE', `${local}@depth20@100ms`);
+    console.log('[binance] Enqueued orderbook subscription for', symbol);
   }
 
   subscribeTrades(symbol: string): void {
@@ -197,6 +199,10 @@ export class BinanceConnector extends BaseExchangeConnector {
     // Propagate stream name so depth handler can resolve symbol from it
     if (data && msg.stream) {
       (data as Record<string, unknown>).__stream = msg.stream;
+    }
+
+    if (eventType === 'depthUpdate') {
+      console.log('[binance] handleMessage: depthUpdate event detected, stream=', msg.stream);
     }
 
     switch (eventType) {
@@ -263,6 +269,7 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   private handleDepthUpdate(data: Record<string, unknown>): void {
+    console.log('[binance] handleDepthUpdate received. data.e=', data.e, 'data.__stream=', data.__stream, 'data.s=', data.s);
     const bidsRaw = (data.bids || data.b) as [string, string][] | undefined;
     const bids = bidsRaw?.map(([p, q]: [string, string]) => ({
       price: parseFloat(p),
@@ -491,8 +498,13 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   private flushSpotControl(): void {
-    if (!this.ws || !this.connected || this.spotPendingStreams.size === 0) return;
+    if (!this.ws || !this.connected || this.spotPendingStreams.size === 0) {
+      console.log('[binance] flushSpotControl: skipped. ws=', !!this.ws, 'connected=', this.connected, 'pending=', this.spotPendingStreams.size);
+      return;
+    }
+    console.log('[binance] flushSpotControl: sending', this.spotPendingStreams.size, 'streams');
     for (const [method, params] of this.groupPendingStreams(this.spotPendingStreams)) {
+      console.log('[binance] Sending to Binance WS:', method, params);
       this.send({ method, params, id: Date.now() });
     }
     this.spotPendingStreams.clear();

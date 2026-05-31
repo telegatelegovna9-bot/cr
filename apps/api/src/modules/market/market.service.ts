@@ -187,7 +187,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private handleOrderBook(ob: OrderBook) {
     const key = `ob:${ob.exchange}:${ob.symbol}`;
     this.orderbookCache.set(key, ob);
-    this.db.publish('orderbook', ob).catch(() => {});
+    this.logger.log(`[OrderBook] Received from ${ob.exchange}: ${ob.symbol} (bids: ${ob.bids.length}, asks: ${ob.asks.length})`);
+    this.db.publish('orderbook', ob)
+      .then(() => this.logger.log(`[OrderBook] Published to Redis: ${ob.exchange} ${ob.symbol}`))
+      .catch((err) => this.logger.error(`[OrderBook] Redis publish failed:`, err));
   }
 
   private handleTrade(trade: Trade) {
@@ -374,10 +377,13 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   }
 
   subscribeOrderBook(symbol: string, exchange?: ExchangeId): void {
+    this.logger.log(`[OrderBook] Subscribe request: ${symbol} on ${exchange || 'all exchanges'}`);
     this.exchangeManager.subscribeOrderBook(symbol, exchange ? [exchange] : undefined);
+    this.logger.log(`[OrderBook] Subscription sent to ExchangeManager`);
   }
 
   unsubscribeOrderBook(symbol: string, exchange?: ExchangeId): void {
+    console.log('[MarketService] unsubscribeOrderBook:', symbol, exchange || 'all exchanges');
     this.exchangeManager.unsubscribeOrderBook(symbol, exchange ? [exchange] : undefined);
   }
 
