@@ -133,13 +133,22 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   subscribeOrderBook(symbol: string): void {
-    const local = this.toLocalSymbol(symbol).toLowerCase();
     const key = `orderbook:${symbol}`;
-    console.log('[binance] subscribeOrderBook:', symbol, '→', `${local}@depth@100ms`, 'already subscribed:', this.subscriptions.has(key));
-    if (this.subscriptions.has(key)) return;
-    this.subscriptions.add(key);
-    this.enqueueSpotControl('SUBSCRIBE', `${local}@depth@100ms`);
-    console.log('[binance] Enqueued orderbook subscription for', symbol);
+    if (this.isFuturesSymbol(symbol)) {
+      // Route futures orderbook to futures WebSocket with correct symbol format
+      if (this.futuresSubscriptions.has(key)) return;
+      const local = this.toBinanceSymbol(symbol).toLowerCase();
+      console.log('[binance] subscribeOrderBook (futures):', symbol, local + '@depth@100ms');
+      this.futuresSubscriptions.add(key);
+      this.enqueueFuturesControl('SUBSCRIBE', `${local}@depth@100ms`);
+    } else {
+      // Spot orderbook on spot WebSocket
+      if (this.subscriptions.has(key)) return;
+      const local = this.toLocalSymbol(symbol).toLowerCase();
+      console.log('[binance] subscribeOrderBook (spot):', symbol, local + '@depth@100ms');
+      this.subscriptions.add(key);
+      this.enqueueSpotControl('SUBSCRIBE', `${local}@depth@100ms`);
+    }
   }
 
   subscribeTrades(symbol: string): void {
@@ -179,9 +188,16 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   unsubscribeOrderBook(symbol: string): void {
-    const local = this.toLocalSymbol(symbol).toLowerCase();
-    this.subscriptions.delete(`orderbook:${symbol}`);
-    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@depth@100ms`);
+    const key = `orderbook:${symbol}`;
+    if (this.isFuturesSymbol(symbol)) {
+      this.futuresSubscriptions.delete(key);
+      const local = this.toBinanceSymbol(symbol).toLowerCase();
+      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@depth@100ms`);
+    } else {
+      this.subscriptions.delete(key);
+      const local = this.toLocalSymbol(symbol).toLowerCase();
+      this.enqueueSpotControl('UNSUBSCRIBE', `${local}@depth@100ms`);
+    }
   }
 
   unsubscribeTrades(symbol: string): void {
@@ -191,16 +207,7 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   protected handleMessage(msg: Record<string, unknown>): void {
-    // Log ALL incoming messages to debug orderbook subscription
-    if (msg.stream && typeof msg.stream === 'string' && msg.stream.includes('depth')) {
-      console.log('[binance] WS message (depth stream):', JSON.stringify(msg).substring(0, 200));
-    }
-
     if (!msg.e && !msg.data) {
-      // Log subscription responses
-      if (msg.result === null || msg.id) {
-        console.log('[binance] Subscription response:', JSON.stringify(msg));
-      }
       return;
     }
 
@@ -210,10 +217,6 @@ export class BinanceConnector extends BaseExchangeConnector {
     // Propagate stream name so depth handler can resolve symbol from it
     if (data && msg.stream) {
       (data as Record<string, unknown>).__stream = msg.stream;
-    }
-
-    if (eventType === 'depthUpdate') {
-      console.log('[binance] handleMessage: depthUpdate event detected, stream=', msg.stream);
     }
 
     switch (eventType) {
@@ -280,7 +283,6 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   private handleDepthUpdate(data: Record<string, unknown>): void {
-    console.log('[binance] handleDepthUpdate received. data.e=', data.e, 'data.__stream=', data.__stream, 'data.s=', data.s);
     const bidsRaw = (data.bids || data.b) as [string, string][] | undefined;
     const bids = bidsRaw?.map(([p, q]: [string, string]) => ({
       price: parseFloat(p),
@@ -294,22 +296,18 @@ export class BinanceConnector extends BaseExchangeConnector {
 
     const isFutures = data.__marketType === 'futures';
 
-    // Prefer explicit symbol field; fall back to parsing stream name (e.g. "btcusdt@depth20@100ms")
+    // Prefer explicit symbol field; fall back to parsing stream name
     let rawSymbol = (data.s as string) || '';
     if (!rawSymbol && data.__stream) {
-      const streamName = (data.__stream as string).split('@')[0]; // e.g. "btcusdt"
+      const streamName = (data.__stream as string).split('@')[0];
       rawSymbol = streamName.toUpperCase();
     }
     const symbol = rawSymbol
       ? (isFutures ? this.toFuturesSymbol(rawSymbol) : this.fromLocalSymbol(rawSymbol))
       : 'unknown';
 
-    if (symbol === 'unknown' || !bids.length && !asks.length) {
-      console.log('[binance] handleDepthUpdate: skipped, symbol=', symbol, 'bids=', bids.length, 'asks=', asks.length);
-      return;
-    }
+    if (symbol === 'unknown' || (!bids.length && !asks.length)) return;
 
-    console.log('[binance] Emit orderbook:', symbol, 'bids=', bids.length, 'asks=', asks.length);
     this.emit('orderbook', {
       symbol,
       exchange: 'binance',
@@ -427,7 +425,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       low: parseFloat(k[3] as string),
       close: parseFloat(k[4] as string),
       volume: parseFloat(k[5] as string),
-      isClosed: true, // REST historical candles are always closed except maybe the last one
+      isClosed: true,
       trades: parseInt(k[8] as string, 10),
     }));
   }
@@ -470,9 +468,6 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   protected getPingMessage(): null {
-    // Binance market-data streams handle WebSocket ping/pong at the protocol
-    // level — the `ws` library auto-responds to server ping frames.
-    // Sending a custom JSON ping causes Binance to close the connection.
     return null;
   }
 
@@ -509,13 +504,8 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   private flushSpotControl(): void {
-    if (!this.ws || !this.connected || this.spotPendingStreams.size === 0) {
-      console.log('[binance] flushSpotControl: skipped. ws=', !!this.ws, 'connected=', this.connected, 'pending=', this.spotPendingStreams.size);
-      return;
-    }
-    console.log('[binance] flushSpotControl: sending', this.spotPendingStreams.size, 'streams');
+    if (!this.ws || !this.connected || this.spotPendingStreams.size === 0) return;
     for (const [method, params] of this.groupPendingStreams(this.spotPendingStreams)) {
-      console.log('[binance] Sending to Binance WS:', method, params);
       this.send({ method, params, id: Date.now() });
     }
     this.spotPendingStreams.clear();
