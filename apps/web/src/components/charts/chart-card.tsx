@@ -112,6 +112,8 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   );
 
   useEffect(() => {
+    console.log('[Heatmap] Effect triggered. showHeatmap=', showHeatmap, 'symbol=', symbol, 'exchange=', exchange, 'orderbook=', orderbook ? `${orderbook.bids.length} bids, ${orderbook.asks.length} asks` : 'null', 'candleSeriesRef=', !!candleSeriesRef.current);
+
     if (!showHeatmap || !candleSeriesRef.current) {
       // Clear lines when heatmap toggled off
       orderbookPriceLinesRef.current.forEach(line => {
@@ -177,6 +179,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     });
 
     orderbookPriceLinesRef.current = newLines;
+    console.log('[Heatmap] Created', newLines.length, 'price lines');
   }, [orderbook, showHeatmap, symbol, exchange]);
 
   // Keep refs in sync with state so closures always read current values

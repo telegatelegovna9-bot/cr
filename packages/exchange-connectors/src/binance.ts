@@ -286,8 +286,12 @@ export class BinanceConnector extends BaseExchangeConnector {
       ? (isFutures ? this.toFuturesSymbol(rawSymbol) : this.fromLocalSymbol(rawSymbol))
       : 'unknown';
 
-    if (symbol === 'unknown' || !bids.length && !asks.length) return;
+    if (symbol === 'unknown' || !bids.length && !asks.length) {
+      console.log('[binance] handleDepthUpdate: skipped, symbol=', symbol, 'bids=', bids.length, 'asks=', asks.length);
+      return;
+    }
 
+    console.log('[binance] Emit orderbook:', symbol, 'bids=', bids.length, 'asks=', asks.length);
     this.emit('orderbook', {
       symbol,
       exchange: 'binance',

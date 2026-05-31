@@ -74,6 +74,7 @@ export function useWebSocket() {
             updateCandle(data);
             break;
           case 'orderbook':
+            console.log('[WS] Orderbook received:', data.symbol, data.exchange, 'bids:', data.bids?.length, 'asks:', data.asks?.length);
             updateOrderbook(data);
             break;
           case 'alert':
