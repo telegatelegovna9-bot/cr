@@ -198,13 +198,8 @@ export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
     const now = Date.now();
     const lastUpdate = orderbookThrottle.get(key) || 0;
 
-    // Throttle: skip updates more frequent than 300ms per symbol
-    if (now - lastUpdate < ORDERBOOK_THROTTLE_MS) {
-      console.log('[OrderbookStore] Throttled:', key);
-      return;
-    }
+    if (now - lastUpdate < ORDERBOOK_THROTTLE_MS) return;
 
-    console.log('[OrderbookStore] Update:', key, 'bids:', ob.bids.length, 'asks:', ob.asks.length);
     orderbookThrottle.set(key, now);
     set(state => {
       const newMap = new Map(state.books);

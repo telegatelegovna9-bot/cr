@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
 import { useMarketStore, useUIStore, useOrderbookStore } from '@/stores';
@@ -112,6 +112,13 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const heatmapRafRef = useRef<number | null>(null);
   const heatmapDirtyRef = useRef(false);
 
+  // Stable refs — RAF loop reads these instead of closure values
+  // (prevents loop restart on every price tick)
+  const heatmapSettingsRef = useRef(heatmapSettings);
+  heatmapSettingsRef.current = heatmapSettings;
+  const heatmapPriceRef = useRef(0);
+  heatmapPriceRef.current = ticker?.lastPrice ?? currentPrice ?? 0;
+
   // ─── Heatmap: LiquidityEngine + canvas overlay ──────────────────
   const orderbook = useOrderbookStore(state =>
     showHeatmap ? state.getOrderbook(symbol, exchange) : undefined
@@ -121,10 +128,9 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   useEffect(() => {
     if (!showHeatmap || !orderbook) return;
 
-    // Init engine on first use
     if (!heatmapEngineRef.current) {
       const engine = new LiquidityEngine();
-      const px = ticker?.lastPrice ?? currentPrice ?? 1;
+      const px = heatmapPriceRef.current || 1;
       const step = px > 10000 ? 10 : px > 1000 ? 1 : px > 100 ? 0.1 : px > 1 ? 0.01 : 0.0001;
       engine.setPriceStep(step);
       heatmapEngineRef.current = engine;
@@ -133,17 +139,16 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     heatmapEngineRef.current.addUpdate(
       orderbook.bids,
       orderbook.asks,
-      ticker?.lastPrice ?? currentPrice ?? 0,
+      heatmapPriceRef.current,
     );
     heatmapDirtyRef.current = true;
-  }, [orderbook, showHeatmap, ticker, currentPrice]);
+  }, [orderbook, showHeatmap]); // no ticker/currentPrice — read from ref
 
   // Clear engine when heatmap is toggled off
   useEffect(() => {
     if (!showHeatmap) {
       heatmapEngineRef.current?.clear();
       heatmapEngineRef.current = null;
-      // Clear canvas
       const canvas = heatmapCanvasRef.current;
       if (canvas) {
         const ctx = canvas.getContext('2d');
@@ -152,47 +157,8 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     }
   }, [showHeatmap]);
 
-  // Canvas render loop — runs at ~15 fps, skips when nothing changed
-  const drawHeatmap = useCallback(() => {
-    const canvas = heatmapCanvasRef.current;
-    const series = candleSeriesRef.current;
-    const engine = heatmapEngineRef.current;
-    if (!canvas || !series || !engine || !showHeatmap) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const W = canvas.width;
-    const H = canvas.height;
-    ctx.clearRect(0, 0, W, H);
-
-    const px = ticker?.lastPrice ?? currentPrice ?? 0;
-    const levels = engine.getVisualLevels(heatmapSettings, px);
-    if (!levels.length) return;
-
-    // Compute band height: pixel distance between adjacent price levels
-    const prices = [...new Set(levels.map(l => l.price))].sort((a, b) => a - b);
-    let bandH = 4; // default fallback
-    if (prices.length >= 2) {
-      const y1 = series.priceToCoordinate(prices[0]);
-      const y2 = series.priceToCoordinate(prices[1]);
-      if (y1 != null && y2 != null) {
-        bandH = Math.max(2, Math.abs(y2 - y1));
-      }
-    }
-    bandH = Math.min(bandH, 40); // cap band height
-
-    for (const lvl of levels) {
-      const y = series.priceToCoordinate(lvl.price);
-      if (y == null || y < 0 || y > H) continue;
-
-      const color = heatColor(lvl.intensity, lvl.side, lvl.type, lvl.opacity);
-      ctx.fillStyle = color;
-      ctx.fillRect(0, y - bandH / 2, W, bandH);
-    }
-  }, [showHeatmap, heatmapSettings, ticker, currentPrice]);
-
-  // Start/stop the render loop
+  // RAF loop — only starts/stops when showHeatmap changes.
+  // Draw logic reads from refs → loop never restarts on price ticks.
   useEffect(() => {
     if (!showHeatmap) {
       if (heatmapRafRef.current != null) {
@@ -202,25 +168,68 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       return;
     }
 
-    let lastDraw = 0;
-    const FPS_INTERVAL = 1000 / 15; // 15 fps
+    // Spoof pulsing: redraw at most every SPOOF_MS even without new data
+    const SPOOF_MS = 600;
+    let lastSpoof = 0;
+    let rafId: number | null = null;
+
+    function draw() {
+      const canvas = heatmapCanvasRef.current;
+      const series = candleSeriesRef.current;
+      const engine = heatmapEngineRef.current;
+      if (!canvas || !series || !engine) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const W = canvas.width;
+      const H = canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      const levels = engine.getVisualLevels(heatmapSettingsRef.current, heatmapPriceRef.current);
+      if (!levels.length) return;
+
+      // Band height: pixel gap between adjacent price levels
+      const sortedPrices = [...new Set(levels.map(l => l.price))].sort((a, b) => a - b);
+      let bandH = 4;
+      for (let i = 1; i < sortedPrices.length && i < 6; i++) {
+        const y1 = series.priceToCoordinate(sortedPrices[i - 1]);
+        const y2 = series.priceToCoordinate(sortedPrices[i]);
+        if (y1 != null && y2 != null && Math.abs(y2 - y1) > 0) {
+          bandH = Math.max(2, Math.min(Math.abs(y2 - y1), 40));
+          break;
+        }
+      }
+
+      for (const lvl of levels) {
+        const y = series.priceToCoordinate(lvl.price);
+        if (y == null || y < 0 || y > H) continue;
+        ctx.fillStyle = heatColor(lvl.intensity, lvl.side, lvl.type, lvl.opacity);
+        ctx.fillRect(0, y - bandH / 2, W, bandH);
+      }
+    }
 
     const loop = (ts: number) => {
-      if (ts - lastDraw >= FPS_INTERVAL) {
-        drawHeatmap();
-        lastDraw = ts;
+      const dirty = heatmapDirtyRef.current;
+      const spoofTick = ts - lastSpoof >= SPOOF_MS;
+
+      if (dirty || spoofTick) {
+        draw();
+        heatmapDirtyRef.current = false;
+        if (spoofTick) lastSpoof = ts;
       }
-      heatmapRafRef.current = requestAnimationFrame(loop);
+
+      rafId = requestAnimationFrame(loop);
     };
 
-    heatmapRafRef.current = requestAnimationFrame(loop);
+    rafId = requestAnimationFrame(loop);
+    heatmapRafRef.current = rafId;
+
     return () => {
-      if (heatmapRafRef.current != null) {
-        cancelAnimationFrame(heatmapRafRef.current);
-        heatmapRafRef.current = null;
-      }
+      if (rafId != null) cancelAnimationFrame(rafId);
+      heatmapRafRef.current = null;
     };
-  }, [showHeatmap, drawHeatmap]);
+  }, [showHeatmap]); // ONLY showHeatmap — never restarts on price ticks
 
   // Keep refs in sync with state so closures always read current values
   useEffect(() => { timeframeRef.current = timeframe; }, [timeframe]);
