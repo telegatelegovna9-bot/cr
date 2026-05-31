@@ -57,7 +57,17 @@ export function ChartGrid() {
   const sortedSymbols = useMemo(() => {
     if (sortMode === 'default') return ALL_SYMBOLS.slice(0, chartGridSize);
 
-    return [...ALL_SYMBOLS]
+    // Collect all symbols available for the selected exchange from live ticker data
+    const exchangeSymbols: string[] = [];
+    tickers.forEach((ticker) => {
+      if (ticker.exchange === selectedExchange) {
+        exchangeSymbols.push(ticker.symbol);
+      }
+    });
+
+    const source = exchangeSymbols.length > 0 ? exchangeSymbols : ALL_SYMBOLS;
+
+    return [...source]
       .sort((a, b) => {
         const ta = tickers.get(`${selectedExchange}:${a}`);
         const tb = tickers.get(`${selectedExchange}:${b}`);
