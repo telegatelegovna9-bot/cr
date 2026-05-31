@@ -10,6 +10,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { formatPrice, getChartPriceFormat } from '@/lib/format';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
+import { HeatmapAccumulator } from '@/lib/heatmap-accumulator';
 
 interface ChartCardProps {
   symbol: string;
@@ -105,12 +106,42 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
   const { subscribe, unsubscribe } = useWebSocket();
   const orderbookPriceLinesRef = useRef<any[]>([]);
+  const heatmapAccumulatorRef = useRef<HeatmapAccumulator | null>(null);
 
-  // ─── Heatmap: draw orderbook levels as price lines ──────────
+  // ─── Heatmap: accumulate orderbook data and draw levels ──────────
   const orderbook = useOrderbookStore(state =>
     showHeatmap ? state.getOrderbook(symbol, exchange) : undefined
   );
 
+  // Initialize accumulator
+  useEffect(() => {
+    if (showHeatmap && !heatmapAccumulatorRef.current) {
+      // Determine price step based on current price
+      const currentPriceValue = currentPrice || ticker?.lastPrice || 1;
+      const priceStep = currentPriceValue > 1000 ? 1 : currentPriceValue > 100 ? 0.1 : 0.01;
+      heatmapAccumulatorRef.current = new HeatmapAccumulator(150, priceStep);
+      console.log('[Heatmap] Accumulator initialized with priceStep=', priceStep);
+    } else if (!showHeatmap && heatmapAccumulatorRef.current) {
+      heatmapAccumulatorRef.current.clear();
+      heatmapAccumulatorRef.current = null;
+      console.log('[Heatmap] Accumulator cleared');
+    }
+  }, [showHeatmap, currentPrice, ticker]);
+
+  // Accumulate orderbook snapshots
+  useEffect(() => {
+    if (!showHeatmap || !orderbook || !heatmapAccumulatorRef.current) return;
+
+    heatmapAccumulatorRef.current.addSnapshot({
+      timestamp: Date.now(),
+      bids: orderbook.bids,
+      asks: orderbook.asks,
+    });
+
+    console.log('[Heatmap] Snapshot added. Total snapshots:', heatmapAccumulatorRef.current.getSnapshotCount());
+  }, [orderbook, showHeatmap]);
+
+  // Draw heatmap levels
   useEffect(() => {
     console.log('[Heatmap] Effect triggered. showHeatmap=', showHeatmap, 'symbol=', symbol, 'exchange=', exchange, 'orderbook=', orderbook ? `${orderbook.bids.length} bids, ${orderbook.asks.length} asks` : 'null', 'candleSeriesRef=', !!candleSeriesRef.current);
 
@@ -123,7 +154,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       return;
     }
 
-    if (!orderbook) return;
+    if (!heatmapAccumulatorRef.current) return;
 
     const series = candleSeriesRef.current;
     if (!series) return;
@@ -134,30 +165,25 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     });
     orderbookPriceLinesRef.current = [];
 
-    // Normalise levels: top 15 bids + 15 asks by quantity
-    const topBids = [...orderbook.bids]
-      .filter(l => l.quantity > 0)
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 15);
-    const topAsks = [...orderbook.asks]
-      .filter(l => l.quantity > 0)
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 15);
+    // Get top accumulated levels
+    const { bids: topBids, asks: topAsks } = heatmapAccumulatorRef.current.getTopLevels(20);
 
     const allLevels = [...topBids, ...topAsks];
     if (!allLevels.length) return;
 
-    const maxQty = Math.max(...allLevels.map(l => l.quantity));
-    if (maxQty <= 0) return;
+    const maxVolume = Math.max(...allLevels.map(l => l.totalVolume));
+    if (maxVolume <= 0) return;
 
     const newLines: any[] = [];
 
     topBids.forEach(level => {
-      const alpha = 0.15 + 0.65 * (level.quantity / maxQty);
+      const intensity = level.totalVolume / maxVolume;
+      const alpha = 0.2 + 0.6 * intensity;
+      const lineWidth = intensity > 0.7 ? 3 : intensity > 0.4 ? 2 : 1;
       const line = series.createPriceLine({
         price: level.price,
         color: `rgba(34, 197, 94, ${alpha.toFixed(2)})`,
-        lineWidth: level.quantity / maxQty > 0.5 ? 2 : 1,
+        lineWidth,
         lineStyle: LineStyle.Solid,
         axisLabelVisible: false,
         title: '',
@@ -166,11 +192,13 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     });
 
     topAsks.forEach(level => {
-      const alpha = 0.15 + 0.65 * (level.quantity / maxQty);
+      const intensity = level.totalVolume / maxVolume;
+      const alpha = 0.2 + 0.6 * intensity;
+      const lineWidth = intensity > 0.7 ? 3 : intensity > 0.4 ? 2 : 1;
       const line = series.createPriceLine({
         price: level.price,
         color: `rgba(239, 68, 68, ${alpha.toFixed(2)})`,
-        lineWidth: level.quantity / maxQty > 0.5 ? 2 : 1,
+        lineWidth,
         lineStyle: LineStyle.Solid,
         axisLabelVisible: false,
         title: '',
@@ -179,7 +207,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     });
 
     orderbookPriceLinesRef.current = newLines;
-    console.log('[Heatmap] Created', newLines.length, 'price lines');
+    console.log('[Heatmap] Created', newLines.length, 'price lines from', heatmapAccumulatorRef.current.getSnapshotCount(), 'snapshots');
   }, [orderbook, showHeatmap, symbol, exchange]);
 
   // Keep refs in sync with state so closures always read current values
