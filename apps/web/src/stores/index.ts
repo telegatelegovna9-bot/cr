@@ -178,13 +178,25 @@ interface OrderbookStore {
   getOrderbook: (symbol: string, exchange: string) => OrderBook | undefined;
 }
 
+// Throttle map: key -> last update timestamp
+const orderbookThrottle = new Map<string, number>();
+const ORDERBOOK_THROTTLE_MS = 300;
+
 export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
   books: new Map(),
 
   updateOrderbook: (ob) => {
+    const key = `${ob.exchange}:${ob.symbol}`;
+    const now = Date.now();
+    const lastUpdate = orderbookThrottle.get(key) || 0;
+
+    // Throttle: skip updates more frequent than 300ms per symbol
+    if (now - lastUpdate < ORDERBOOK_THROTTLE_MS) return;
+
+    orderbookThrottle.set(key, now);
     set(state => {
       const newMap = new Map(state.books);
-      newMap.set(`${ob.exchange}:${ob.symbol}`, ob);
+      newMap.set(key, ob);
       return { books: newMap };
     });
   },

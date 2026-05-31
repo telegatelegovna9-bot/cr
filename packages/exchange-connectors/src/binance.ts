@@ -194,6 +194,11 @@ export class BinanceConnector extends BaseExchangeConnector {
     const data = msg.data as Record<string, unknown> | undefined;
     const eventType = (data?.e as string) || (msg.e as string);
 
+    // Propagate stream name so depth handler can resolve symbol from it
+    if (data && msg.stream) {
+      (data as Record<string, unknown>).__stream = msg.stream;
+    }
+
     switch (eventType) {
       case '24hrTicker':
         this.handleTicker(data || msg);
@@ -262,18 +267,26 @@ export class BinanceConnector extends BaseExchangeConnector {
     const bids = bidsRaw?.map(([p, q]: [string, string]) => ({
       price: parseFloat(p),
       quantity: parseFloat(q),
-    })) || [];
+    })).filter(l => l.quantity > 0) || [];
     const asksRaw = (data.asks || data.a) as [string, string][] | undefined;
     const asks = asksRaw?.map(([p, q]: [string, string]) => ({
       price: parseFloat(p),
       quantity: parseFloat(q),
-    })) || [];
+    })).filter(l => l.quantity > 0) || [];
 
     const isFutures = data.__marketType === 'futures';
-    const rawSymbol = (data.s as string) || '';
-    const symbol = rawSymbol 
+
+    // Prefer explicit symbol field; fall back to parsing stream name (e.g. "btcusdt@depth20@100ms")
+    let rawSymbol = (data.s as string) || '';
+    if (!rawSymbol && data.__stream) {
+      const streamName = (data.__stream as string).split('@')[0]; // e.g. "btcusdt"
+      rawSymbol = streamName.toUpperCase();
+    }
+    const symbol = rawSymbol
       ? (isFutures ? this.toFuturesSymbol(rawSymbol) : this.fromLocalSymbol(rawSymbol))
       : 'unknown';
+
+    if (symbol === 'unknown' || !bids.length && !asks.length) return;
 
     this.emit('orderbook', {
       symbol,

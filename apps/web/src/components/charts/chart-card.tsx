@@ -105,7 +105,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
   const { subscribe, unsubscribe } = useWebSocket();
   const orderbookPriceLinesRef = useRef<any[]>([]);
-  const heatmapThrottleRef = useRef<number>(0);
 
   // ─── Heatmap: draw orderbook levels as price lines ──────────
   const orderbook = useOrderbookStore(state =>
@@ -124,11 +123,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
     if (!orderbook) return;
 
-    // Throttle to max once per 500ms
-    const now = Date.now();
-    if (now - heatmapThrottleRef.current < 500) return;
-    heatmapThrottleRef.current = now;
-
     const series = candleSeriesRef.current;
     if (!series) return;
 
@@ -140,9 +134,11 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
     // Normalise levels: top 15 bids + 15 asks by quantity
     const topBids = [...orderbook.bids]
+      .filter(l => l.quantity > 0)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 15);
     const topAsks = [...orderbook.asks]
+      .filter(l => l.quantity > 0)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 15);
 
