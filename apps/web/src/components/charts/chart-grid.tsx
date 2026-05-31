@@ -13,6 +13,8 @@ import {
   BarChart3,
   Activity,
   Zap,
+  BarChart2,
+  Layers,
 } from 'lucide-react';
 const GRID_OPTIONS = [
   { size: 1 as const, label: '1', icon: Square },
@@ -42,13 +44,14 @@ export function ChartGrid() {
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const tickers = useMarketStore(state => state.tickers);
   const [sortMode, setSortMode] = useState<SortMode>('default');
+  const [marketType, setMarketType] = useState<'spot' | 'futures'>('spot');
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
   const chartDataCache = useRef<Map<string, { data: any[]; timeframe: string }>>(new Map());
 
-  // Clear cache when exchange changes so modal gets fresh data
+  // Clear cache when exchange or market type changes so modal gets fresh data
   useEffect(() => {
     chartDataCache.current.clear();
-  }, [selectedExchange]);
+  }, [selectedExchange, marketType]);
 
   const handleDataLoaded = useCallback((symbol: string, data: any[], timeframe: string) => {
     chartDataCache.current.set(symbol, { data, timeframe });
@@ -57,30 +60,27 @@ export function ChartGrid() {
   const sortedSymbols = useMemo(() => {
     if (sortMode === 'default') return ALL_SYMBOLS.slice(0, chartGridSize);
 
-    // Collect all symbols available for the selected exchange from live ticker data
-    const exchangeSymbols: string[] = [];
-    tickers.forEach((ticker) => {
-      if (ticker.exchange === selectedExchange) {
-        exchangeSymbols.push(ticker.symbol);
-      }
-    });
+    // Collect tickers for the selected exchange and market type
+    const filtered = Array.from(tickers.values()).filter(
+      t => t.exchange === selectedExchange && t.marketType === marketType
+    );
 
-    const source = exchangeSymbols.length > 0 ? exchangeSymbols : ALL_SYMBOLS;
+    const source = filtered.length > 0 ? filtered : null;
+    if (!source) return ALL_SYMBOLS.slice(0, chartGridSize);
 
-    return [...source]
+    return source
       .sort((a, b) => {
-        const ta = tickers.get(`${selectedExchange}:${a}`);
-        const tb = tickers.get(`${selectedExchange}:${b}`);
         switch (sortMode) {
-          case 'gainers': return (tb?.priceChangePercent24h ?? 0) - (ta?.priceChangePercent24h ?? 0);
-          case 'losers':  return (ta?.priceChangePercent24h ?? 0) - (tb?.priceChangePercent24h ?? 0);
-          case 'volume':  return (tb?.volume24h ?? 0) - (ta?.volume24h ?? 0);
-          case 'trades':  return (tb?.trades24h ?? 0) - (ta?.trades24h ?? 0);
+          case 'gainers': return (b.priceChangePercent24h ?? 0) - (a.priceChangePercent24h ?? 0);
+          case 'losers':  return (a.priceChangePercent24h ?? 0) - (b.priceChangePercent24h ?? 0);
+          case 'volume':  return b.volume24h - a.volume24h;
+          case 'trades':  return (b.trades24h ?? 0) - (a.trades24h ?? 0);
           default: return 0;
         }
       })
-      .slice(0, chartGridSize);
-  }, [sortMode, chartGridSize, tickers, selectedExchange]);
+      .slice(0, chartGridSize)
+      .map(t => t.symbol);
+  }, [sortMode, chartGridSize, tickers, selectedExchange, marketType]);
 
   const gridClass = chartGridSize === 1
     ? 'grid-cols-1 grid-rows-1'
@@ -132,6 +132,28 @@ export function ChartGrid() {
             </button>
           ))}
         </div>
+
+        <div className="w-px h-6 bg-border-light shrink-0" />
+
+        {/* Spot / Futures toggle */}
+        <div className="flex items-center gap-1 bg-bg-primary/40 rounded-xl p-1 border border-border">
+          <button
+            onClick={() => setMarketType('spot')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all duration-200 cursor-pointer font-medium
+              ${marketType === 'spot' ? 'bg-accent/15 text-accent-light shadow-glow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+          >
+            <BarChart2 className="w-3.5 h-3.5" />
+            <span>Spot</span>
+          </button>
+          <button
+            onClick={() => setMarketType('futures')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all duration-200 cursor-pointer font-medium
+              ${marketType === 'futures' ? 'bg-accent/15 text-accent-light shadow-glow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Futures</span>
+          </button>
+        </div>
       </div>
 
       {/* Chart grid */}
@@ -144,6 +166,7 @@ export function ChartGrid() {
             onExpand={() => setExpandedSymbol(symbol)}
             paused={expandedSymbol === symbol}
             onDataLoaded={handleDataLoaded}
+            initialMarketType={marketType}
           />
         ))}
       </div>
@@ -173,6 +196,7 @@ export function ChartGrid() {
                 isModal
                 initialData={chartDataCache.current.get(expandedSymbol)?.data}
                 initialTimeframe={chartDataCache.current.get(expandedSymbol)?.timeframe}
+                initialMarketType={marketType}
               />
             </motion.div>
           </motion.div>
