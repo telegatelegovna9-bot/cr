@@ -144,7 +144,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     heatmapDirtyRef.current = true;
   }, [orderbook, showHeatmap]); // no ticker/currentPrice — read from ref
 
-  // Clear engine when heatmap is toggled off
+  // Clear engine when heatmap is toggled off; init canvas size when turned on
   useEffect(() => {
     if (!showHeatmap) {
       heatmapEngineRef.current?.clear();
@@ -154,11 +154,23 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         const ctx = canvas.getContext('2d');
         ctx?.clearRect(0, 0, canvas.width, canvas.height);
       }
+    } else {
+      // Set correct canvas dimensions once when heatmap is enabled
+      const canvas = heatmapCanvasRef.current;
+      const container = containerRef.current;
+      if (canvas && container) {
+        const w = container.clientWidth || 400;
+        const h = container.clientHeight || 300;
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+      }
     }
   }, [showHeatmap]);
 
-  // RAF loop — only starts/stops when showHeatmap changes.
-  // Draw logic reads from refs → loop never restarts on price ticks.
+  // RAF loop — only redraws when new orderbook data arrives (heatmapDirtyRef).
+  // No periodic forced redraws → zero spontaneous canvas clears.
   useEffect(() => {
     if (!showHeatmap) {
       if (heatmapRafRef.current != null) {
@@ -168,9 +180,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       return;
     }
 
-    // Spoof pulsing: redraw at most every SPOOF_MS even without new data
-    const SPOOF_MS = 600;
-    let lastSpoof = 0;
     let rafId: number | null = null;
 
     function draw() {
@@ -182,12 +191,14 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
+      const levels = engine.getVisualLevels(heatmapSettingsRef.current, heatmapPriceRef.current);
+
+      // Nothing to draw — clear and exit (don't leave stale bands)
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!levels.length) return;
+
       const W = canvas.width;
       const H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
-
-      const levels = engine.getVisualLevels(heatmapSettingsRef.current, heatmapPriceRef.current);
-      if (!levels.length) return;
 
       // Band height: pixel gap between adjacent price levels
       const sortedPrices = [...new Set(levels.map(l => l.price))].sort((a, b) => a - b);
@@ -209,16 +220,12 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       }
     }
 
-    const loop = (ts: number) => {
-      const dirty = heatmapDirtyRef.current;
-      const spoofTick = ts - lastSpoof >= SPOOF_MS;
-
-      if (dirty || spoofTick) {
+    const loop = () => {
+      // Only redraw when new data arrived — canvas is stable otherwise
+      if (heatmapDirtyRef.current) {
         draw();
         heatmapDirtyRef.current = false;
-        if (spoofTick) lastSpoof = ts;
       }
-
       rafId = requestAnimationFrame(loop);
     };
 
@@ -494,10 +501,12 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         if (chartRef.current) {
           chartRef.current.applyOptions({ width, height });
         }
-        // Sync canvas size
-        if (heatmapCanvasRef.current) {
-          heatmapCanvasRef.current.width = width;
-          heatmapCanvasRef.current.height = height;
+        // Sync canvas size only if changed (setting width/height clears canvas)
+        const canvas = heatmapCanvasRef.current;
+        if (canvas && (canvas.width !== width || canvas.height !== height)) {
+          canvas.width = width;
+          canvas.height = height;
+          heatmapDirtyRef.current = true; // trigger immediate redraw after resize
         }
         resizeFrameRef.current = null;
       });
@@ -610,20 +619,12 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             Loading history...
           </div>
         )}
-        {/* Heatmap canvas — behind the chart, pointer events disabled */}
-        {showHeatmap && (
-          <canvas
-            ref={(el) => {
-              heatmapCanvasRef.current = el;
-              if (el && containerRef.current) {
-                el.width = containerRef.current.clientWidth || 400;
-                el.height = containerRef.current.clientHeight || 300;
-              }
-            }}
-            className="absolute inset-0 pointer-events-none"
-            style={{ zIndex: 1 }}
-          />
-        )}
+        {/* Heatmap canvas — always mounted, hidden when off, never re-created */}
+        <canvas
+          ref={heatmapCanvasRef}
+          className="absolute inset-0 pointer-events-none"
+          style={{ zIndex: 1, display: showHeatmap ? 'block' : 'none' }}
+        />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
         {/* Heatmap controls overlay */}
         {showHeatmap && <HeatmapControls />}
