@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { useMarketStore, useUIStore, useWSStore } from '@/stores';
+import { useMarketStore, useUIStore, useWSStore, useOrderbookStore } from '@/stores';
 
 // Dynamic WS URL logic for production
 const getWsUrl = () => {
@@ -26,6 +26,7 @@ export function useWebSocket() {
   const { updateTicker, updateCandle } = useMarketStore();
   const { addAlert, addPattern } = useUIStore();
   const { setConnected, setReconnecting } = useWSStore();
+  const { updateOrderbook } = useOrderbookStore();
   const [, forceUpdate] = useState({});
 
   const connect = useCallback(() => {
@@ -72,6 +73,9 @@ export function useWebSocket() {
           case 'candle':
             updateCandle(data);
             break;
+          case 'orderbook':
+            updateOrderbook(data);
+            break;
           case 'alert':
             addAlert(data);
             break;
@@ -104,7 +108,7 @@ export function useWebSocket() {
 
     sharedSocket = socket;
     forceUpdate({}); // Trigger re-render to update socket reference in hook return
-  }, [updateTicker, updateCandle, addAlert, addPattern, setConnected, setReconnecting]);
+  }, [updateTicker, updateCandle, addAlert, addPattern, setConnected, setReconnecting, updateOrderbook]);
 
   const subscribe = useCallback((exchange: string, marketType: 'spot' | 'futures', symbol: string, timeframe?: string, channel?: string) => {
     const sub = JSON.stringify({

@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
-import { useMarketStore, useUIStore } from '@/stores';
+import { useMarketStore, useUIStore, useOrderbookStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { formatPrice, getChartPriceFormat } from '@/lib/format';
 import { motion } from 'framer-motion';
@@ -105,6 +105,83 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
   const { subscribe, unsubscribe } = useWebSocket();
   const orderbookPriceLinesRef = useRef<any[]>([]);
+  const heatmapThrottleRef = useRef<number>(0);
+
+  // ─── Heatmap: draw orderbook levels as price lines ──────────
+  const orderbook = useOrderbookStore(state =>
+    showHeatmap ? state.getOrderbook(symbol, exchange) : undefined
+  );
+
+  useEffect(() => {
+    if (!showHeatmap || !candleSeriesRef.current) {
+      // Clear lines when heatmap toggled off
+      orderbookPriceLinesRef.current.forEach(line => {
+        try { candleSeriesRef.current?.removePriceLine(line); } catch { /* chart transitioning */ }
+      });
+      orderbookPriceLinesRef.current = [];
+      return;
+    }
+
+    if (!orderbook) return;
+
+    // Throttle to max once per 500ms
+    const now = Date.now();
+    if (now - heatmapThrottleRef.current < 500) return;
+    heatmapThrottleRef.current = now;
+
+    const series = candleSeriesRef.current;
+    if (!series) return;
+
+    // Remove existing lines
+    orderbookPriceLinesRef.current.forEach(line => {
+      try { series.removePriceLine(line); } catch { /* ignore */ }
+    });
+    orderbookPriceLinesRef.current = [];
+
+    // Normalise levels: top 15 bids + 15 asks by quantity
+    const topBids = [...orderbook.bids]
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 15);
+    const topAsks = [...orderbook.asks]
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 15);
+
+    const allLevels = [...topBids, ...topAsks];
+    if (!allLevels.length) return;
+
+    const maxQty = Math.max(...allLevels.map(l => l.quantity));
+    if (maxQty <= 0) return;
+
+    const newLines: any[] = [];
+
+    topBids.forEach(level => {
+      const alpha = 0.15 + 0.65 * (level.quantity / maxQty);
+      const line = series.createPriceLine({
+        price: level.price,
+        color: `rgba(34, 197, 94, ${alpha.toFixed(2)})`,
+        lineWidth: level.quantity / maxQty > 0.5 ? 2 : 1,
+        lineStyle: LineStyle.Solid,
+        axisLabelVisible: false,
+        title: '',
+      });
+      newLines.push(line);
+    });
+
+    topAsks.forEach(level => {
+      const alpha = 0.15 + 0.65 * (level.quantity / maxQty);
+      const line = series.createPriceLine({
+        price: level.price,
+        color: `rgba(239, 68, 68, ${alpha.toFixed(2)})`,
+        lineWidth: level.quantity / maxQty > 0.5 ? 2 : 1,
+        lineStyle: LineStyle.Solid,
+        axisLabelVisible: false,
+        title: '',
+      });
+      newLines.push(line);
+    });
+
+    orderbookPriceLinesRef.current = newLines;
+  }, [orderbook, showHeatmap, symbol, exchange]);
 
   // Keep refs in sync with state so closures always read current values
   useEffect(() => { timeframeRef.current = timeframe; }, [timeframe]);
@@ -344,6 +421,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       if (readyTimer) { clearTimeout(readyTimer); readyTimer = null; }
       if (loadingHistoryTimerRef.current) { clearTimeout(loadingHistoryTimerRef.current); loadingHistoryTimerRef.current = null; }
+      orderbookPriceLinesRef.current = [];
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;

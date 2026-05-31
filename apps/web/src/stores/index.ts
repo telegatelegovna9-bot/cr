@@ -1,7 +1,7 @@
 // Zustand stores for global state management
 
 import { create } from 'zustand';
-import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle } from '@crypto-screener/shared';
+import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle, OrderBook } from '@crypto-screener/shared';
 
 // ============================================================
 // Market Store
@@ -166,6 +166,30 @@ export const useWSStore = create<WSStore>((set) => ({
   setConnected: (connected) => set({ connected }),
   setReconnecting: (reconnecting) => set({ reconnecting }),
   setError: (error) => set({ error }),
+}));
+
+// ============================================================
+// Orderbook Store  (lightweight — only latest snapshot per symbol:exchange)
+// ============================================================
+
+interface OrderbookStore {
+  books: Map<string, OrderBook>;
+  updateOrderbook: (ob: OrderBook) => void;
+  getOrderbook: (symbol: string, exchange: string) => OrderBook | undefined;
+}
+
+export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
+  books: new Map(),
+
+  updateOrderbook: (ob) => {
+    set(state => {
+      const newMap = new Map(state.books);
+      newMap.set(`${ob.exchange}:${ob.symbol}`, ob);
+      return { books: newMap };
+    });
+  },
+
+  getOrderbook: (symbol, exchange) => get().books.get(`${exchange}:${symbol}`),
 }));
 
 // ============================================================
