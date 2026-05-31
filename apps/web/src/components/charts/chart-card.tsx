@@ -195,12 +195,14 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     subscribe(exchange, marketType, symbol, timeframe);
 
     if (showHeatmap) {
+      console.log('[Chart] Subscribing to orderbook:', exchange, marketType, symbol);
       subscribe(exchange, marketType, symbol, undefined, 'orderbook');
     }
 
     return () => {
       unsubscribe(exchange, marketType, symbol, timeframe);
       if (showHeatmap) {
+        console.log('[Chart] Unsubscribing from orderbook:', exchange, marketType, symbol);
         unsubscribe(exchange, marketType, symbol, undefined, 'orderbook');
       }
     };

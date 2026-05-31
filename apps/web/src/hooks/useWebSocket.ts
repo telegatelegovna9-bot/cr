@@ -120,9 +120,10 @@ export function useWebSocket() {
       timeframe,
       channel
     });
-    
+
+    console.log('[WS] Subscribe:', { exchange, marketType, symbol, timeframe, channel });
     activeSubscriptions.add(sub);
-    
+
     if (sharedSocket?.readyState === WebSocket.OPEN) {
       sharedSocket.send(sub);
     }
