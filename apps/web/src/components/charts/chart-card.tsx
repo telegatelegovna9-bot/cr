@@ -626,8 +626,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           style={{
             zIndex: 1,
             display: showHeatmap ? 'block' : 'none',
-            filter: 'blur(2.5px)',
-            mixBlendMode: 'screen',
+            filter: 'blur(3px)',
           }}
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />

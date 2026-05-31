@@ -205,8 +205,8 @@ export class LiquidityEngine {
       if (lvl.type === 'iceberg') opacity *= 0.85;
       if (lvl.type === 'spoof') opacity *= 0.65 + 0.35 * Math.sin(now * 0.0025);
 
-      // Cap at 0.45 — heatmap is a background layer, candles must stay readable
-      opacity = Math.min(opacity * settings.intensity, 0.45);
+      // Cap at 0.55 — dark muted palette, candles always win visually
+      opacity = Math.min(opacity * settings.intensity, 0.55);
       if (opacity < 0.025) continue;
 
       const logAccum = Math.log1p(lvl.totalAccumQty);
@@ -229,11 +229,13 @@ export class LiquidityEngine {
 // ─── Color System ─────────────────────────────────────────────────────────────
 
 /**
- * Maps (intensity 0–1, side, type) → CSS rgba string.
- * Color scale mimics professional liquidity heatmaps:
- * low  → dark blue/purple
- * mid  → cyan/orange
- * high → bright green/yellow (bids) | bright yellow/white (asks)
+ * Heatmap color palette: dark, muted tones that read as background.
+ * Candles must ALWAYS be the primary visual element — colors here
+ * are intentionally desaturated so they never compete with price action.
+ *
+ * Bid palette : dark navy → muted teal (never bright green)
+ * Ask palette : dark maroon → muted rust (never bright red)
+ * Strong levels get slightly brighter, but cap stays low.
  */
 export function heatColor(
   intensity: number,
@@ -244,49 +246,42 @@ export function heatColor(
   const a = opacity.toFixed(3);
 
   if (type === 'absorption') {
-    // Warm yellow-orange glow
-    const v = Math.round(150 + 105 * intensity);
-    const g = Math.round(80 + 100 * intensity);
-    return `rgba(255,${g},0,${a})`;
+    // Muted amber — not competing with candle green/red
+    const r = Math.round(160 + 60 * intensity);
+    const g = Math.round(90 + 50 * intensity);
+    return `rgba(${r},${g},0,${a})`;
   }
 
   if (type === 'iceberg') {
-    // Cool cyan-blue
-    const b = Math.round(160 + 95 * intensity);
-    const g = Math.round(180 + 75 * intensity);
+    // Muted steel blue
+    const b = Math.round(120 + 80 * intensity);
+    const g = Math.round(100 + 60 * intensity);
     return `rgba(0,${g},${b},${a})`;
   }
 
-  // Spoof and Real use the same gradient, spoof just has lower opacity
   if (side === 'bid') {
-    // dark → deep teal → cyan → bright green → yellow-green
-    if (intensity < 0.25) {
-      const t = intensity / 0.25;
-      return `rgba(0,${Math.round(40 + t * 100)},${Math.round(80 + t * 120)},${a})`;
-    } else if (intensity < 0.55) {
-      const t = (intensity - 0.25) / 0.30;
-      return `rgba(0,${Math.round(140 + t * 80)},${Math.round(200 - t * 50)},${a})`;
-    } else if (intensity < 0.80) {
-      const t = (intensity - 0.55) / 0.25;
-      return `rgba(${Math.round(t * 50)},${Math.round(220 + t * 35)},${Math.round(150 - t * 80)},${a})`;
+    // Dark navy → muted teal. Never bright green (would clash with bullish candles).
+    if (intensity < 0.35) {
+      const t = intensity / 0.35;
+      return `rgba(0,${Math.round(30 + t * 50)},${Math.round(60 + t * 60)},${a})`;
+    } else if (intensity < 0.70) {
+      const t = (intensity - 0.35) / 0.35;
+      return `rgba(0,${Math.round(80 + t * 50)},${Math.round(120 + t * 40)},${a})`;
     } else {
-      const t = (intensity - 0.80) / 0.20;
-      return `rgba(${Math.round(50 + t * 200)},255,${Math.round(70 - t * 70)},${a})`;
+      const t = (intensity - 0.70) / 0.30;
+      return `rgba(${Math.round(t * 20)},${Math.round(130 + t * 40)},${Math.round(160 - t * 20)},${a})`;
     }
   } else {
-    // dark → deep red → orange → bright orange → yellow
-    if (intensity < 0.25) {
-      const t = intensity / 0.25;
-      return `rgba(${Math.round(80 + t * 120)},${Math.round(t * 20)},${Math.round(t * 10)},${a})`;
-    } else if (intensity < 0.55) {
-      const t = (intensity - 0.25) / 0.30;
-      return `rgba(200,${Math.round(20 + t * 80)},10,${a})`;
-    } else if (intensity < 0.80) {
-      const t = (intensity - 0.55) / 0.25;
-      return `rgba(255,${Math.round(100 + t * 100)},${Math.round(10 + t * 20)},${a})`;
+    // Dark maroon → muted rust. Never bright red (would clash with bearish candles).
+    if (intensity < 0.35) {
+      const t = intensity / 0.35;
+      return `rgba(${Math.round(60 + t * 60)},${Math.round(t * 15)},${Math.round(t * 10)},${a})`;
+    } else if (intensity < 0.70) {
+      const t = (intensity - 0.35) / 0.35;
+      return `rgba(${Math.round(120 + t * 60)},${Math.round(15 + t * 40)},10,${a})`;
     } else {
-      const t = (intensity - 0.80) / 0.20;
-      return `rgba(255,${Math.round(200 + t * 55)},${Math.round(30 + t * 50)},${a})`;
+      const t = (intensity - 0.70) / 0.30;
+      return `rgba(${Math.round(180 + t * 40)},${Math.round(55 + t * 40)},${Math.round(10 + t * 10)},${a})`;
     }
   }
 }
