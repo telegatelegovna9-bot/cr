@@ -191,7 +191,18 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   protected handleMessage(msg: Record<string, unknown>): void {
-    if (!msg.e && !msg.data) return;
+    // Log ALL incoming messages to debug orderbook subscription
+    if (msg.stream && typeof msg.stream === 'string' && msg.stream.includes('depth')) {
+      console.log('[binance] WS message (depth stream):', JSON.stringify(msg).substring(0, 200));
+    }
+
+    if (!msg.e && !msg.data) {
+      // Log subscription responses
+      if (msg.result === null || msg.id) {
+        console.log('[binance] Subscription response:', JSON.stringify(msg));
+      }
+      return;
+    }
 
     const data = msg.data as Record<string, unknown> | undefined;
     const eventType = (data?.e as string) || (msg.e as string);
