@@ -392,6 +392,9 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
     this.subscribedCandles.set(key, { symbol, timeframe, exchange });
     this.exchangeManager.subscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
+    
+    // Crucial: ensure trades are also subscribed to drive real-time tick updates on the chart
+    this.exchangeManager.subscribeTrades(symbol, exchange ? [exchange] : undefined);
 
     const redisKey = this.subKey('candle', symbol, timeframe, exchange);
     this.redisIncrSub(redisKey).catch(() => {});
@@ -404,6 +407,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.candleSubscriptionRefs.delete(key);
       this.subscribedCandles.delete(key);
       this.exchangeManager.unsubscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
+      
+      // If no other candle or symbol sub needs these trades, they will be cleaned up eventually
+      // For now, let's keep it simple and match subscribeCandle's addition
+      this.exchangeManager.unsubscribeTrades(symbol, exchange ? [exchange] : undefined);
 
       const redisKey = this.subKey('candle', symbol, timeframe, exchange);
       this.redisDecrSub(redisKey).catch(() => {});

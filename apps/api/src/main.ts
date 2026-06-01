@@ -8,7 +8,11 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Enable trust proxy for Railway load balancer (fixes rate limit issues)
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
     cors: {
       origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
       credentials: true,

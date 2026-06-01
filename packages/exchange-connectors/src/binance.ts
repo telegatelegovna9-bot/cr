@@ -117,7 +117,10 @@ export class BinanceConnector extends BaseExchangeConnector {
     });
 
     futuresWs.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
-      if (res.statusCode === 451) this.blockReconnect();
+      if (res.statusCode === 451) {
+        console.error('[binance] Futures WS geo-blocked (HTTP 451) — futures disabled');
+        this.futuresWs?.close();
+      }
     });
   }
 
