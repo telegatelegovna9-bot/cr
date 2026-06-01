@@ -190,7 +190,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private getSymbolKey(sub: any): string {
     const parts = [sub.exchange, sub.symbol];
     if (sub.timeframe) parts.push(sub.timeframe);
-    return parts.join(':');
+    return parts.join('|');
   }
 
   @SubscribeMessage('message')
@@ -209,9 +209,9 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Build lookup keys based on incoming data
     const keys: string[] = [];
     if (channel === 'candle') {
-      keys.push(`${data.exchange}:${data.symbol}:${data.timeframe}`);
+      keys.push(`${data.exchange}|${data.symbol}|${data.timeframe}`);
     } else {
-      keys.push(`${data.exchange}:${data.symbol}`);
+      keys.push(`${data.exchange}|${data.symbol}`);
     }
 
     const message = JSON.stringify({ channel, data });

@@ -9,8 +9,8 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1w',
 };
 
-const BINANCE_SPOT_WS_URL = 'wss://data-stream.binance.vision:443/ws';
-const BINANCE_SPOT_REST_URL = 'https://data-api.binance.vision';
+const BINANCE_SPOT_WS_URL = 'wss://stream.binance.com:9443/ws';
+const BINANCE_SPOT_REST_URL = 'https://api.binance.com';
 const BINANCE_FUTURES_WS_URL = 'wss://fstream.binance.com/ws';
 const BINANCE_FUTURES_REST_URL = 'https://fapi.binance.com';
 const SUBSCRIPTION_BATCH_DELAY_MS = 250;
@@ -37,43 +37,27 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   async connectWS(): Promise<void> {
-    if (this.connected || this.ws) return; // prevent duplicate while connecting/connected
+    if (this.connected || this.ws) return;
 
-    // ── Spot WebSocket ─────────────────────────────────────────────────────
-    const ws = new WebSocket(this.wsUrl);
-    this.setupWebSocket(ws); // registers open/close/message/error lifecycle handlers
-    ws.on('close', (code: number, reason: Buffer) => {
-      this.clearSpotControlBatch();
-      console.warn(`[binance] Spot WS closed code=${code} reason=${reason.toString() || 'n/a'}`);
-    });
-    ws.on('error', (err: Error) => {
-      console.warn(`[binance] Spot WS error: ${err.message}`);
-    });
+    const spotWs = new WebSocket(this.wsUrl);
+    this.setupWebSocket(spotWs);
 
-    ws.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
-      if (res.statusCode === 451) {
-        this.blockReconnect();
-        console.error('[binance] Spot WS geo-blocked (HTTP 451) — reconnect disabled');
-      } else {
-        console.warn(`[binance] Spot WS HTTP ${res.statusCode} — will retry`);
-      }
-    });
+    const futuresWs = new WebSocket(BINANCE_FUTURES_WS_URL);
+    this.setupFuturesWS(futuresWs);
 
-    // ── Futures WebSocket ──────────────────────────────────────────────────
-    if (!this.futuresWs) {
-      const futuresWs = new WebSocket(BINANCE_FUTURES_WS_URL);
-      this.setupFuturesWS(futuresWs);
-    }
-
-    // Wait for spot to open (or fail) — always resolves, never hangs.
-    // Actual connected/disconnected state is driven by setupWebSocket events.
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, 10_000); // 10 s timeout — never block connectAll()
-      const done = () => { clearTimeout(timer); resolve(); };
-      ws.once('open', done);
-      ws.once('error', done);
-      ws.once('close', done);
-    });
+    // Wait for BOTH to be ready (or timeout)
+    await Promise.allSettled([
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 10_000);
+        spotWs.once('open', () => { clearTimeout(timer); resolve(); });
+        spotWs.once('error', () => { clearTimeout(timer); resolve(); });
+      }),
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 10_000);
+        futuresWs.once('open', () => { clearTimeout(timer); resolve(); });
+        futuresWs.once('error', () => { clearTimeout(timer); resolve(); });
+      })
+    ]);
   }
 
   private setupFuturesWS(futuresWs: WebSocket): void {
@@ -81,7 +65,7 @@ export class BinanceConnector extends BaseExchangeConnector {
 
     futuresWs.on('open', () => {
       this.futuresConnected = true;
-      // Re-subscribe all active futures streams (handles both initial connect and reconnects)
+      // Re-subscribe all active futures streams
       for (const stream of this.activeFuturesSubs) {
         this.enqueueFuturesControl('SUBSCRIBE', stream);
       }
@@ -100,10 +84,9 @@ export class BinanceConnector extends BaseExchangeConnector {
 
     futuresWs.on('close', () => {
       this.futuresConnected = false;
-      this.futuresWs = null; // clear for reconnect guard
-      this.futuresSubscriptions.clear(); // dedup set — repopulated on reconnect via activeFuturesSubs
+      this.futuresWs = null;
+      this.futuresSubscriptions.clear();
       this.clearFuturesControlBatch();
-      // Schedule reconnect (activeFuturesSubs preserved so streams are restored on open)
       if (!this.futuresReconnectTimer) {
         this.futuresReconnectTimer = setTimeout(() => {
           this.futuresReconnectTimer = null;
@@ -125,9 +108,20 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   private reconnectFuturesWS(): void {
-    if (this.futuresWs) return; // already connecting or connected
+    if (this.futuresWs) return;
     const futuresWs = new WebSocket(BINANCE_FUTURES_WS_URL);
     this.setupFuturesWS(futuresWs);
+  }
+
+  private isFuturesSymbol(symbol: string): boolean {
+    const s = symbol.toUpperCase();
+    return s.includes(':USDT') || s.includes(':USD');
+  }
+
+  private toBinanceSymbol(symbol: string): string {
+    const isFutures = this.isFuturesSymbol(symbol);
+    const base = symbol.includes('/') ? symbol.split('/')[0] : symbol.split(':')[0];
+    return isFutures ? `${base}USDT` : this.toLocalSymbol(symbol);
   }
 
   subscribeTicker(symbol: string): void {
@@ -173,7 +167,6 @@ export class BinanceConnector extends BaseExchangeConnector {
   subscribeOrderBook(symbol: string): void {
     const key = `orderbook:${symbol}`;
     if (this.isFuturesSymbol(symbol)) {
-      // Route futures orderbook to futures WebSocket with correct symbol format
       if (this.futuresSubscriptions.has(key)) return;
       const local = this.toBinanceSymbol(symbol).toLowerCase();
       this.futuresSubscriptions.add(key);
@@ -181,10 +174,8 @@ export class BinanceConnector extends BaseExchangeConnector {
       this.activeFuturesSubs.add(stream);
       this.enqueueFuturesControl('SUBSCRIBE', stream);
     } else {
-      // Spot orderbook on spot WebSocket
       if (this.subscriptions.has(key)) return;
       const local = this.toLocalSymbol(symbol).toLowerCase();
-      console.log('[binance] subscribeOrderBook (spot):', symbol, local + '@depth@100ms');
       this.subscriptions.add(key);
       this.enqueueSpotControl('SUBSCRIBE', `${local}@depth@100ms`);
     }
@@ -272,14 +263,16 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   protected handleMessage(msg: Record<string, unknown>): void {
-    if (!msg.e && !msg.data) {
+    if (msg.error) {
+      console.error(`[binance] WS error message:`, JSON.stringify(msg));
       return;
     }
+
+    if (!msg.e && !msg.data && !msg.stream) return;
 
     const data = msg.data as Record<string, unknown> | undefined;
     const eventType = (data?.e as string) || (msg.e as string);
 
-    // Propagate stream name so depth handler can resolve symbol from it
     if (data && msg.stream) {
       (data as Record<string, unknown>).__stream = msg.stream;
     }
@@ -314,7 +307,6 @@ export class BinanceConnector extends BaseExchangeConnector {
       high24h: parseFloat(data.h as string),
       low24h: parseFloat(data.l as string),
       timestamp: Date.now(),
-      // Optional fields
       priceChangePercent24h: parseFloat(data.P as string),
       quoteVolume24h: parseFloat(data.q as string),
       trades24h: parseInt(data.n as string, 10),
@@ -361,12 +353,9 @@ export class BinanceConnector extends BaseExchangeConnector {
     })).filter(l => l.quantity > 0) || [];
 
     const isFutures = data.__marketType === 'futures';
-
-    // Prefer explicit symbol field; fall back to parsing stream name
     let rawSymbol = (data.s as string) || '';
     if (!rawSymbol && data.__stream) {
-      const streamName = (data.__stream as string).split('@')[0];
-      rawSymbol = streamName.toUpperCase();
+      rawSymbol = (data.__stream as string).split('@')[0].toUpperCase();
     }
     const symbol = rawSymbol
       ? (isFutures ? this.toFuturesSymbol(rawSymbol) : this.fromLocalSymbol(rawSymbol))
@@ -399,7 +388,6 @@ export class BinanceConnector extends BaseExchangeConnector {
     };
     this.emit('trade', trade);
 
-    // Also emit a ticker update to ensure price updates on the chart are "every tick"
     const ticker: Partial<Ticker> = {
       exchange: 'binance',
       marketType: isFutures ? 'futures' : 'spot',
@@ -410,8 +398,6 @@ export class BinanceConnector extends BaseExchangeConnector {
     this.emit('ticker', ticker as Ticker);
   }
 
-
-  // REST API methods
   async fetchTickers(symbols?: string[]): Promise<Ticker[]> {
     const [spotRes, futuresRes] = await Promise.allSettled([
       this.fetchArray<Record<string, unknown>>(`${this.restUrl}/api/v3/ticker/24hr`, 'spot tickers'),
@@ -441,10 +427,6 @@ export class BinanceConnector extends BaseExchangeConnector {
           spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
         }));
       results.push(...spot);
-    }
-
-    if (futuresRes.status === 'rejected') {
-      // fapi.binance.com may be geo-restricted (HTTP 451) on some hosting providers
     }
 
     if (futuresRes.status === 'fulfilled') {
@@ -524,23 +506,13 @@ export class BinanceConnector extends BaseExchangeConnector {
     };
   }
 
-  private isFuturesSymbol(symbol: string): boolean {
-    return symbol.includes(':USDT');
-  }
-
-  private toBinanceSymbol(symbol: string): string {
-    return this.isFuturesSymbol(symbol)
-      ? `${symbol.split('/')[0]}USDT`
-      : this.toLocalSymbol(symbol);
-  }
-
   private toFuturesSymbol(raw: string): string {
     const base = raw.toUpperCase().replace(/USDT$/, '');
     return `${base}/USDT:USDT`;
   }
 
   private sendFutures(data: unknown): void {
-    if (this.futuresWs && this.futuresConnected) {
+    if (this.futuresWs && this.futuresWs.readyState === 1) {
       this.futuresWs.send(JSON.stringify(data));
     }
   }
@@ -577,6 +549,14 @@ export class BinanceConnector extends BaseExchangeConnector {
     }, SUBSCRIPTION_BATCH_DELAY_MS);
   }
 
+  private flushSpotControl(): void {
+    if (!this.ws || !this.connected || this.spotPendingStreams.size === 0) return;
+    for (const [method, params] of this.groupPendingStreams(this.spotPendingStreams)) {
+      this.send({ method, params, id: Date.now() });
+    }
+    this.spotPendingStreams.clear();
+  }
+
   private enqueueFuturesControl(method: 'SUBSCRIBE' | 'UNSUBSCRIBE', stream: string): void {
     this.futuresPendingStreams.set(stream, method);
     if (this.futuresBatchTimer) return;
@@ -586,16 +566,18 @@ export class BinanceConnector extends BaseExchangeConnector {
     }, SUBSCRIPTION_BATCH_DELAY_MS);
   }
 
-  private flushSpotControl(): void {
-    if (!this.ws || !this.connected || this.spotPendingStreams.size === 0) return;
-    for (const [method, params] of this.groupPendingStreams(this.spotPendingStreams)) {
-      this.send({ method, params, id: Date.now() });
-    }
-    this.spotPendingStreams.clear();
-  }
-
   private flushFuturesControl(): void {
-    if (!this.futuresWs || !this.futuresConnected || this.futuresPendingStreams.size === 0) return;
+    if (!this.futuresWs || this.futuresWs.readyState !== 1 || this.futuresPendingStreams.size === 0) {
+      if (this.futuresPendingStreams.size > 0 && (!this.futuresWs || this.futuresWs.readyState !== 1)) {
+        if (!this.futuresBatchTimer) {
+          this.futuresBatchTimer = setTimeout(() => {
+            this.futuresBatchTimer = null;
+            this.flushFuturesControl();
+          }, 1000);
+        }
+      }
+      return;
+    }
     for (const [method, params] of this.groupPendingStreams(this.futuresPendingStreams)) {
       this.sendFutures({ method, params, id: Date.now() });
     }
