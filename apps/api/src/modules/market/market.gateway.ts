@@ -8,7 +8,7 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Inject, forwardRef, Logger } from '@nestjs/common';
-import { Server } from 'ws';
+import { Server, WebSocket } from 'ws';
 import { MarketService } from './market.service';
 import type { ExchangeId, Timeframe } from '@crypto-screener/shared';
 
@@ -31,13 +31,22 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server!: Server;
 
   // Track client subscriptions for cleanup on disconnect
-  private clientSubscriptions = new Map<any, Set<string>>();
+  private clientSubscriptions = new Map<WebSocket, Set<string>>();
+
+  // Optimized lookup: channel -> symbol -> Set of clients
+  // Symbol format in lookup: "exchange:symbol" or "exchange:symbol:timeframe"
+  private channelSubscriptions = new Map<string, Map<string, Set<WebSocket>>>();
 
   constructor(
     @Inject(forwardRef(() => MarketService)) private readonly marketService: MarketService,
-  ) {}
+  ) {
+    // Initialize channel maps
+    ['ticker', 'candle', 'orderbook', 'trade', 'alert', 'pattern'].forEach(ch => {
+      this.channelSubscriptions.set(ch, new Map());
+    });
+  }
 
-  handleConnection(client: any) {
+  handleConnection(client: WebSocket) {
     this.logger.log('Client connected to WebSocket');
     this.clientSubscriptions.set(client, new Set());
 
@@ -52,13 +61,16 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
-  handleDisconnect(client: any) {
+  handleDisconnect(client: WebSocket) {
     this.logger.log('Client disconnected from WebSocket');
     const subs = this.clientSubscriptions.get(client);
     if (subs) {
       for (const subKey of subs) {
         try {
-          const { exchange, symbol, timeframe, channel } = JSON.parse(subKey);
+          const sub = JSON.parse(subKey);
+          this.removeSubscriptionFromLookup(client, sub);
+          
+          const { exchange, symbol, timeframe, channel } = sub;
           if (channel === 'orderbook') {
             this.marketService.unsubscribeOrderBook(symbol, exchange as ExchangeId);
           } else if (timeframe) {
@@ -66,17 +78,16 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
           } else {
             this.marketService.unsubscribeSymbol(symbol);
           }
-        } catch {
-          // Ignore parse errors
-        }
+        } catch { /* Ignore */ }
       }
     }
     this.clientSubscriptions.delete(client);
   }
 
-  private handleSubscription(client: any, data: SubscribePayload) {
+  private handleSubscription(client: WebSocket, data: SubscribePayload) {
     const { action = 'subscribe', exchange, marketType, symbol, timeframe, channel } = data;
-    const subKey = JSON.stringify({ exchange, marketType, symbol, timeframe, channel });
+    const subData = { exchange, marketType, symbol, timeframe, channel };
+    const subKey = JSON.stringify(subData);
 
     const subs = this.clientSubscriptions.get(client);
     if (!subs) return;
@@ -84,6 +95,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (action === 'subscribe') {
       if (subs.has(subKey)) return;
       subs.add(subKey);
+      this.addSubscriptionToLookup(client, subData);
 
       // Subscribe via MarketService
       if (channel === 'orderbook') {
@@ -105,7 +117,10 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
       }
     } else if (action === 'unsubscribe') {
+      if (!subs.has(subKey)) return;
       subs.delete(subKey);
+      this.removeSubscriptionFromLookup(client, subData);
+
       if (channel === 'orderbook') {
         this.marketService.unsubscribeOrderBook(symbol, exchange);
       } else if (timeframe) {
@@ -117,54 +132,79 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  private addSubscriptionToLookup(client: WebSocket, sub: any) {
+    const channel = sub.channel || (sub.timeframe ? 'candle' : 'ticker');
+    const symbolKey = this.getSymbolKey(sub);
+    
+    let channelMap = this.channelSubscriptions.get(channel);
+    if (!channelMap) {
+      channelMap = new Map();
+      this.channelSubscriptions.set(channel, channelMap);
+    }
+
+    let clients = channelMap.get(symbolKey);
+    if (!clients) {
+      clients = new Set();
+      channelMap.set(symbolKey, clients);
+    }
+    clients.add(client);
+  }
+
+  private removeSubscriptionFromLookup(client: WebSocket, sub: any) {
+    const channel = sub.channel || (sub.timeframe ? 'candle' : 'ticker');
+    const symbolKey = this.getSymbolKey(sub);
+    
+    const channelMap = this.channelSubscriptions.get(channel);
+    if (channelMap) {
+      const clients = channelMap.get(symbolKey);
+      if (clients) {
+        clients.delete(client);
+        if (clients.size === 0) {
+          channelMap.delete(symbolKey);
+        }
+      }
+    }
+  }
+
+  private getSymbolKey(sub: any): string {
+    const parts = [sub.exchange, sub.symbol];
+    if (sub.timeframe) parts.push(sub.timeframe);
+    return parts.join(':');
+  }
+
   @SubscribeMessage('message')
   handleSubscribeMessage(
-    @ConnectedSocket() client: any,
+    @ConnectedSocket() client: WebSocket,
     @MessageBody() payload: any,
   ) {
-    // This is still here for compatibility but we prefer handleSubscription
     this.handleSubscription(client, payload);
   }
 
-  // Broadcasters used by MarketService (or Redis Relay)
+  // Optimized Broadcaster
   broadcast(channel: string, data: any) {
-    const message = JSON.stringify({ channel, data });
-    this.server.clients.forEach((client: any) => {
-      if (client.readyState === 1) { // 1 = OPEN
-        const subs = this.clientSubscriptions.get(client);
-        if (!subs) return;
+    const channelMap = this.channelSubscriptions.get(channel);
+    if (!channelMap) return;
 
-        for (const subKey of subs) {
-          try {
-            const sub = JSON.parse(subKey);
-            
-            // Channel-specific matching logic
-            if (channel === 'ticker') {
-              if (sub.symbol === data.symbol && (!sub.exchange || sub.exchange === data.exchange)) {
-                client.send(message);
-                break;
-              }
-            } else if (channel === 'candle') {
-              if (sub.symbol === data.symbol && sub.timeframe === data.timeframe && (!sub.exchange || sub.exchange === data.exchange)) {
-                client.send(message);
-                break;
-              }
-            } else if (channel === 'orderbook') {
-              // Match if it's an orderbook subscription for this symbol/exchange
-              const isOrderbookSub = sub.channel === 'orderbook' || (!sub.channel && !sub.timeframe);
-              if (isOrderbookSub && (sub.symbol === data.symbol || data.symbol === 'unknown') && (!sub.exchange || sub.exchange === data.exchange)) {
-                client.send(message);
-                break;
-              }
-            } else if (channel === 'trade') {
-              if (sub.symbol === data.symbol && (!sub.exchange || sub.exchange === data.exchange)) {
-                client.send(message);
-                break;
-              }
-            }
-          } catch { /* ignore */ }
-        }
+    // Build lookup keys based on incoming data
+    const keys: string[] = [];
+    if (channel === 'candle') {
+      keys.push(`${data.exchange}:${data.symbol}:${data.timeframe}`);
+    } else {
+      keys.push(`${data.exchange}:${data.symbol}`);
+    }
+
+    const message = JSON.stringify({ channel, data });
+    
+    for (const key of keys) {
+      const clients = channelMap.get(key);
+      if (clients) {
+        clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+          }
+        });
       }
-    });
+    }
   }
 }
+

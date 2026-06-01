@@ -164,7 +164,7 @@ export class OKXConnector extends BaseExchangeConnector {
         low: parseFloat(d[3] as string),
         close: parseFloat(d[4] as string),
         volume: parseFloat(d[5] as string),
-        isClosed: true, // OKX WS sends closed candles mostly, or needs check
+        isClosed: d[8] === '1', // OKX v5 candles: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
       };
       this.emit('candle', candle);
     } else if (channel === 'books5') {

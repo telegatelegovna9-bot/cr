@@ -188,11 +188,21 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   subscribeTrades(symbol: string): void {
-    const local = this.toLocalSymbol(symbol).toLowerCase();
     const key = `trades:${symbol}`;
+    if (this.isFuturesSymbol(symbol)) {
+      if (this.futuresSubscriptions.has(key)) return;
+      const local = this.toBinanceSymbol(symbol).toLowerCase();
+      this.futuresSubscriptions.add(key);
+      const stream = `${local}@aggTrade`;
+      this.activeFuturesSubs.add(stream);
+      this.enqueueFuturesControl('SUBSCRIBE', stream);
+      return;
+    }
+
+    const local = this.toLocalSymbol(symbol).toLowerCase();
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.enqueueSpotControl('SUBSCRIBE', `${local}@trade`);
+    this.enqueueSpotControl('SUBSCRIBE', `${local}@aggTrade`);
   }
 
   unsubscribeTicker(symbol: string): void {
@@ -243,9 +253,19 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   unsubscribeTrades(symbol: string): void {
+    const key = `trades:${symbol}`;
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBinanceSymbol(symbol).toLowerCase();
+      this.futuresSubscriptions.delete(key);
+      const stream = `${local}@aggTrade`;
+      this.activeFuturesSubs.delete(stream);
+      this.enqueueFuturesControl('UNSUBSCRIBE', stream);
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol).toLowerCase();
-    this.subscriptions.delete(`trades:${symbol}`);
-    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@trade`);
+    this.subscriptions.delete(key);
+    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@aggTrade`);
   }
 
   protected handleMessage(msg: Record<string, unknown>): void {
@@ -272,6 +292,7 @@ export class BinanceConnector extends BaseExchangeConnector {
         this.handleDepthUpdate(data || msg);
         break;
       case 'trade':
+      case 'aggTrade':
         this.handleTrade(data || msg);
         break;
     }
@@ -361,19 +382,31 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   private handleTrade(data: Record<string, unknown>): void {
-    const symbol = this.fromLocalSymbol(data.s as string);
+    const isFutures = data.__marketType === 'futures';
+    const symbol = isFutures ? this.toFuturesSymbol(data.s as string) : this.fromLocalSymbol(data.s as string);
     const trade: Trade = {
-      id: String(data.t),
+      id: String(data.t || data.a),
       symbol,
       exchange: 'binance',
-      marketType: data.__marketType === 'futures' ? 'futures' : 'spot',
+      marketType: isFutures ? 'futures' : 'spot',
       price: parseFloat(data.p as string),
       quantity: parseFloat(data.q as string),
       side: (data.m as boolean) ? 'sell' : 'buy',
-      timestamp: data.T as number,
+      timestamp: (data.T || data.E) as number,
     };
     this.emit('trade', trade);
+
+    // Also emit a ticker update to ensure price updates on the chart are "every tick"
+    const ticker: Partial<Ticker> = {
+      exchange: 'binance',
+      marketType: isFutures ? 'futures' : 'spot',
+      symbol,
+      lastPrice: trade.price,
+      timestamp: trade.timestamp,
+    };
+    this.emit('ticker', ticker as Ticker);
   }
+
 
   // REST API methods
   async fetchTickers(symbols?: string[]): Promise<Ticker[]> {

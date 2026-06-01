@@ -199,6 +199,34 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   }
 
   private handleTrade(trade: Trade) {
+    // Update local ticker cache for immediate price updates
+    const key = `${trade.exchange}:${trade.symbol}`;
+    const existing = this.tickerCache.get(key);
+    
+    // Only update if the trade is newer than current cache
+    if (!existing || trade.timestamp >= existing.timestamp) {
+      const updatedTicker: TickerWithMeta = {
+        ...(existing || {
+          exchange: trade.exchange,
+          marketType: trade.marketType || 'spot',
+          symbol: trade.symbol,
+          priceChange24h: 0,
+          volume24h: 0,
+          high24h: trade.price,
+          low24h: trade.price,
+          volatility: 0,
+          atr: 0,
+        } as TickerWithMeta),
+        lastPrice: trade.price,
+        timestamp: trade.timestamp,
+      };
+      
+      this.tickerCache.set(key, updatedTicker);
+      
+      // Broadcast as ticker update so frontend charts update their price display instantly
+      this.gateway.broadcast('ticker', updatedTicker);
+    }
+
     this.db.publish('trade', trade).catch(() => {});
   }
 
@@ -340,6 +368,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
     this.subscribedSymbols.add(symbol);
     this.exchangeManager.subscribeTicker(symbol);
+    this.exchangeManager.subscribeTrades(symbol);
   }
 
   unsubscribeSymbol(symbol: string): void {
@@ -348,6 +377,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.symbolSubscriptionRefs.delete(symbol);
       this.subscribedSymbols.delete(symbol);
       this.exchangeManager.unsubscribeTicker(symbol);
+      this.exchangeManager.unsubscribeTrades(symbol);
       return;
     }
     this.symbolSubscriptionRefs.set(symbol, currentRefs - 1);

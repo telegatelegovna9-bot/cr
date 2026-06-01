@@ -39,6 +39,10 @@ export class BybitConnector extends BaseExchangeConnector {
     this.setupWebSocket(linearWs);
     linearWs.on('close', () => {
       console.warn('[bybit] Linear WS closed');
+      this.stopLinearHeartbeat();
+    });
+    linearWs.on('open', () => {
+      this.startLinearHeartbeat();
     });
 
     // ── Spot WebSocket ─────────────────────────────────────────
@@ -72,6 +76,24 @@ export class BybitConnector extends BaseExchangeConnector {
       linearWs.once('error', done);
       linearWs.once('close', done);
     });
+  }
+
+  private linearHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+  private startLinearHeartbeat(): void {
+    this.stopLinearHeartbeat();
+    this.linearHeartbeatTimer = setInterval(() => {
+      if (this.ws && this.connected) {
+        this.ws.send(JSON.stringify({ op: 'ping' }));
+      }
+    }, 20000);
+  }
+
+  private stopLinearHeartbeat(): void {
+    if (this.linearHeartbeatTimer) {
+      clearInterval(this.linearHeartbeatTimer);
+      this.linearHeartbeatTimer = null;
+    }
   }
 
   private startSpotHeartbeat(): void {
