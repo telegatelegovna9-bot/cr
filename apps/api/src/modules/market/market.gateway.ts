@@ -141,7 +141,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // If it's a candle subscription, also automatically subscribe them to ticker updates
     // for this exchange:symbol to ensure they get "every tick" price updates.
     if (channel === 'candle') {
-      const tickerKey = `${sub.exchange}:${sub.symbol}`;
+      const tickerKey = `${sub.exchange}|${sub.symbol}`;
       this.addToLookup(client, 'ticker', tickerKey);
     }
   }
@@ -169,7 +169,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Also remove from ticker channel if it was an auto-subscription from candle
     if (channel === 'candle') {
-      const tickerKey = `${sub.exchange}:${sub.symbol}`;
+      const tickerKey = `${sub.exchange}|${sub.symbol}`;
       this.removeFromLookup(client, 'ticker', tickerKey);
     }
   }
