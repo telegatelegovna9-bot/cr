@@ -235,7 +235,7 @@ export class BybitConnector extends BaseExchangeConnector {
     if (topic.startsWith('tickers.')) {
       const data = msg.data as Record<string, unknown>;
       if (!data) return;
-      const rawSymbol = data.symbol as string;
+      const rawSymbol = (data.symbol as string) || (msg.topic as string).split('.').pop()!;
       const symbol = isSpot
         ? this.fromLocalSymbol(rawSymbol)
         : this.toFuturesSymbol(rawSymbol);
@@ -260,8 +260,9 @@ export class BybitConnector extends BaseExchangeConnector {
     } else if (topic.startsWith('kline.')) {
       const data = (msg.data as Record<string, unknown>[])[0];
       if (!data) return;
-      const [, interval] = topic.split('.');
-      const rawSymbol = data.symbol as string;
+      const parts = topic.split('.');
+      const interval = parts[1];
+      const rawSymbol = parts[parts.length - 1];
       const symbol = isSpot
         ? this.fromLocalSymbol(rawSymbol)
         : this.toFuturesSymbol(rawSymbol);

@@ -136,16 +136,27 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const channel = sub.channel || (sub.timeframe ? 'candle' : 'ticker');
     const symbolKey = this.getSymbolKey(sub);
     
+    this.addToLookup(client, channel, symbolKey);
+
+    // If it's a candle subscription, also automatically subscribe them to ticker updates
+    // for this exchange:symbol to ensure they get "every tick" price updates.
+    if (channel === 'candle') {
+      const tickerKey = `${sub.exchange}:${sub.symbol}`;
+      this.addToLookup(client, 'ticker', tickerKey);
+    }
+  }
+
+  private addToLookup(client: WebSocket, channel: string, key: string) {
     let channelMap = this.channelSubscriptions.get(channel);
     if (!channelMap) {
       channelMap = new Map();
       this.channelSubscriptions.set(channel, channelMap);
     }
 
-    let clients = channelMap.get(symbolKey);
+    let clients = channelMap.get(key);
     if (!clients) {
       clients = new Set();
-      channelMap.set(symbolKey, clients);
+      channelMap.set(key, clients);
     }
     clients.add(client);
   }
@@ -154,13 +165,23 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const channel = sub.channel || (sub.timeframe ? 'candle' : 'ticker');
     const symbolKey = this.getSymbolKey(sub);
     
+    this.removeFromLookup(client, channel, symbolKey);
+
+    // Also remove from ticker channel if it was an auto-subscription from candle
+    if (channel === 'candle') {
+      const tickerKey = `${sub.exchange}:${sub.symbol}`;
+      this.removeFromLookup(client, 'ticker', tickerKey);
+    }
+  }
+
+  private removeFromLookup(client: WebSocket, channel: string, key: string) {
     const channelMap = this.channelSubscriptions.get(channel);
     if (channelMap) {
-      const clients = channelMap.get(symbolKey);
+      const clients = channelMap.get(key);
       if (clients) {
         clients.delete(client);
         if (clients.size === 0) {
-          channelMap.delete(symbolKey);
+          channelMap.delete(key);
         }
       }
     }
