@@ -95,11 +95,21 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     initialMarketType ?? (symbol.includes(':USDT') ? 'futures' : 'spot')
   );
 
+  // Derive the correct symbol for WS subscriptions based on marketType
+  // (chart-grid may pass 'BTC/USDT' even when marketType='futures')
+  const effectiveSymbol = useMemo(() => {
+    if (marketType === 'futures' && !symbol.includes(':')) return `${symbol}:USDT`;
+    if (marketType === 'spot' && symbol.includes(':USDT')) return symbol.replace(':USDT', '');
+    return symbol;
+  }, [symbol, marketType]);
+
   // Refs that always hold the latest values so async closures don't go stale
   const timeframeRef = useRef<TF>(timeframe);
   const marketTypeRef = useRef<'spot' | 'futures'>(marketType);
   const exchangeRef = useRef<string>(exchange);
+  const effectiveSymbolRef = useRef<string>(effectiveSymbol);
   exchangeRef.current = exchange;
+  effectiveSymbolRef.current = effectiveSymbol;
 
   const [loading, setLoading] = useState(!initialData || initialData.length === 0);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -260,18 +270,23 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   useEffect(() => {
     if (paused) return;
 
-    subscribe(exchange, marketType, symbol, timeframe);
+    // Capture wsSymbol at subscribe time so cleanup uses the same value
+    const wsSymbol = marketType === 'futures' && !symbol.includes(':')
+      ? `${symbol}:USDT`
+      : marketType === 'spot' && symbol.includes(':USDT')
+      ? symbol.replace(':USDT', '')
+      : symbol;
+
+    subscribe(exchange, marketType, wsSymbol, timeframe);
 
     if (showHeatmap) {
-      console.log('[Chart] Subscribing to orderbook:', exchange, marketType, symbol);
-      subscribe(exchange, marketType, symbol, undefined, 'orderbook');
+      subscribe(exchange, marketType, wsSymbol, undefined, 'orderbook');
     }
 
     return () => {
-      unsubscribe(exchange, marketType, symbol, timeframe);
+      unsubscribe(exchange, marketType, wsSymbol, timeframe);
       if (showHeatmap) {
-        console.log('[Chart] Unsubscribing from orderbook:', exchange, marketType, symbol);
-        unsubscribe(exchange, marketType, symbol, undefined, 'orderbook');
+        unsubscribe(exchange, marketType, wsSymbol, undefined, 'orderbook');
       }
     };
   }, [symbol, exchange, timeframe, marketType, paused, showHeatmap, subscribe, unsubscribe]);
@@ -279,7 +294,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   // ─── Handle Incoming Candle Updates from Global Store ───────
   useEffect(() => {
     if (!latestCandle || paused) return;
-    if (latestCandle.symbol !== symbol) return;
+    if (latestCandle.symbol !== effectiveSymbol) return;
     if (latestCandle.timeframe !== timeframe) return;
     if (latestCandle.exchange && latestCandle.exchange !== exchange) return;
     if (latestCandle.marketType && latestCandle.marketType !== marketType) return;
@@ -300,7 +315,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       });
       setCurrentPrice(close);
     } catch { /* chart transitioning */ }
-  }, [latestCandle, symbol, exchange, timeframe, paused]);
+  }, [latestCandle, symbol, effectiveSymbol, exchange, timeframe, marketType, paused]);
 
   // ─── Chart Initialization ───────────────────────────────────
   useEffect(() => {
@@ -380,7 +395,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           raw = initialData;
         } else {
           const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&limit=300`
+            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(effectiveSymbol)}&timeframe=${timeframe}&limit=300`
           );
           if (!cancelled && resp.ok) {
             const data = await resp.json();
@@ -439,7 +454,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         try {
           const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
           const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${exchangeRef.current}&marketType=${marketTypeRef.current}&symbol=${encodeURIComponent(symbol)}&timeframe=${timeframeRef.current}&limit=300&endTime=${endTime}`
+            `${API_BASE}/api/history?exchange=${exchangeRef.current}&marketType=${marketTypeRef.current}&symbol=${encodeURIComponent(effectiveSymbolRef.current)}&timeframe=${timeframeRef.current}&limit=300&endTime=${endTime}`
           );
           if (!resp.ok) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 

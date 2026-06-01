@@ -58,7 +58,12 @@ export function ChartGrid() {
   }, []);
 
   const sortedSymbols = useMemo(() => {
-    if (sortMode === 'default') return ALL_SYMBOLS.slice(0, chartGridSize);
+    if (sortMode === 'default') {
+      const base = ALL_SYMBOLS.slice(0, chartGridSize);
+      return marketType === 'futures'
+        ? base.map(s => `${s}:USDT`)
+        : base;
+    }
 
     const filtered = Array.from(tickers.values()).filter(
       t => t.exchange === selectedExchange && t.marketType === marketType

@@ -151,10 +151,11 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       atr: existing?.atr || 0,
     });
 
-    // Cache in Redis
-    this.db.cacheSet(`${REDIS_TICKER_PREFIX}${key}`, ticker, 120).catch(() => {});
+    // Direct broadcast to local clients (fast path — no Redis round-trip)
+    this.gateway.broadcast('ticker', ticker);
 
-    // Publish to Redis for WebSocket relay (multi-instance support)
+    // Cache in Redis + publish for multi-instance relay
+    this.db.cacheSet(`${REDIS_TICKER_PREFIX}${key}`, ticker, 120).catch(() => {});
     this.db.publish('ticker', ticker).catch(() => {});
   }
 
@@ -173,7 +174,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     }
     this.candleCache.set(key, candles);
 
-    // Cache latest candle in Redis
+    // Direct broadcast to local clients (fast path — no Redis round-trip)
+    this.gateway.broadcast('candle', candle);
+
+    // Cache in Redis + publish for multi-instance relay
     this.db.cacheSet(`${REDIS_CANDLE_PREFIX}${key}`, candle, 60).catch(() => {});
 
     // Store finalized candles in DB
@@ -187,10 +191,11 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private handleOrderBook(ob: OrderBook) {
     const key = `ob:${ob.exchange}:${ob.symbol}`;
     this.orderbookCache.set(key, ob);
-    this.logger.log(`[OrderBook] Received from ${ob.exchange}: ${ob.symbol} (bids: ${ob.bids.length}, asks: ${ob.asks.length})`);
-    this.db.publish('orderbook', ob)
-      .then(() => this.logger.log(`[OrderBook] Published to Redis: ${ob.exchange} ${ob.symbol}`))
-      .catch((err) => this.logger.error(`[OrderBook] Redis publish failed:`, err));
+
+    // Direct broadcast to local clients (fast path — no Redis round-trip)
+    this.gateway.broadcast('orderbook', ob);
+
+    this.db.publish('orderbook', ob).catch((err) => this.logger.error(`[OrderBook] Redis publish failed:`, err));
   }
 
   private handleTrade(trade: Trade) {

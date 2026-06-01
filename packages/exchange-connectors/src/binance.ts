@@ -19,6 +19,9 @@ export class BinanceConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
+  // Active stream names that survive reconnects (not cleared on close)
+  private activeFuturesSubs = new Set<string>();
+  private futuresReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private spotPendingStreams = new Map<string, 'SUBSCRIBE' | 'UNSUBSCRIBE'>();
   private futuresPendingStreams = new Map<string, 'SUBSCRIBE' | 'UNSUBSCRIBE'>();
   private spotBatchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -57,33 +60,10 @@ export class BinanceConnector extends BaseExchangeConnector {
     });
 
     // ── Futures WebSocket ──────────────────────────────────────────────────
-    const futuresWs = new WebSocket(BINANCE_FUTURES_WS_URL);
-    this.futuresWs = futuresWs;
-
-    futuresWs.on('open', () => {
-      this.futuresConnected = true;
-    });
-    futuresWs.on('message', (data: Buffer) => {
-      try {
-        const msg = JSON.parse(data.toString()) as Record<string, unknown>;
-        msg.__marketType = 'futures';
-        if (msg.data && typeof msg.data === 'object') {
-          (msg.data as Record<string, unknown>).__marketType = 'futures';
-        }
-        this.handleMessage(msg);
-      } catch { /* ignore non-JSON */ }
-    });
-    futuresWs.on('close', () => {
-      this.futuresConnected = false;
-      this.futuresSubscriptions.clear();
-      this.clearFuturesControlBatch();
-    });
-    futuresWs.on('error', (err: Error) => {
-      console.warn(`[binance] Futures WS error: ${err.message}`);
-    });
-    futuresWs.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
-      if (res.statusCode === 451) this.blockReconnect();
-    });
+    if (!this.futuresWs) {
+      const futuresWs = new WebSocket(BINANCE_FUTURES_WS_URL);
+      this.setupFuturesWS(futuresWs);
+    }
 
     // Wait for spot to open (or fail) — always resolves, never hangs.
     // Actual connected/disconnected state is driven by setupWebSocket events.
@@ -96,13 +76,66 @@ export class BinanceConnector extends BaseExchangeConnector {
     });
   }
 
+  private setupFuturesWS(futuresWs: WebSocket): void {
+    this.futuresWs = futuresWs;
+
+    futuresWs.on('open', () => {
+      this.futuresConnected = true;
+      // Re-subscribe all active futures streams (handles both initial connect and reconnects)
+      for (const stream of this.activeFuturesSubs) {
+        this.enqueueFuturesControl('SUBSCRIBE', stream);
+      }
+    });
+
+    futuresWs.on('message', (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+        msg.__marketType = 'futures';
+        if (msg.data && typeof msg.data === 'object') {
+          (msg.data as Record<string, unknown>).__marketType = 'futures';
+        }
+        this.handleMessage(msg);
+      } catch { /* ignore non-JSON */ }
+    });
+
+    futuresWs.on('close', () => {
+      this.futuresConnected = false;
+      this.futuresWs = null; // clear for reconnect guard
+      this.futuresSubscriptions.clear(); // dedup set — repopulated on reconnect via activeFuturesSubs
+      this.clearFuturesControlBatch();
+      // Schedule reconnect (activeFuturesSubs preserved so streams are restored on open)
+      if (!this.futuresReconnectTimer) {
+        this.futuresReconnectTimer = setTimeout(() => {
+          this.futuresReconnectTimer = null;
+          this.reconnectFuturesWS();
+        }, WS_RECONNECT_DELAY);
+      }
+    });
+
+    futuresWs.on('error', (err: Error) => {
+      console.warn(`[binance] Futures WS error: ${err.message}`);
+    });
+
+    futuresWs.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
+      if (res.statusCode === 451) this.blockReconnect();
+    });
+  }
+
+  private reconnectFuturesWS(): void {
+    if (this.futuresWs) return; // already connecting or connected
+    const futuresWs = new WebSocket(BINANCE_FUTURES_WS_URL);
+    this.setupFuturesWS(futuresWs);
+  }
+
   subscribeTicker(symbol: string): void {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toBinanceSymbol(symbol).toLowerCase();
       const key = `ticker:${symbol}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.enqueueFuturesControl('SUBSCRIBE', `${local}@ticker`);
+      const stream = `${local}@ticker`;
+      this.activeFuturesSubs.add(stream);
+      this.enqueueFuturesControl('SUBSCRIBE', stream);
       return;
     }
 
@@ -120,7 +153,9 @@ export class BinanceConnector extends BaseExchangeConnector {
       const key = `candle:${symbol}:${timeframe}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.enqueueFuturesControl('SUBSCRIBE', `${local}@kline_${tf}`);
+      const stream = `${local}@kline_${tf}`;
+      this.activeFuturesSubs.add(stream);
+      this.enqueueFuturesControl('SUBSCRIBE', stream);
       return;
     }
 
@@ -138,9 +173,10 @@ export class BinanceConnector extends BaseExchangeConnector {
       // Route futures orderbook to futures WebSocket with correct symbol format
       if (this.futuresSubscriptions.has(key)) return;
       const local = this.toBinanceSymbol(symbol).toLowerCase();
-      console.log('[binance] subscribeOrderBook (futures):', symbol, local + '@depth@100ms');
       this.futuresSubscriptions.add(key);
-      this.enqueueFuturesControl('SUBSCRIBE', `${local}@depth@100ms`);
+      const stream = `${local}@depth@100ms`;
+      this.activeFuturesSubs.add(stream);
+      this.enqueueFuturesControl('SUBSCRIBE', stream);
     } else {
       // Spot orderbook on spot WebSocket
       if (this.subscriptions.has(key)) return;
@@ -163,7 +199,9 @@ export class BinanceConnector extends BaseExchangeConnector {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toBinanceSymbol(symbol).toLowerCase();
       this.futuresSubscriptions.delete(`ticker:${symbol}`);
-      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@ticker`);
+      const stream = `${local}@ticker`;
+      this.activeFuturesSubs.delete(stream);
+      this.enqueueFuturesControl('UNSUBSCRIBE', stream);
       return;
     }
 
@@ -177,7 +215,9 @@ export class BinanceConnector extends BaseExchangeConnector {
       const local = this.toBinanceSymbol(symbol).toLowerCase();
       const tf = TIMEFRAME_MAP[timeframe];
       this.futuresSubscriptions.delete(`candle:${symbol}:${timeframe}`);
-      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@kline_${tf}`);
+      const stream = `${local}@kline_${tf}`;
+      this.activeFuturesSubs.delete(stream);
+      this.enqueueFuturesControl('UNSUBSCRIBE', stream);
       return;
     }
 
@@ -192,7 +232,9 @@ export class BinanceConnector extends BaseExchangeConnector {
     if (this.isFuturesSymbol(symbol)) {
       this.futuresSubscriptions.delete(key);
       const local = this.toBinanceSymbol(symbol).toLowerCase();
-      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@depth@100ms`);
+      const stream = `${local}@depth@100ms`;
+      this.activeFuturesSubs.delete(stream);
+      this.enqueueFuturesControl('UNSUBSCRIBE', stream);
     } else {
       this.subscriptions.delete(key);
       const local = this.toLocalSymbol(symbol).toLowerCase();
@@ -474,6 +516,10 @@ export class BinanceConnector extends BaseExchangeConnector {
   disconnect(): void {
     super.disconnect();
     this.clearControlBatchTimers();
+    if (this.futuresReconnectTimer) {
+      clearTimeout(this.futuresReconnectTimer);
+      this.futuresReconnectTimer = null;
+    }
     if (this.futuresWs) {
       this.futuresWs.removeAllListeners();
       this.futuresWs.close();
@@ -481,6 +527,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     }
     this.futuresConnected = false;
     this.futuresSubscriptions.clear();
+    this.activeFuturesSubs.clear();
     this.spotPendingStreams.clear();
     this.futuresPendingStreams.clear();
   }
