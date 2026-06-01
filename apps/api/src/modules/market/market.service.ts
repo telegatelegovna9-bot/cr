@@ -39,7 +39,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private subscribedCandles = new Map<string, { symbol: string; timeframe: Timeframe; exchange?: ExchangeId }>();
   private candleSubscriptionRefs = new Map<string, number>();
 
-  // Throttling: limit updates to frontend (max 10Hz per symbol)
   private tickerThrottle = new Map<string, number>();
   private readonly THROTTLE_MS = 100;
 
@@ -57,7 +56,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     this.exchangeManager = new ExchangeManager();
-
     this.exchangeManager.on('ticker', (ticker: Ticker) => this.handleTicker(ticker));
     this.exchangeManager.on('candle', (candle: Candle) => this.handleCandle(candle));
     this.exchangeManager.on('orderbook', (ob: OrderBook) => this.handleOrderBook(ob));
@@ -107,11 +105,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private incrementExchangeErrors(id: ExchangeId): void {
-    const existing = this.exchangeHealth.get(id) || { connected: false, lastSeen: 0, reconnects: 0, errors: 0 };
-    this.exchangeHealth.set(id, { ...existing, errors: existing.errors + 1 });
-  }
-
   private async loadInitialTickers() {
     try {
       const tickers = await this.exchangeManager.fetchAllTickers();
@@ -127,7 +120,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private handleTicker(ticker: Ticker) {
     const key = `${ticker.exchange}:${ticker.symbol}`;
     const existing = this.tickerCache.get(key);
-    
     const updated: TickerWithMeta = {
       ...(existing || {
         exchange: ticker.exchange,
@@ -143,9 +135,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       } as TickerWithMeta),
       ...ticker,
     };
-
     this.tickerCache.set(key, updated);
-
     const now = Date.now();
     const lastEmit = this.tickerThrottle.get(key) || 0;
     if (now - lastEmit >= this.THROTTLE_MS) {
@@ -157,26 +147,19 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private handleCandle(candle: Candle) {
     const key = `candle:${candle.symbol}:${candle.exchange}:${candle.timeframe}`;
     let candles = this.candleCache.get(key) || [];
-
     const idx = candles.findIndex(c => c.time === candle.time);
-    if (idx >= 0) {
-      candles[idx] = candle;
-    } else {
+    if (idx >= 0) { candles[idx] = candle; } else {
       candles.push(candle);
       if (candles.length > 2000) candles = candles.slice(-2000);
     }
     this.candleCache.set(key, candles);
     this.gateway.broadcast('candle', candle);
-
-    if (candle.isClosed) {
-      this.storeCandle(candle).catch(() => {});
-    }
+    if (candle.isClosed) { this.storeCandle(candle).catch(() => {}); }
   }
 
   private handleTrade(trade: Trade) {
     const key = `${trade.exchange}:${trade.symbol}`;
     const existing = this.tickerCache.get(key);
-    
     const updatedTicker: TickerWithMeta = {
       ...(existing || {
         exchange: trade.exchange,
@@ -193,16 +176,13 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       lastPrice: trade.price,
       timestamp: trade.timestamp,
     };
-    
     this.tickerCache.set(key, updatedTicker);
-    
     const now = Date.now();
     const lastEmit = this.tickerThrottle.get(key) || 0;
     if (now - lastEmit >= this.THROTTLE_MS) {
       this.tickerThrottle.set(key, now);
       this.gateway.broadcast('ticker', updatedTicker);
     }
-
     this.db.publish('trade', trade).catch(() => {});
   }
 
@@ -223,7 +203,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
         [candle.symbol, candle.exchange, candle.timeframe, candle.time,
          candle.open, candle.high, candle.low, candle.close, candle.volume, candle.trades || 0],
       );
-    } catch { /* Silent fail */ }
+    } catch { /* fail */ }
   }
 
   getTickers(exchange?: ExchangeId, symbols?: string[]): TickerWithMeta[] {
@@ -236,26 +216,44 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     return tickers;
   }
 
+  getTopGainers(limit = 50): TickerWithMeta[] {
+    return this.getTickers().sort((a, b) => (b.priceChangePercent24h || 0) - (a.priceChangePercent24h || 0)).slice(0, limit);
+  }
+
+  getTopLosers(limit = 50): TickerWithMeta[] {
+    return this.getTickers().sort((a, b) => (a.priceChangePercent24h || 0) - (b.priceChangePercent24h || 0)).slice(0, limit);
+  }
+
+  getTopVolume(limit = 50): TickerWithMeta[] {
+    return this.getTickers().sort((a, b) => b.volume24h - a.volume24h).slice(0, limit);
+  }
+
   async getCandles(symbol: string, timeframe: Timeframe, exchange?: ExchangeId, limit = 500, endTime?: number): Promise<Candle[]> {
     const cacheKey = `candle:${symbol}:${exchange || 'all'}:${timeframe}`;
     const cached = this.candleCache.get(cacheKey);
     if (cached?.length && !endTime) return cached.slice(-limit);
-
     try {
       const candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);
       if (candles.length > 0 && !endTime) this.candleCache.set(cacheKey, candles);
       return candles;
     } catch (err) {
-      this.logger.error(`Failed to fetch candles for ${symbol}:`, err);
       return cached?.slice(-limit) || [];
     }
+  }
+
+  async getOrderBook(symbol: string, exchange?: ExchangeId): Promise<OrderBook | null> {
+    if (exchange) {
+      const key = `ob:${exchange}:${symbol}`;
+      const cached = this.orderbookCache.get(key);
+      if (cached) return cached;
+    }
+    return this.exchangeManager.fetchOrderBook(symbol, exchange);
   }
 
   subscribeSymbol(symbol: string): void {
     const currentRefs = this.symbolSubscriptionRefs.get(symbol) || 0;
     this.symbolSubscriptionRefs.set(symbol, currentRefs + 1);
     if (currentRefs > 0) return;
-
     this.subscribedSymbols.add(symbol);
     this.exchangeManager.subscribeTicker(symbol);
     this.exchangeManager.subscribeTrades(symbol);
@@ -278,7 +276,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     const currentRefs = this.candleSubscriptionRefs.get(key) || 0;
     this.candleSubscriptionRefs.set(key, currentRefs + 1);
     if (currentRefs > 0) return;
-
     this.subscribedCandles.set(key, { symbol, timeframe, exchange });
     this.exchangeManager.subscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
     this.exchangeManager.subscribeTrades(symbol, exchange ? [exchange] : undefined);
@@ -305,17 +302,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     this.exchangeManager.unsubscribeOrderBook(symbol, exchange ? [exchange] : undefined);
   }
 
-  getConnectedExchanges(): ExchangeId[] {
-    return Array.from(this.connectedExchanges);
-  }
-
-  getExchangeHealth(): Record<string, unknown> {
-    const health: Record<string, unknown> = {};
-    for (const [id, data] of this.exchangeHealth) {
-      health[id] = { ...data, uptime: data.connected ? Date.now() - data.lastSeen : 0 };
-    }
-    return health;
-  }
+  getConnectedExchanges(): ExchangeId[] { return Array.from(this.connectedExchanges); }
 
   @Interval(30000)
   private async refreshTickers() {
@@ -325,18 +312,19 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       for (const ticker of tickers) {
         const key = `${ticker.exchange}:${ticker.symbol}`;
         const existing = this.tickerCache.get(key);
-        this.tickerCache.set(key, { 
-          ...(existing || {}), 
-          ...ticker, 
-          volatility: existing?.volatility || 0, 
-          atr: existing?.atr || 0 
-        } as TickerWithMeta);
+        this.tickerCache.set(key, { ...(existing || {}), ...ticker, volatility: existing?.volatility || 0, atr: existing?.atr || 0 } as TickerWithMeta);
       }
     } catch { /* fail */ }
   }
 
   @Interval(60000)
-  private async persistHealth() {
-    this.db.cacheSet(EXCHANGE_HEALTH_KEY, this.getExchangeHealth(), 300).catch(() => {});
+  private async persistHealth() { this.db.cacheSet(EXCHANGE_HEALTH_KEY, this.getExchangeHealth(), 300).catch(() => {}); }
+
+  getExchangeHealth(): Record<string, unknown> {
+    const health: Record<string, unknown> = {};
+    for (const [id, data] of this.exchangeHealth) {
+      health[id] = { ...data, uptime: data.connected ? Date.now() - data.lastSeen : 0 };
+    }
+    return health;
   }
 }
