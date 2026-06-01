@@ -9,7 +9,6 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
   '1m': 'Min1', '5m': 'Min5', '15m': 'Min15', '1h': 'Min60', '4h': 'Hour4', '1d': 'Day1', '1w': 'Week1',
 };
 
-// MEXC spot REST timeframe map — v3 API uses '60m' not '1h'
 const REST_TF_MAP: Record<Timeframe, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '1h': '60m', '4h': '4h', '1d': '1d', '1w': '1W',
 };
@@ -24,6 +23,7 @@ export class MexcConnector extends BaseExchangeConnector {
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
   private futuresHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super({
@@ -37,7 +37,6 @@ export class MexcConnector extends BaseExchangeConnector {
   async connectWS(): Promise<void> {
     if (this.connected || this.ws) return;
 
-    // ── Spot WebSocket ─────────────────────────────────────────
     const spotWs = new WebSocket(this.wsUrl);
     this.setupWebSocket(spotWs);
     spotWs.on('close', () => {
@@ -48,30 +47,10 @@ export class MexcConnector extends BaseExchangeConnector {
       this.startSpotHeartbeat();
     });
 
-    // ── Futures WebSocket ──────────────────────────────────────
     const futuresWs = new WebSocket(MEXC_FUTURES_WS);
     this.futuresWs = futuresWs;
-  // ...
-  private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-  private startSpotHeartbeat(): void {
-    this.stopSpotHeartbeat();
-    this.spotHeartbeatTimer = setInterval(() => {
-      if (this.ws && this.connected && this.ws.readyState === 1) {
-        this.send({ method: 'PING' });
-      }
-    }, 20000);
-  }
-
-  private stopSpotHeartbeat(): void {
-    if (this.spotHeartbeatTimer) {
-      clearInterval(this.spotHeartbeatTimer);
-      this.spotHeartbeatTimer = null;
-    }
-  }
-
-  private startFuturesHeartbeat(): void {
-
+    futuresWs.on('open', () => {
       this.futuresConnected = true;
       this.startFuturesHeartbeat();
     });
@@ -100,10 +79,26 @@ export class MexcConnector extends BaseExchangeConnector {
     });
   }
 
+  private startSpotHeartbeat(): void {
+    this.stopSpotHeartbeat();
+    this.spotHeartbeatTimer = setInterval(() => {
+      if (this.ws && this.connected && this.ws.readyState === 1) {
+        this.send({ method: 'PING' });
+      }
+    }, 20000);
+  }
+
+  private stopSpotHeartbeat(): void {
+    if (this.spotHeartbeatTimer) {
+      clearInterval(this.spotHeartbeatTimer);
+      this.spotHeartbeatTimer = null;
+    }
+  }
+
   private startFuturesHeartbeat(): void {
     this.stopFuturesHeartbeat();
     this.futuresHeartbeatTimer = setInterval(() => {
-      if (this.futuresWs && this.futuresConnected && this.futuresWs.readyState === 1 /* OPEN */) {
+      if (this.futuresWs && this.futuresConnected && this.futuresWs.readyState === 1) {
         this.futuresWs.send(JSON.stringify({ method: 'ping' }));
       }
     }, 20000);
@@ -138,7 +133,7 @@ export class MexcConnector extends BaseExchangeConnector {
   }
 
   private sendFutures(data: unknown): void {
-    if (this.futuresWs && this.futuresConnected && this.futuresWs.readyState === 1 /* OPEN */) {
+    if (this.futuresWs && this.futuresConnected && this.futuresWs.readyState === 1) {
       this.futuresWs.send(JSON.stringify(data));
     }
   }
@@ -152,7 +147,6 @@ export class MexcConnector extends BaseExchangeConnector {
       this.sendFutures({ method: 'sub.ticker', param: { symbol: local } });
       return;
     }
-
     const key = `ticker:${symbol}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
@@ -169,7 +163,6 @@ export class MexcConnector extends BaseExchangeConnector {
       this.sendFutures({ method: 'sub.kline', param: { symbol: local, interval: tf } });
       return;
     }
-
     const local = this.toMexcSpotSymbol(symbol);
     const tf = REST_TF_MAP[timeframe];
     const key = `candle:${symbol}:${timeframe}`;
@@ -232,348 +225,153 @@ export class MexcConnector extends BaseExchangeConnector {
 
   protected handleMessage(msg: Record<string, unknown>): void {
     const isFutures = msg.__marketType === 'futures';
-
-    if (isFutures) {
-      this.handleFuturesMessage(msg);
-      return;
-    }
-
-    // Spot messages
+    if (isFutures) { this.handleFuturesMessage(msg); return; }
     const channel = msg.c as string;
     if (!channel) return;
-
     if (channel.includes('miniTickers')) {
-      const d = msg.d;
-      if (!d) return;
-      const tickers = Array.isArray(d) ? d : [d];
-      
-      tickers.forEach((data: Record<string, unknown>) => {
-        const rawSymbol = data.s as string;
-        if (!rawSymbol?.endsWith('USDT')) return;
-        const symbol = normalizeSymbol(rawSymbol, 'mexc');
-        const price = parseFloat(data.c as string);
-        const open = parseFloat(data.o as string);
-        const ticker: Ticker = {
-          exchange: 'mexc',
-          marketType: 'spot',
-          symbol,
-          lastPrice: price,
-          priceChange24h: price - open,
-          volume24h: parseFloat(data.v as string),
-          high24h: parseFloat(data.h as string),
-          low24h: parseFloat(data.l as string),
-          timestamp: Date.now(),
-          priceChangePercent24h: ((price - open) / open) * 100,
-          quoteVolume24h: parseFloat(data.qv as string),
-          trades24h: 0,
-          bid: price,
-          ask: price,
-          spread: 0,
-        };
-        this.emit('ticker', ticker);
+      const d = msg.d; if (!d) return;
+      (Array.isArray(d) ? d : [d]).forEach((data: any) => {
+        if (!data.s?.endsWith('USDT')) return;
+        const symbol = normalizeSymbol(data.s, 'mexc');
+        const price = parseFloat(data.c); const open = parseFloat(data.o);
+        this.emit('ticker', {
+          exchange: 'mexc', marketType: 'spot', symbol, lastPrice: price, priceChange24h: price - open,
+          volume24h: parseFloat(data.v), high24h: parseFloat(data.h), low24h: parseFloat(data.l),
+          timestamp: Date.now(), priceChangePercent24h: ((price - open) / open) * 100,
+          quoteVolume24h: parseFloat(data.qv), trades24h: 0, bid: price, ask: price, spread: 0,
+        } as Ticker);
       });
     } else if (channel.includes('kline')) {
-      const data = msg.d as Record<string, unknown>;
-      if (!data) return;
+      const data = msg.d as any; if (!data?.k) return;
       const parts = channel.split('@');
-      const rawSymbol = parts[2] || '';
-      const tf = parts[3] || '1m';
-      const symbol = normalizeSymbol(rawSymbol, 'mexc');
-      const k = data.k as Record<string, unknown>;
-      if (!k) return;
-      const candle: Candle = {
-        exchange: 'mexc',
-        marketType: 'spot',
-        symbol,
-        timeframe: tf,
-        time: k.t as number,
-        open: parseFloat(k.o as string),
-        high: parseFloat(k.h as string),
-        low: parseFloat(k.l as string),
-        close: parseFloat(k.c as string),
-        volume: parseFloat(k.v as string),
-        isClosed: !!(k.X),
-        trades: 0,
-      };
-      this.emit('candle', candle);
+      this.emit('candle', {
+        exchange: 'mexc', marketType: 'spot', symbol: normalizeSymbol(parts[2], 'mexc'), timeframe: parts[3] || '1m',
+        time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h), low: parseFloat(data.k.l),
+        close: parseFloat(data.k.c), volume: parseFloat(data.k.v), isClosed: !!data.k.X, trades: 0,
+      } as Candle);
     } else if (channel.includes('depth')) {
-      const data = msg.d as Record<string, unknown>;
-      if (!data) return;
+      const data = msg.d as any; if (!data) return;
       const parts = channel.split('@');
-      const rawSymbol = parts[2] || '';
-      const symbol = normalizeSymbol(rawSymbol, 'mexc');
-      const bids = ((data.bids || data.b) as [string, string][]).map(([p, q]) => ({
-        price: parseFloat(p), quantity: parseFloat(q),
-      }));
-      const asks = ((data.asks || data.a) as [string, string][]).map(([p, q]) => ({
-        price: parseFloat(p), quantity: parseFloat(q),
-      }));
       this.emit('orderbook', {
-        symbol,
-        exchange: 'mexc',
-        marketType: 'spot',
-        bids,
-        asks,
+        symbol: normalizeSymbol(parts[2], 'mexc'), exchange: 'mexc', marketType: 'spot',
+        bids: (data.b || []).map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
+        asks: (data.a || []).map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         timestamp: Date.now(),
       } as OrderBook);
     } else if (channel.includes('deals')) {
-      const data = msg.d as Record<string, unknown>;
-      if (!data) return;
+      const data = msg.d as any; if (!data) return;
       const parts = channel.split('@');
-      const rawSymbol = parts[2] || '';
-      const symbol = normalizeSymbol(rawSymbol, 'mexc');
-      const deals = (data.deals || [data]) as Record<string, unknown>[];
-      deals.forEach((t: Record<string, unknown>) => {
-        const trade: Trade = {
-          id: String(t.i || Date.now()),
-          symbol,
-          exchange: 'mexc',
-          price: parseFloat(t.p as string),
-          quantity: parseFloat(t.v as string),
-          side: (t.S as number) === 1 ? 'buy' : 'sell',
-          timestamp: t.t as number,
-        };
-        this.emit('trade', trade);
+      (data.deals || [data]).forEach((t: any) => {
+        this.emit('trade', {
+          id: String(t.i || Date.now()), symbol: normalizeSymbol(parts[2], 'mexc'), exchange: 'mexc',
+          price: parseFloat(t.p), quantity: parseFloat(t.v), side: t.S === 1 ? 'buy' : 'sell', timestamp: t.t,
+        } as Trade);
       });
     }
   }
 
   private handleFuturesMessage(msg: Record<string, unknown>): void {
-    const channel = msg.channel as string;
-    if (!channel) return;
-
+    const channel = msg.channel as string; if (!channel || !msg.data) return;
+    const data = msg.data as any;
     if (channel === 'push.ticker') {
-      const data = msg.data as Record<string, unknown>;
-      if (!data) return;
-      const symbol = this.fromMexcFuturesSymbol(data.symbol as string);
-      const price = parseFloat(data.lastPrice as string);
-      const ticker: Ticker = {
-        exchange: 'mexc',
-        marketType: 'futures',
-        symbol,
-        lastPrice: price,
-        priceChange24h: parseFloat(data.riseFallValue as string),
-        volume24h: parseFloat(data.volume24 as string),
-        high24h: parseFloat(data.high24Price as string),
-        low24h: parseFloat(data.low24Price as string),
-        timestamp: Date.now(),
-        priceChangePercent24h: parseFloat(data.riseFallRate as string) * 100,
-        quoteVolume24h: parseFloat(data.amount24 as string),
-        trades24h: 0,
-        bid: price,
-        ask: price,
-        spread: 0,
-      };
-      this.emit('ticker', ticker);
+      const symbol = this.fromMexcFuturesSymbol(data.symbol);
+      const price = parseFloat(data.lastPrice);
+      this.emit('ticker', {
+        exchange: 'mexc', marketType: 'futures', symbol, lastPrice: price, priceChange24h: parseFloat(data.riseFallValue),
+        volume24h: parseFloat(data.volume24), high24h: parseFloat(data.high24Price), low24h: parseFloat(data.low24Price),
+        timestamp: Date.now(), priceChangePercent24h: parseFloat(data.riseFallRate) * 100,
+        quoteVolume24h: parseFloat(data.amount24), trades24h: 0, bid: price, ask: price, spread: 0,
+      } as Ticker);
     } else if (channel === 'push.kline') {
-      const data = msg.data as Record<string, unknown>;
-      if (!data) return;
-      const symbol = this.fromMexcFuturesSymbol(data.symbol as string);
-      const klines = (data.klines || [data]) as Record<string, unknown>[];
-      klines.forEach((k: Record<string, unknown>) => {
-        const candle: Candle = {
-          exchange: 'mexc',
-          marketType: 'futures',
-          symbol,
-          timeframe: data.interval as string || '1m',
-          time: (k.time as number) * 1000,
-          open: parseFloat(k.open as string),
-          high: parseFloat(k.high as string),
-          low: parseFloat(k.low as string),
-          close: parseFloat(k.close as string),
-          volume: parseFloat(k.vol as string),
-          isClosed: false, // Contract WS needs additional check for closure
-          trades: 0,
-        };
-        this.emit('candle', candle);
+      const symbol = this.fromMexcFuturesSymbol(data.symbol);
+      (data.klines || [data]).forEach((k: any) => {
+        this.emit('candle', {
+          exchange: 'mexc', marketType: 'futures', symbol, timeframe: data.interval || '1m', time: k.time * 1000,
+          open: parseFloat(k.open), high: parseFloat(k.high), low: parseFloat(k.low), close: parseFloat(k.close),
+          volume: parseFloat(k.vol), isClosed: false, trades: 0,
+        } as Candle);
       });
     }
   }
 
   async fetchTickers(symbols?: string[]): Promise<Ticker[]> {
     const [spotRes, futuresRes] = await Promise.allSettled([
-      this.fetchArray<Record<string, unknown>>(`${MEXC_SPOT_REST}/api/v3/ticker/24hr`, 'spot tickers'),
-      this.fetchArray<Record<string, unknown>>(`${MEXC_FUTURES_REST}/api/v1/contract/ticker`, 'futures tickers'),
+      this.fetchArray<any>(`${MEXC_SPOT_REST}/api/v3/ticker/24hr`, 'spot tickers'),
+      this.fetchArray<any>(`${MEXC_FUTURES_REST}/api/v1/contract/ticker`, 'futures tickers'),
     ]);
-
     const results: Ticker[] = [];
-
     if (spotRes.status === 'fulfilled') {
-      const spot = spotRes.value
-        .filter(t => (t.symbol as string).endsWith('USDT'))
-        .map((t): Ticker => ({
-          exchange: 'mexc',
-          marketType: 'spot',
-          symbol: normalizeSymbol(t.symbol as string, 'mexc'),
-          lastPrice: parseFloat(t.lastPrice as string),
-          priceChange24h: parseFloat(t.priceChange as string),
-          volume24h: parseFloat(t.volume as string),
-          high24h: parseFloat(t.highPrice as string),
-          low24h: parseFloat(t.lowPrice as string),
-          timestamp: Date.now(),
-          priceChangePercent24h: parseFloat(t.priceChangePercent as string),
-          quoteVolume24h: parseFloat(t.quoteVolume as string),
-          trades24h: parseInt(t.count as string, 10) || 0,
-          bid: parseFloat(t.bidPrice as string),
-          ask: parseFloat(t.askPrice as string),
-          spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
-        }));
-      results.push(...spot);
+      results.push(...spotRes.value.filter(t => t.symbol.endsWith('USDT')).map((t: any): Ticker => ({
+        exchange: 'mexc', marketType: 'spot', symbol: normalizeSymbol(t.symbol, 'mexc'),
+        lastPrice: parseFloat(t.lastPrice), priceChange24h: parseFloat(t.priceChange), volume24h: parseFloat(t.volume),
+        high24h: parseFloat(t.highPrice), low24h: parseFloat(t.lowPrice), timestamp: Date.now(),
+        priceChangePercent24h: parseFloat(t.priceChangePercent), quoteVolume24h: parseFloat(t.quoteVolume),
+        trades24h: parseInt(t.count, 10) || 0, bid: parseFloat(t.bidPrice), ask: parseFloat(t.askPrice), spread: parseFloat(t.askPrice) - parseFloat(t.bidPrice),
+      })));
     }
-
     if (futuresRes.status === 'fulfilled') {
-      const list = (futuresRes.value as unknown as { data?: Record<string, unknown>[] }).data || futuresRes.value;
-      const futures = (list as Record<string, unknown>[])
-        .filter(t => (t.symbol as string)?.endsWith('_USDT'))
-        .map((t): Ticker => {
-          const price = parseFloat(t.lastPrice as string);
-          return {
-            exchange: 'mexc',
-            marketType: 'futures',
-            symbol: this.fromMexcFuturesSymbol(t.symbol as string),
-            lastPrice: price,
-            priceChange24h: parseFloat(t.riseFallValue as string) || 0,
-            volume24h: parseFloat(t.volume24 as string) || 0,
-            high24h: parseFloat(t.high24Price as string) || 0,
-            low24h: parseFloat(t.low24Price as string) || 0,
-            timestamp: Date.now(),
-            priceChangePercent24h: parseFloat(t.riseFallRate as string) * 100 || 0,
-            quoteVolume24h: parseFloat(t.amount24 as string) || 0,
-            trades24h: 0,
-            bid: price,
-            ask: price,
-            spread: 0,
-          };
-        });
-      results.push(...futures);
+      const list = futuresRes.value.data || futuresRes.value;
+      results.push(...list.filter((t: any) => t.symbol.endsWith('_USDT')).map((t: any): Ticker => {
+        const price = parseFloat(t.lastPrice);
+        return {
+          exchange: 'mexc', marketType: 'futures', symbol: this.fromMexcFuturesSymbol(t.symbol), lastPrice: price,
+          priceChange24h: parseFloat(t.riseFallValue) || 0, volume24h: parseFloat(t.volume24) || 0,
+          high24h: parseFloat(t.high24Price) || 0, low24h: parseFloat(t.low24Price) || 0, timestamp: Date.now(),
+          priceChangePercent24h: parseFloat(t.riseFallRate) * 100 || 0, quoteVolume24h: parseFloat(t.amount24) || 0,
+          trades24h: 0, bid: price, ask: price, spread: 0,
+        };
+      }));
     }
-
-    if (symbols) return results.filter(t => symbols.includes(t.symbol));
-    return results;
+    return symbols ? results.filter(t => symbols.includes(t.symbol)) : results;
   }
 
   async fetchCandles(symbol: string, timeframe: Timeframe, limit = 500, endTime?: number): Promise<Candle[]> {
     const isFutures = this.isFuturesSymbol(symbol);
-    const tf = REST_TF_MAP[timeframe];
-
     if (isFutures) {
       const local = this.toMexcFuturesSymbol(symbol);
-      const mexcTf = TIMEFRAME_MAP[timeframe];
-      let url = `${MEXC_FUTURES_REST}/api/v1/contract/kline/${local}?interval=${mexcTf}&limit=${limit}`;
+      let url = `${MEXC_FUTURES_REST}/api/v1/contract/kline/${local}?interval=${TIMEFRAME_MAP[timeframe]}&limit=${limit}`;
       if (endTime) url += `&end=${Math.floor(endTime / 1000)}`;
-      const data = await this.fetchRaw<{ data?: { time: number[]; open: number[]; high: number[]; low: number[]; close: number[]; vol: number[] } }>(url);
-      const d = data.data;
-      if (!d?.time) return [];
-      return d.time.map((t, i): Candle => ({
-        exchange: 'mexc',
-        marketType: 'futures',
-        symbol,
-        timeframe,
-        time: t * 1000,
-        open: d.open[i],
-        high: d.high[i],
-        low: d.low[i],
-        close: d.close[i],
-        volume: d.vol[i],
-        isClosed: true,
-        trades: 0,
+      const data = await this.fetchRaw<any>(url); if (!data?.data?.time) return [];
+      return data.data.time.map((t: any, i: number) => ({
+        exchange: 'mexc', marketType: 'futures', symbol, timeframe, time: t * 1000,
+        open: data.data.open[i], high: data.data.high[i], low: data.data.low[i], close: data.data.close[i], volume: data.data.vol[i], isClosed: true, trades: 0,
       }));
     }
-
     const local = this.toMexcSpotSymbol(symbol);
-    let url = `${MEXC_SPOT_REST}/api/v3/klines?symbol=${local}&interval=${tf}&limit=${limit}`;
+    let url = `${MEXC_SPOT_REST}/api/v3/klines?symbol=${local}&interval=${REST_TF_MAP[timeframe]}&limit=${limit}`;
     if (endTime) url += `&endTime=${endTime}`;
-    const data = await this.fetchRaw<unknown[][]>(url);
-    if (!Array.isArray(data)) return [];
-    return data.map((k): Candle => ({
-      exchange: 'mexc',
-      marketType: 'spot',
-      symbol,
-      timeframe,
-      time: k[0] as number,
-      open: parseFloat(k[1] as string),
-      high: parseFloat(k[2] as string),
-      low: parseFloat(k[3] as string),
-      close: parseFloat(k[4] as string),
-      volume: parseFloat(k[5] as string),
-      isClosed: true,
-      trades: 0,
+    const data = await this.fetchRaw<any>(url); if (!Array.isArray(data)) return [];
+    return data.map((k: any) => ({
+      exchange: 'mexc', marketType: 'spot', symbol, timeframe, time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]), isClosed: true, trades: 0,
     }));
   }
 
   async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
     const local = this.toMexcSpotSymbol(symbol);
-    const data = await this.fetchRaw<{ bids: [string, string][]; asks: [string, string][] }>(
-      `${MEXC_SPOT_REST}/api/v3/depth?symbol=${local}&limit=${limit}`
-    );
+    const data = await this.fetchRaw<any>(`${MEXC_SPOT_REST}/api/v3/depth?symbol=${local}&limit=${limit}`);
     return {
-      symbol,
-      exchange: 'mexc',
-      bids: data.bids.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
-      asks: data.asks.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
-      timestamp: Date.now(),
+      symbol, exchange: 'mexc', bids: (data.bids || []).map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
+      asks: (data.asks || []).map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })), timestamp: Date.now(),
     };
   }
 
-  private get spotHeaders(): Record<string, string> {
-    return {
-      Accept: 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    };
-  }
+  private get spotHeaders() { return { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' }; }
 
   private async fetchRaw<T>(url: string): Promise<T> {
-    const isSpot = url.includes('api.mexc.com');
-    const headers = isSpot ? this.spotHeaders : { Accept: 'application/json' };
-    let response: Response;
-    try {
-      response = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
-    } catch (err) {
-      console.error(`[mexc] fetch error for ${url}:`, err);
-      throw err;
-    }
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      console.error(`[mexc] HTTP ${response.status} for ${url}: ${body.slice(0, 200)}`);
-      throw new Error(`[mexc] HTTP ${response.status}: ${response.statusText}`);
-    }
+    const headers = url.includes('api.mexc.com') ? this.spotHeaders : { Accept: 'application/json' };
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error(`[mexc] HTTP ${response.status}`);
     return response.json() as Promise<T>;
   }
 
   private async fetchArray<T>(url: string, label: string): Promise<T[]> {
-    const isSpot = url.includes('api.mexc.com');
-    const headers = isSpot ? this.spotHeaders : { Accept: 'application/json' };
-    let response: Response;
-    try {
-      response = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
-    } catch (err) {
-      console.error(`[mexc] fetch error for ${label} (${url}):`, err);
-      throw err;
-    }
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      console.error(`[mexc] HTTP ${response.status} for ${label} (${url}): ${body.slice(0, 200)}`);
-      throw new Error(`[mexc] Failed to fetch ${label}: HTTP ${response.status}`);
-    }
-    const data = await response.json();
-    if (!Array.isArray(data)) {
-      const wrapped = (data as { data?: T[] }).data;
-      if (Array.isArray(wrapped)) return wrapped;
-      console.error(`[mexc] Unexpected response for ${label}:`, JSON.stringify(data).slice(0, 200));
-      throw new Error(`[mexc] Unexpected response for ${label}`);
-    }
-    return data as T[];
+    const data = await this.fetchRaw<any>(url);
+    return Array.isArray(data) ? data : data.data || [];
   }
 
   disconnect(): void {
-    super.disconnect();
-    this.stopFuturesHeartbeat();
-    if (this.futuresWs) {
-      this.futuresWs.removeAllListeners();
-      this.futuresWs.close();
-      this.futuresWs = null;
-    }
-    this.futuresConnected = false;
-    this.futuresSubscriptions.clear();
+    super.disconnect(); this.stopFuturesHeartbeat(); this.stopSpotHeartbeat();
+    if (this.futuresWs) { this.futuresWs.removeAllListeners(); this.futuresWs.close(); this.futuresWs = null; }
+    this.futuresConnected = false; this.futuresSubscriptions.clear();
   }
 }

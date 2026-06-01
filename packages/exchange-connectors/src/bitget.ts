@@ -9,7 +9,6 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1H', '4h': '4H', '1d': '1D', '1w': '1W',
 };
 
-// Spot uses different granularity names than futures
 const TIMEFRAME_MAP_SPOT: Record<Timeframe, string> = {
   '1m': '1min', '5m': '5min', '15m': '15min', '1h': '1h', '4h': '4h', '1d': '1day', '1w': '1week',
 };
@@ -19,12 +18,11 @@ const BITGET_FUTURES_WS = 'wss://ws.bitget.com/v2/ws/public';
 const BITGET_REST = 'https://api.bitget.com';
 
 export class BitgetConnector extends BaseExchangeConnector {
-  // Bitget uses a single WS endpoint for both spot and futures (differentiated by instType)
-  // We use the base ws for spot, and a second connection for futures
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
   private futuresHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super({
@@ -38,7 +36,6 @@ export class BitgetConnector extends BaseExchangeConnector {
   async connectWS(): Promise<void> {
     if (this.connected || this.ws) return;
 
-    // ── Spot WebSocket ─────────────────────────────────────────
     const spotWs = new WebSocket(this.wsUrl);
     this.setupWebSocket(spotWs);
     spotWs.on('close', () => {
@@ -49,11 +46,38 @@ export class BitgetConnector extends BaseExchangeConnector {
       this.startSpotHeartbeat();
     });
 
-    // ── Futures WebSocket ──────────────────────────────────────
     const futuresWs = new WebSocket(BITGET_FUTURES_WS);
     this.futuresWs = futuresWs;
-  // ...
-  private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+    futuresWs.on('open', () => {
+      this.futuresConnected = true;
+      this.startFuturesHeartbeat();
+    });
+    futuresWs.on('message', (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+        msg.__marketType = 'futures';
+        this.handleMessage(msg);
+      } catch { /* ignore */ }
+    });
+    futuresWs.on('close', () => {
+      this.futuresConnected = false;
+      this.futuresWs = null;
+      this.futuresSubscriptions.clear();
+      this.stopFuturesHeartbeat();
+    });
+    futuresWs.on('error', (err: Error) => {
+      console.warn(`[bitget] Futures WS error: ${err.message}`);
+    });
+
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 10_000);
+      const done = () => { clearTimeout(timer); resolve(); };
+      spotWs.once('open', done);
+      spotWs.once('error', done);
+      spotWs.once('close', done);
+    });
+  }
 
   private startSpotHeartbeat(): void {
     this.stopSpotHeartbeat();
@@ -69,36 +93,6 @@ export class BitgetConnector extends BaseExchangeConnector {
       clearInterval(this.spotHeartbeatTimer);
       this.spotHeartbeatTimer = null;
     }
-  }
-
-  private startFuturesHeartbeat(): void {
-
-      this.futuresConnected = true;
-      this.startFuturesHeartbeat();
-    });
-    futuresWs.on('message', (data: Buffer) => {
-      try {
-        const msg = JSON.parse(data.toString()) as Record<string, unknown>;
-        msg.__marketType = 'futures';
-        this.handleMessage(msg);
-      } catch { /* ignore */ }
-    });
-    futuresWs.on('close', () => {
-      this.futuresConnected = false;
-      this.futuresSubscriptions.clear();
-      this.stopFuturesHeartbeat();
-    });
-    futuresWs.on('error', (err: Error) => {
-      console.warn(`[bitget] Futures WS error: ${err.message}`);
-    });
-
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, 10_000);
-      const done = () => { clearTimeout(timer); resolve(); };
-      spotWs.once('open', done);
-      spotWs.once('error', done);
-      spotWs.once('close', done);
-    });
   }
 
   private startFuturesHeartbeat(): void {
@@ -126,12 +120,10 @@ export class BitgetConnector extends BaseExchangeConnector {
   }
 
   private toBitgetSpotSymbol(symbol: string): string {
-    // BTC/USDT -> BTCUSDT
     return symbol.replace('/', '');
   }
 
   private toBitgetFuturesSymbol(symbol: string): string {
-    // BTC/USDT:USDT -> BTCUSDT
     return `${symbol.split('/')[0]}USDT`;
   }
 
@@ -324,12 +316,10 @@ export class BitgetConnector extends BaseExchangeConnector {
 
     if (channel === 'ticker') {
       const d = data[0];
-      const symbol = isFutures
-        ? this.fromBitgetFuturesSymbol(instId)
-        : normalizeSymbol(instId, 'bitget');
+      const symbol = isFutures ? this.fromBitgetFuturesSymbol(instId) : normalizeSymbol(instId, 'bitget');
       const price = parseFloat(d.lastPr as string);
       const open = parseFloat(d.open24h as string);
-      const ticker: Ticker = {
+      this.emit('ticker', {
         exchange: 'bitget',
         marketType: isFutures ? 'futures' : 'spot',
         symbol,
@@ -345,16 +335,13 @@ export class BitgetConnector extends BaseExchangeConnector {
         bid: parseFloat(d.bestBid as string),
         ask: parseFloat(d.bestAsk as string),
         spread: parseFloat(d.bestAsk as string) - parseFloat(d.bestBid as string),
-      };
-      this.emit('ticker', ticker);
+      } as Ticker);
     } else if (channel.startsWith('candle')) {
-      const symbol = isFutures
-        ? this.fromBitgetFuturesSymbol(instId)
-        : normalizeSymbol(instId, 'bitget');
+      const symbol = isFutures ? this.fromBitgetFuturesSymbol(instId) : normalizeSymbol(instId, 'bitget');
       const tfRaw = channel.replace('candle', '');
       const timeframe = this.reverseTimeframe(tfRaw);
       data.forEach((k: Record<string, unknown>) => {
-        const candle: Candle = {
+        this.emit('candle', {
           exchange: 'bitget',
           marketType: isFutures ? 'futures' : 'spot',
           symbol,
@@ -367,20 +354,12 @@ export class BitgetConnector extends BaseExchangeConnector {
           volume: parseFloat(k[5] as string),
           isClosed: (k[6] as string) === '1',
           trades: 0,
-        };
-        this.emit('candle', candle);
+        } as Candle);
       });
     } else if (channel === 'books15') {
-      const d = data[0];
-      const symbol = isFutures
-        ? this.fromBitgetFuturesSymbol(instId)
-        : normalizeSymbol(instId, 'bitget');
-      const bids = ((d.bids || d.b) as [string, string][]).map(([p, q]) => ({
-        price: parseFloat(p), quantity: parseFloat(q),
-      }));
-      const asks = ((d.asks || d.a) as [string, string][]).map(([p, q]) => ({
-        price: parseFloat(p), quantity: parseFloat(q),
-      }));
+      const symbol = isFutures ? this.fromBitgetFuturesSymbol(instId) : normalizeSymbol(instId, 'bitget');
+      const bids = ((data[0].bids || data[0].b) as [string, string][]).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) }));
+      const asks = ((data[0].asks || data[0].a) as [string, string][]).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) }));
       this.emit('orderbook', {
         symbol,
         exchange: 'bitget',
@@ -390,11 +369,9 @@ export class BitgetConnector extends BaseExchangeConnector {
         timestamp: Date.now(),
       } as OrderBook);
     } else if (channel === 'trade') {
-      const symbol = isFutures
-        ? this.fromBitgetFuturesSymbol(instId)
-        : normalizeSymbol(instId, 'bitget');
+      const symbol = isFutures ? this.fromBitgetFuturesSymbol(instId) : normalizeSymbol(instId, 'bitget');
       data.forEach((t: Record<string, unknown>) => {
-        const trade: Trade = {
+        this.emit('trade', {
           id: String(t.tradeId || Date.now()),
           symbol,
           exchange: 'bitget',
@@ -403,16 +380,13 @@ export class BitgetConnector extends BaseExchangeConnector {
           quantity: parseFloat(t.size as string),
           side: (t.side as string) === 'buy' ? 'buy' : 'sell',
           timestamp: parseInt(t.ts as string, 10),
-        };
-        this.emit('trade', trade);
+        } as Trade);
       });
     }
   }
 
   private reverseTimeframe(tf: string): string {
-    const map: Record<string, string> = {
-      '1m': '1m', '5m': '5m', '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w',
-    };
+    const map: Record<string, string> = { '1m': '1m', '5m': '5m', '15m': '15m', '1H': '1h', '4H': '4h', '1D': '1d', '1W': '1w' };
     return map[tf] || tf;
   }
 
@@ -421,117 +395,62 @@ export class BitgetConnector extends BaseExchangeConnector {
       this.fetchRaw<{ data: Record<string, unknown>[] }>(`${BITGET_REST}/api/v2/spot/market/tickers`),
       this.fetchRaw<{ data: Record<string, unknown>[] }>(`${BITGET_REST}/api/v2/mix/market/tickers?productType=USDT-FUTURES`),
     ]);
-
     const results: Ticker[] = [];
-
     if (spotRes.status === 'fulfilled') {
-      const spot = (spotRes.value.data || [])
-        .filter(t => (t.symbol as string).endsWith('USDT'))
-        .map((t): Ticker => ({
-          exchange: 'bitget',
-          marketType: 'spot',
-          symbol: normalizeSymbol(t.symbol as string, 'bitget'),
-          lastPrice: parseFloat(t.lastPr as string),
-          priceChange24h: parseFloat(t.change24h as string),
-          volume24h: parseFloat(t.baseVolume as string),
-          high24h: parseFloat(t.high24h as string),
-          low24h: parseFloat(t.low24h as string),
-          timestamp: Date.now(),
-          priceChangePercent24h: parseFloat(t.changeUtc24h as string) * 100,
-          quoteVolume24h: parseFloat(t.quoteVolume as string),
-          trades24h: 0,
-          bid: parseFloat(t.bestBid as string),
-          ask: parseFloat(t.bestAsk as string),
-          spread: parseFloat(t.bestAsk as string) - parseFloat(t.bestBid as string),
-        }));
-      results.push(...spot);
+      results.push(...(spotRes.value.data || []).filter(t => (t.symbol as string).endsWith('USDT')).map((t): Ticker => ({
+        exchange: 'bitget', marketType: 'spot', symbol: normalizeSymbol(t.symbol as string, 'bitget'),
+        lastPrice: parseFloat(t.lastPr as string), priceChange24h: parseFloat(t.change24h as string),
+        volume24h: parseFloat(t.baseVolume as string), high24h: parseFloat(t.high24h as string), low24h: parseFloat(t.low24h as string),
+        timestamp: Date.now(), priceChangePercent24h: parseFloat(t.changeUtc24h as string) * 100,
+        quoteVolume24h: parseFloat(t.quoteVolume as string), trades24h: 0,
+        bid: parseFloat(t.bestBid as string), ask: parseFloat(t.bestAsk as string), spread: parseFloat(t.bestAsk as string) - parseFloat(t.bestBid as string),
+      })));
     }
-
     if (futuresRes.status === 'fulfilled') {
-      const futures = (futuresRes.value.data || [])
-        .filter(t => (t.symbol as string).endsWith('USDT'))
-        .map((t): Ticker => {
-          const price = parseFloat(t.lastPr as string);
-          const open = parseFloat(t.open24h as string);
-          return {
-            exchange: 'bitget',
-            marketType: 'futures',
-            symbol: this.fromBitgetFuturesSymbol(t.symbol as string),
-            lastPrice: price,
-            priceChange24h: price - open,
-            volume24h: parseFloat(t.baseVolume as string),
-            high24h: parseFloat(t.high24h as string),
-            low24h: parseFloat(t.low24h as string),
-            timestamp: Date.now(),
-            priceChangePercent24h: ((price - open) / open) * 100,
-            quoteVolume24h: parseFloat(t.quoteVolume as string),
-            trades24h: 0,
-            bid: price,
-            ask: price,
-            spread: 0,
-          };
-        });
-      results.push(...futures);
+      results.push(...(futuresRes.value.data || []).filter(t => (t.symbol as string).endsWith('USDT')).map((t): Ticker => {
+        const price = parseFloat(t.lastPr as string);
+        const open = parseFloat(t.open24h as string);
+        return {
+          exchange: 'bitget', marketType: 'futures', symbol: this.fromBitgetFuturesSymbol(t.symbol as string),
+          lastPrice: price, priceChange24h: price - open, volume24h: parseFloat(t.baseVolume as string),
+          high24h: parseFloat(t.high24h as string), low24h: parseFloat(t.low24h as string), timestamp: Date.now(),
+          priceChangePercent24h: ((price - open) / open) * 100, quoteVolume24h: parseFloat(t.quoteVolume as string),
+          trades24h: 0, bid: price, ask: price, spread: 0,
+        };
+      }));
     }
-
-    if (symbols) return results.filter(t => symbols.includes(t.symbol));
-    return results;
+    return symbols ? results.filter(t => symbols.includes(t.symbol)) : results;
   }
 
   async fetchCandles(symbol: string, timeframe: Timeframe, limit = 200, endTime?: number): Promise<Candle[]> {
     const isFutures = this.isFuturesSymbol(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
-
     if (isFutures) {
       const local = this.toBitgetFuturesSymbol(symbol);
       let url = `${BITGET_REST}/api/v2/mix/market/candles?symbol=${local}&granularity=${tf}&limit=${limit}&productType=USDT-FUTURES`;
       if (endTime) url += `&endTime=${endTime}`;
       const data = await this.fetchRaw<{ data: string[][] }>(url);
       return (data.data || []).map((k): Candle => ({
-        exchange: 'bitget',
-        marketType: 'futures',
-        symbol,
-        timeframe,
-        time: parseInt(k[0], 10),
-        open: parseFloat(k[1]),
-        high: parseFloat(k[2]),
-        low: parseFloat(k[3]),
-        close: parseFloat(k[4]),
-        volume: parseFloat(k[5]),
-        isClosed: true,
-        trades: 0,
+        exchange: 'bitget', marketType: 'futures', symbol, timeframe, time: parseInt(k[0], 10),
+        open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]), isClosed: true, trades: 0,
       }));
     }
-
     const local = this.toBitgetSpotSymbol(symbol);
     const tfSpot = TIMEFRAME_MAP_SPOT[timeframe];
     let url = `${BITGET_REST}/api/v2/spot/market/candles?symbol=${local}&granularity=${tfSpot}&limit=${limit}`;
     if (endTime) url += `&endTime=${endTime}`;
     const data = await this.fetchRaw<{ data: string[][] }>(url);
     return (data.data || []).map((k): Candle => ({
-      exchange: 'bitget',
-      marketType: 'spot',
-      symbol,
-      timeframe,
-      time: parseInt(k[0], 10),
-      open: parseFloat(k[1]),
-      high: parseFloat(k[2]),
-      low: parseFloat(k[3]),
-      close: parseFloat(k[4]),
-      volume: parseFloat(k[5]),
-      isClosed: true,
-      trades: 0,
+      exchange: 'bitget', marketType: 'spot', symbol, timeframe, time: parseInt(k[0], 10),
+      open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]), isClosed: true, trades: 0,
     }));
   }
 
   async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
     const local = this.toBitgetSpotSymbol(symbol);
-    const data = await this.fetchRaw<{ data: { bids: [string, string][]; asks: [string, string][] } }>(
-      `${BITGET_REST}/api/v2/spot/market/orderbook?symbol=${local}&limit=${limit}`
-    );
+    const data = await this.fetchRaw<{ data: { bids: [string, string][]; asks: [string, string][] } }>(`${BITGET_REST}/api/v2/spot/market/orderbook?symbol=${local}&limit=${limit}`);
     return {
-      symbol,
-      exchange: 'bitget',
+      symbol, exchange: 'bitget',
       bids: (data.data?.bids || []).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       asks: (data.data?.asks || []).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       timestamp: Date.now(),
@@ -539,24 +458,16 @@ export class BitgetConnector extends BaseExchangeConnector {
   }
 
   private async fetchRaw<T>(url: string): Promise<T> {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) {
-      throw new Error(`[bitget] HTTP ${response.status}: ${response.statusText}`);
-    }
+    const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error(`[bitget] HTTP ${response.status}: ${response.statusText}`);
     return response.json() as Promise<T>;
   }
 
   disconnect(): void {
     super.disconnect();
     this.stopFuturesHeartbeat();
-    if (this.futuresWs) {
-      this.futuresWs.removeAllListeners();
-      this.futuresWs.close();
-      this.futuresWs = null;
-    }
+    this.stopSpotHeartbeat();
+    if (this.futuresWs) { this.futuresWs.removeAllListeners(); this.futuresWs.close(); this.futuresWs = null; }
     this.futuresConnected = false;
     this.futuresSubscriptions.clear();
   }
