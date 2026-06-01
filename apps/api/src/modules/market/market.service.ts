@@ -21,7 +21,6 @@ export interface TickerWithMeta extends Ticker {
 }
 
 const REDIS_TICKER_PREFIX = 'ticker:';
-const REDIS_CANDLE_PREFIX = 'candle:';
 const EXCHANGE_HEALTH_KEY = 'exchange:health';
 
 @Injectable()
@@ -250,6 +249,16 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     return this.exchangeManager.fetchOrderBook(symbol, exchange);
   }
 
+  getExchangeHealth(): Record<string, unknown> {
+    const health: Record<string, unknown> = {};
+    for (const [id, data] of this.exchangeHealth) {
+      health[id] = { ...data, uptime: data.connected ? Date.now() - data.lastSeen : 0 };
+    }
+    return health;
+  }
+
+  getConnectedExchanges(): ExchangeId[] { return Array.from(this.connectedExchanges); }
+
   subscribeSymbol(symbol: string): void {
     const currentRefs = this.symbolSubscriptionRefs.get(symbol) || 0;
     this.symbolSubscriptionRefs.set(symbol, currentRefs + 1);
@@ -302,8 +311,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     this.exchangeManager.unsubscribeOrderBook(symbol, exchange ? [exchange] : undefined);
   }
 
-  getConnectedExchanges(): ExchangeId[] { return Array.from(this.connectedExchanges); }
-
   @Interval(30000)
   private async refreshTickers() {
     if (this.connectedExchanges.size === 0) return;
@@ -312,19 +319,16 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       for (const ticker of tickers) {
         const key = `${ticker.exchange}:${ticker.symbol}`;
         const existing = this.tickerCache.get(key);
-        this.tickerCache.set(key, { ...(existing || {}), ...ticker, volatility: existing?.volatility || 0, atr: existing?.atr || 0 } as TickerWithMeta);
+        this.tickerCache.set(key, { 
+          ...(existing || {}), 
+          ...ticker, 
+          volatility: existing?.volatility || 0, 
+          atr: existing?.atr || 0 
+        } as TickerWithMeta);
       }
     } catch { /* fail */ }
   }
 
   @Interval(60000)
   private async persistHealth() { this.db.cacheSet(EXCHANGE_HEALTH_KEY, this.getExchangeHealth(), 300).catch(() => {}); }
-
-  getExchangeHealth(): Record<string, unknown> {
-    const health: Record<string, unknown> = {};
-    for (const [id, data] of this.exchangeHealth) {
-      health[id] = { ...data, uptime: data.connected ? Date.now() - data.lastSeen : 0 };
-    }
-    return health;
-  }
 }
