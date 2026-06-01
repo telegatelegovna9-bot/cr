@@ -310,7 +310,7 @@ export class MexcConnector extends BaseExchangeConnector {
       })));
     }
     if (futuresRes.status === 'fulfilled') {
-      const list = futuresRes.value.data || futuresRes.value;
+      const list = futuresRes.value;
       results.push(...list.filter((t: any) => t.symbol.endsWith('_USDT')).map((t: any): Ticker => {
         const price = parseFloat(t.lastPrice);
         return {
