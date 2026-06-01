@@ -2,23 +2,23 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { WsAdapter } from '@nestjs/platform-ws';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
-
-  // Enable trust proxy for Railway load balancer (fixes rate limit issues)
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
-
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: {
       origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
       credentials: true,
     },
     logger: ['error', 'warn', 'log'],
   });
+
+  // Enable trust proxy for Railway load balancer (fixes rate limit issues)
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   // Enable raw WebSocket adapter
   app.useWebSocketAdapter(new WsAdapter(app));
