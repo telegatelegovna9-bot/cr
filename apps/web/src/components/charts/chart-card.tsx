@@ -410,7 +410,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           if (candles.length > 0) {
             candleSeries.setData(candles);
             volumeSeries.setData(volumes);
-            dataLoadedRef.current = true;
             const firstCandleTime = raw[0].time || raw[0].timestamp;
             oldestTimeRef.current = firstCandleTime / 1000;
 
@@ -439,6 +438,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       }
 
       if (cancelled) return;
+      dataLoadedRef.current = true; // always allow WS updates after chart init (even if REST returned no data)
       setLoading(false);
       readyTimer = setTimeout(() => { readyRef.current = true; }, 200);
 
