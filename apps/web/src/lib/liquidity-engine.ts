@@ -243,7 +243,7 @@ export function heatColor(
   type: LiquidityType,
   opacity: number,
 ): string {
-  const a = opacity.toFixed(3);
+  const a = (opacity ?? 0).toFixed(3);
 
   if (type === 'absorption') {
     // Muted amber — not competing with candle green/red

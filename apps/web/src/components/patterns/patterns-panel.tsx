@@ -17,6 +17,7 @@ import {
 // ─── Helpers ─────────────────────────────────────────────────
 
 function formatPrice(price: number): string {
+  if (price === undefined || price === null || isNaN(price)) return '0.00';
   if (price >= 10000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (price >= 100) return price.toFixed(2);
   if (price >= 1) return price.toFixed(3);
@@ -117,7 +118,7 @@ function PatternCard({ pattern, index }: { pattern: PatternScanResult; index: nu
                 style={{ width: `${pattern.confidence * 100}%` }}
               />
             </div>
-            <span className="text-xs font-bold text-accent-light font-mono">{(pattern.confidence * 100).toFixed(0)}%</span>
+            <span className="text-xs font-bold text-accent-light font-mono">{((pattern.confidence || 0) * 100).toFixed(0)}%</span>
           </div>
         </div>
 

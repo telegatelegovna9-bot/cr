@@ -70,6 +70,7 @@ export function timeframeToMs(tf: Timeframe): number {
  * Format number with appropriate suffix
  */
 export function formatNumber(n: number, decimals = 2): string {
+  if (n === undefined || n === null || isNaN(n)) return '0';
   if (Math.abs(n) >= 1e9) return `${(n / 1e9).toFixed(decimals)}B`;
   if (Math.abs(n) >= 1e6) return `${(n / 1e6).toFixed(decimals)}M`;
   if (Math.abs(n) >= 1e3) return `${(n / 1e3).toFixed(decimals)}K`;
@@ -80,6 +81,7 @@ export function formatNumber(n: number, decimals = 2): string {
  * Format price with appropriate precision
  */
 export function formatPrice(price: number): string {
+  if (price === undefined || price === null || isNaN(price)) return '0.00';
   if (price >= 1000) return price.toFixed(2);
   if (price >= 1) return price.toFixed(4);
   if (price >= 0.01) return price.toFixed(6);
@@ -90,6 +92,7 @@ export function formatPrice(price: number): string {
  * Format percentage
  */
 export function formatPercent(value: number): string {
+  if (value === undefined || value === null || isNaN(value)) return '0.00%';
   const sign = value >= 0 ? '+' : '';
   return `${sign}${value.toFixed(2)}%`;
 }

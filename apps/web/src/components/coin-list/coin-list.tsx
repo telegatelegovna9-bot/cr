@@ -64,6 +64,7 @@ type SortKey = 'symbol' | 'price' | 'change' | 'volume' | 'trades';
 type MarketType = 'spot' | 'futures';
 
 function formatPrice(price: number): string {
+  if (price === undefined || price === null || isNaN(price)) return '0.00';
   if (price >= 10000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (price >= 100)   return price.toFixed(2);
   if (price >= 1)     return price.toFixed(3);
@@ -72,6 +73,7 @@ function formatPrice(price: number): string {
 }
 
 function formatVolume(vol: number): string {
+  if (vol === undefined || vol === null || isNaN(vol)) return '0';
   if (vol >= 1e9) return (vol / 1e9).toFixed(1) + 'B';
   if (vol >= 1e6) return (vol / 1e6).toFixed(1) + 'M';
   if (vol >= 1e3) return (vol / 1e3).toFixed(0) + 'K';

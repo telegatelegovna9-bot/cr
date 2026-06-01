@@ -211,6 +211,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
           marketType: trade.marketType || 'spot',
           symbol: trade.symbol,
           priceChange24h: 0,
+          priceChangePercent24h: 0,
           volume24h: 0,
           high24h: trade.price,
           low24h: trade.price,

@@ -208,17 +208,17 @@ export function HeatmapView() {
                     {mode === 'price' && (
                       <div className={`flex items-center gap-0.5 text-xs font-bold ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
                         {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        {isPositive ? '+' : ''}{item.priceChange.toFixed(2)}%
+                        {isPositive ? '+' : ''}{(item.priceChange ?? 0).toFixed(2)}%
                       </div>
                     )}
                   </div>
 
                   <div className="flex items-end justify-between">
                     <div className="text-xs font-mono font-bold" style={{ color: textColor }}>
-                      ${item.price >= 1000 ? item.price.toLocaleString('en-US', { maximumFractionDigits: 0 }) : item.price.toFixed(4)}
+                      ${item.price >= 1000 ? item.price.toLocaleString('en-US', { maximumFractionDigits: 0 }) : (item.price ?? 0).toFixed(4)}
                     </div>
                     <div className="text-[10px] opacity-50" style={{ color: textColor }}>
-                      Vol ${(item.volume / 1e6).toFixed(0)}M
+                      Vol ${((item.volume || 0) / 1e6).toFixed(0)}M
                     </div>
                   </div>
                 </div>
