@@ -2,7 +2,7 @@
 
 import WebSocket from 'ws';
 import type { Ticker, Candle, Timeframe, OrderBook, Trade } from '@crypto-screener/shared';
-import { normalizeSymbol, generateId } from '@crypto-screener/shared';
+import { normalizeSymbol, generateId, WS_RECONNECT_DELAY } from '@crypto-screener/shared';
 import { BaseExchangeConnector } from './base';
 
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
