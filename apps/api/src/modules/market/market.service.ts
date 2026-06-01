@@ -119,7 +119,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
         const key = `${ticker.exchange}:${ticker.symbol}`;
         this.tickerCache.set(key, { ...ticker, volatility: 0, atr: 0 });
       }
-      this.logger.log(`📈 Loaded ${tickers.length} initial tickers`);
     } catch (err) {
       this.logger.error('Failed to load initial tickers:', err);
     }
@@ -129,7 +128,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     const key = `${ticker.exchange}:${ticker.symbol}`;
     const existing = this.tickerCache.get(key);
     
-    // Smart merge to preserve metadata (volume, change %)
     const updated: TickerWithMeta = {
       ...(existing || {
         exchange: ticker.exchange,
@@ -148,7 +146,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
     this.tickerCache.set(key, updated);
 
-    // Throttled broadcast
     const now = Date.now();
     const lastEmit = this.tickerThrottle.get(key) || 0;
     if (now - lastEmit >= this.THROTTLE_MS) {
@@ -169,8 +166,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       if (candles.length > 2000) candles = candles.slice(-2000);
     }
     this.candleCache.set(key, candles);
-
-    // Candles are prioritized for chart accuracy
     this.gateway.broadcast('candle', candle);
 
     if (candle.isClosed) {
@@ -182,7 +177,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     const key = `${trade.exchange}:${trade.symbol}`;
     const existing = this.tickerCache.get(key);
     
-    // Drive "inside candle" price updates via trades
     const updatedTicker: TickerWithMeta = {
       ...(existing || {
         exchange: trade.exchange,
