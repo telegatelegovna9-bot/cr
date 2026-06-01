@@ -42,13 +42,36 @@ export class MexcConnector extends BaseExchangeConnector {
     this.setupWebSocket(spotWs);
     spotWs.on('close', () => {
       console.warn('[mexc] Spot WS closed');
+      this.stopSpotHeartbeat();
+    });
+    spotWs.on('open', () => {
+      this.startSpotHeartbeat();
     });
 
     // ── Futures WebSocket ──────────────────────────────────────
     const futuresWs = new WebSocket(MEXC_FUTURES_WS);
     this.futuresWs = futuresWs;
+  // ...
+  private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-    futuresWs.on('open', () => {
+  private startSpotHeartbeat(): void {
+    this.stopSpotHeartbeat();
+    this.spotHeartbeatTimer = setInterval(() => {
+      if (this.ws && this.connected && this.ws.readyState === 1) {
+        this.send({ method: 'PING' });
+      }
+    }, 20000);
+  }
+
+  private stopSpotHeartbeat(): void {
+    if (this.spotHeartbeatTimer) {
+      clearInterval(this.spotHeartbeatTimer);
+      this.spotHeartbeatTimer = null;
+    }
+  }
+
+  private startFuturesHeartbeat(): void {
+
       this.futuresConnected = true;
       this.startFuturesHeartbeat();
     });

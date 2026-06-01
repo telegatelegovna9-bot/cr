@@ -20,8 +20,6 @@ export interface TickerWithMeta extends Ticker {
   atr: number;
 }
 
-// Redis key prefix for subscription deduplication
-const REDIS_SUB_PREFIX = 'sub:';
 const REDIS_TICKER_PREFIX = 'ticker:';
 const REDIS_CANDLE_PREFIX = 'candle:';
 const EXCHANGE_HEALTH_KEY = 'exchange:health';
@@ -31,7 +29,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MarketService.name);
   private exchangeManager!: ExchangeManager;
 
-  // In-memory caches
   private tickerCache = new Map<string, TickerWithMeta>();
   private candleCache = new Map<string, Candle[]>();
   private orderbookCache = new Map<string, OrderBook>();
@@ -42,7 +39,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private subscribedCandles = new Map<string, { symbol: string; timeframe: Timeframe; exchange?: ExchangeId }>();
   private candleSubscriptionRefs = new Map<string, number>();
 
-  // Exchange health tracking
+  // Throttling: limit updates to frontend (max 10Hz per symbol)
+  private tickerThrottle = new Map<string, number>();
+  private readonly THROTTLE_MS = 100;
+
   private exchangeHealth = new Map<ExchangeId, {
     connected: boolean;
     lastSeen: number;
@@ -58,47 +58,39 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     this.exchangeManager = new ExchangeManager();
 
-    // Forward events
     this.exchangeManager.on('ticker', (ticker: Ticker) => this.handleTicker(ticker));
     this.exchangeManager.on('candle', (candle: Candle) => this.handleCandle(candle));
     this.exchangeManager.on('orderbook', (ob: OrderBook) => this.handleOrderBook(ob));
     this.exchangeManager.on('trade', (trade: Trade) => this.handleTrade(trade));
+    
     this.exchangeManager.on('exchange_connected', (id: ExchangeId) => {
       this.connectedExchanges.add(id);
       this.updateExchangeHealth(id, true);
       this.logger.log(`✅ ${id} connected`);
-      // Re-subscribe active symbols
       for (const symbol of this.subscribedSymbols) {
         this.exchangeManager.subscribeTicker(symbol, [id]);
+        this.exchangeManager.subscribeTrades(symbol, [id]);
       }
       for (const sub of this.subscribedCandles.values()) {
         if (!sub.exchange || sub.exchange === id) {
           this.exchangeManager.subscribeCandle(sub.symbol, sub.timeframe, [id]);
+          this.exchangeManager.subscribeTrades(sub.symbol, [id]);
         }
       }
     });
+
     this.exchangeManager.on('exchange_disconnected', (id: ExchangeId) => {
       this.connectedExchanges.delete(id);
       this.updateExchangeHealth(id, false);
       this.logger.warn(`❌ ${id} disconnected`);
     });
-    this.exchangeManager.on('exchange_error', ({ exchange, error }: { exchange: ExchangeId; error: Error }) => {
-      this.incrementExchangeErrors(exchange);
-      this.logger.error(`⚠️ ${exchange} error: ${error.message}`);
-    });
 
-    // Connect all exchanges
     await this.exchangeManager.connectAll();
-
-    // Load initial tickers
     await this.loadInitialTickers();
 
-    // Subscribe default symbols
     for (const symbol of DEFAULT_SYMBOLS.slice(0, 20)) {
       this.subscribeSymbol(symbol);
     }
-
-    this.logger.log(`📊 Market service initialized. Connected: ${Array.from(this.connectedExchanges).join(', ')}`);
   }
 
   onModuleDestroy() {
@@ -107,15 +99,12 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
   private updateExchangeHealth(id: ExchangeId, connected: boolean): void {
     const existing = this.exchangeHealth.get(id) || { connected: false, lastSeen: 0, reconnects: 0, errors: 0 };
-    const reconnects = !existing.connected && connected ? existing.reconnects + 1 : existing.reconnects;
     this.exchangeHealth.set(id, {
       connected,
       lastSeen: connected ? Date.now() : existing.lastSeen,
-      reconnects: existing.reconnects === 0 && connected ? 0 : reconnects,
+      reconnects: !existing.connected && connected ? existing.reconnects + 1 : existing.reconnects,
       errors: existing.errors,
     });
-    // Persist health to Redis for monitoring
-    this.db.cacheSet(EXCHANGE_HEALTH_KEY, Object.fromEntries(this.exchangeHealth), 300).catch(() => {});
   }
 
   private incrementExchangeErrors(id: ExchangeId): void {
@@ -128,13 +117,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       const tickers = await this.exchangeManager.fetchAllTickers();
       for (const ticker of tickers) {
         const key = `${ticker.exchange}:${ticker.symbol}`;
-        this.tickerCache.set(key, {
-          ...ticker,
-          volatility: 0,
-          atr: 0,
-        });
-        // Cache latest ticker in Redis (TTL 120s)
-        await this.db.cacheSet(`${REDIS_TICKER_PREFIX}${key}`, ticker, 120).catch(() => {});
+        this.tickerCache.set(key, { ...ticker, volatility: 0, atr: 0 });
       }
       this.logger.log(`📈 Loaded ${tickers.length} initial tickers`);
     } catch (err) {
@@ -145,90 +128,94 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private handleTicker(ticker: Ticker) {
     const key = `${ticker.exchange}:${ticker.symbol}`;
     const existing = this.tickerCache.get(key);
-    this.tickerCache.set(key, {
+    
+    // Smart merge to preserve metadata (volume, change %)
+    const updated: TickerWithMeta = {
+      ...(existing || {
+        exchange: ticker.exchange,
+        marketType: ticker.marketType || 'spot',
+        symbol: ticker.symbol,
+        priceChange24h: 0,
+        priceChangePercent24h: 0,
+        volume24h: 0,
+        high24h: ticker.lastPrice,
+        low24h: ticker.lastPrice,
+        volatility: 0,
+        atr: 0,
+      } as TickerWithMeta),
       ...ticker,
-      volatility: existing?.volatility || 0,
-      atr: existing?.atr || 0,
-    });
+    };
 
-    // Direct broadcast to local clients (fast path — no Redis round-trip)
-    this.gateway.broadcast('ticker', ticker);
+    this.tickerCache.set(key, updated);
 
-    // Cache in Redis + publish for multi-instance relay
-    this.db.cacheSet(`${REDIS_TICKER_PREFIX}${key}`, ticker, 120).catch(() => {});
-    this.db.publish('ticker', ticker).catch(() => {});
+    // Throttled broadcast
+    const now = Date.now();
+    const lastEmit = this.tickerThrottle.get(key) || 0;
+    if (now - lastEmit >= this.THROTTLE_MS) {
+      this.tickerThrottle.set(key, now);
+      this.gateway.broadcast('ticker', updated);
+    }
   }
 
   private handleCandle(candle: Candle) {
     const key = `candle:${candle.symbol}:${candle.exchange}:${candle.timeframe}`;
     let candles = this.candleCache.get(key) || [];
 
-    // Update or add candle
     const idx = candles.findIndex(c => c.time === candle.time);
     if (idx >= 0) {
       candles[idx] = candle;
     } else {
       candles.push(candle);
-      // Keep max 5000 candles in memory
-      if (candles.length > 5000) candles = candles.slice(-5000);
+      if (candles.length > 2000) candles = candles.slice(-2000);
     }
     this.candleCache.set(key, candles);
 
-    // Direct broadcast to local clients (fast path — no Redis round-trip)
+    // Candles are prioritized for chart accuracy
     this.gateway.broadcast('candle', candle);
 
-    // Cache in Redis + publish for multi-instance relay
-    this.db.cacheSet(`${REDIS_CANDLE_PREFIX}${key}`, candle, 60).catch(() => {});
-
-    // Store finalized candles in DB
     if (candle.isClosed) {
       this.storeCandle(candle).catch(() => {});
     }
+  }
 
-    this.db.publish('candle', candle).catch(() => {});
+  private handleTrade(trade: Trade) {
+    const key = `${trade.exchange}:${trade.symbol}`;
+    const existing = this.tickerCache.get(key);
+    
+    // Drive "inside candle" price updates via trades
+    const updatedTicker: TickerWithMeta = {
+      ...(existing || {
+        exchange: trade.exchange,
+        marketType: trade.marketType || 'spot',
+        symbol: trade.symbol,
+        priceChange24h: 0,
+        priceChangePercent24h: 0,
+        volume24h: 0,
+        high24h: trade.price,
+        low24h: trade.price,
+        volatility: 0,
+        atr: 0,
+      } as TickerWithMeta),
+      lastPrice: trade.price,
+      timestamp: trade.timestamp,
+    };
+    
+    this.tickerCache.set(key, updatedTicker);
+    
+    const now = Date.now();
+    const lastEmit = this.tickerThrottle.get(key) || 0;
+    if (now - lastEmit >= this.THROTTLE_MS) {
+      this.tickerThrottle.set(key, now);
+      this.gateway.broadcast('ticker', updatedTicker);
+    }
+
+    this.db.publish('trade', trade).catch(() => {});
   }
 
   private handleOrderBook(ob: OrderBook) {
     const key = `ob:${ob.exchange}:${ob.symbol}`;
     this.orderbookCache.set(key, ob);
-
-    // Direct broadcast to local clients (fast path — no Redis round-trip)
     this.gateway.broadcast('orderbook', ob);
-
-    this.db.publish('orderbook', ob).catch((err) => this.logger.error(`[OrderBook] Redis publish failed:`, err));
-  }
-
-  private handleTrade(trade: Trade) {
-    // Update local ticker cache for immediate price updates
-    const key = `${trade.exchange}:${trade.symbol}`;
-    const existing = this.tickerCache.get(key);
-    
-    // Only update if the trade is newer than current cache
-    if (!existing || trade.timestamp >= existing.timestamp) {
-      const updatedTicker: TickerWithMeta = {
-        ...(existing || {
-          exchange: trade.exchange,
-          marketType: trade.marketType || 'spot',
-          symbol: trade.symbol,
-          priceChange24h: 0,
-          priceChangePercent24h: 0,
-          volume24h: 0,
-          high24h: trade.price,
-          low24h: trade.price,
-          volatility: 0,
-          atr: 0,
-        } as TickerWithMeta),
-        lastPrice: trade.price,
-        timestamp: trade.timestamp,
-      };
-      
-      this.tickerCache.set(key, updatedTicker);
-      
-      // Broadcast as ticker update so frontend charts update their price display instantly
-      this.gateway.broadcast('ticker', updatedTicker);
-    }
-
-    this.db.publish('trade', trade).catch(() => {});
   }
 
   private async storeCandle(candle: Candle) {
@@ -242,28 +229,8 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
         [candle.symbol, candle.exchange, candle.timeframe, candle.time,
          candle.open, candle.high, candle.low, candle.close, candle.volume, candle.trades || 0],
       );
-    } catch {
-      // Silent fail
-    }
+    } catch { /* Silent fail */ }
   }
-
-  // ── Redis-based subscription deduplication ─────────────────────────────────
-
-  private subKey(type: 'ticker' | 'candle', symbol: string, timeframe?: string, exchange?: string): string {
-    return `${REDIS_SUB_PREFIX}${type}:${symbol}:${exchange || 'all'}:${timeframe || 'all'}`;
-  }
-
-  private async redisIncrSub(key: string): Promise<number> {
-    return this.db.getRedis().incr(key);
-  }
-
-  private async redisDecrSub(key: string): Promise<number> {
-    const val = await this.db.getRedis().decr(key);
-    if (val <= 0) await this.db.getRedis().del(key);
-    return Math.max(0, val);
-  }
-
-  // Public API methods
 
   getTickers(exchange?: ExchangeId, symbols?: string[]): TickerWithMeta[] {
     let tickers = Array.from(this.tickerCache.values());
@@ -275,91 +242,19 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     return tickers;
   }
 
-  getTopGainers(limit = 50): TickerWithMeta[] {
-    return this.getTickers()
-      .sort((a, b) => (b.priceChangePercent24h || 0) - (a.priceChangePercent24h || 0))
-      .slice(0, limit);
-  }
-
-  getTopLosers(limit = 50): TickerWithMeta[] {
-    return this.getTickers()
-      .sort((a, b) => (a.priceChangePercent24h || 0) - (b.priceChangePercent24h || 0))
-      .slice(0, limit);
-  }
-
-  getTopVolume(limit = 50): TickerWithMeta[] {
-    return this.getTickers()
-      .sort((a, b) => b.volume24h - a.volume24h)
-      .slice(0, limit);
-  }
-
-  async getCandles(
-    symbol: string,
-    timeframe: Timeframe,
-    exchange?: ExchangeId,
-    limit = 500,
-    endTime?: number,
-  ): Promise<Candle[]> {
+  async getCandles(symbol: string, timeframe: Timeframe, exchange?: ExchangeId, limit = 500, endTime?: number): Promise<Candle[]> {
     const cacheKey = `candle:${symbol}:${exchange || 'all'}:${timeframe}`;
     const cached = this.candleCache.get(cacheKey);
-    if (cached?.length && !endTime) {
-      return cached.slice(-limit);
-    }
+    if (cached?.length && !endTime) return cached.slice(-limit);
 
     try {
       const candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);
-      if (candles.length > 0 && !endTime) {
-        this.candleCache.set(cacheKey, candles);
-      }
+      if (candles.length > 0 && !endTime) this.candleCache.set(cacheKey, candles);
       return candles;
     } catch (err) {
       this.logger.error(`Failed to fetch candles for ${symbol}:`, err);
       return cached?.slice(-limit) || [];
     }
-  }
-
-  async getHistoricalCandles(
-    symbol: string,
-    timeframe: Timeframe,
-    exchange: ExchangeId,
-    startTime: number,
-    endTime: number,
-  ): Promise<Candle[]> {
-    try {
-      const result = await this.db.query<any>(
-        `SELECT timestamp as time, open, high, low, close, volume, trades
-         FROM candles
-         WHERE symbol = $1 AND exchange = $2 AND timeframe = $3
-           AND timestamp >= $4 AND timestamp <= $5
-         ORDER BY timestamp ASC`,
-        [symbol, exchange, timeframe, startTime, endTime],
-      );
-      if (result.rows.length > 0) {
-        return result.rows.map(row => ({
-          ...row,
-          exchange,
-          marketType: 'spot',
-          timeframe,
-          isClosed: true,
-          time: parseInt(row.time),
-          open: parseFloat(row.open),
-          high: parseFloat(row.high),
-          low: parseFloat(row.low),
-          close: parseFloat(row.close),
-          volume: parseFloat(row.volume),
-        }));
-      }
-    } catch { /* fallback */ }
-    return this.exchangeManager.fetchCandles(symbol, timeframe, exchange, 1000);
-  }
-
-  async getOrderBook(symbol: string, exchange?: ExchangeId): Promise<OrderBook | null> {
-    if (exchange) {
-      const key = `ob:${exchange}:${symbol}`;
-      const cached = this.orderbookCache.get(key);
-      if (cached) return cached;
-    }
-    return this.exchangeManager.fetchOrderBook(symbol, exchange);
   }
 
   subscribeSymbol(symbol: string): void {
@@ -392,12 +287,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
     this.subscribedCandles.set(key, { symbol, timeframe, exchange });
     this.exchangeManager.subscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
-    
-    // Crucial: ensure trades are also subscribed to drive real-time tick updates on the chart
     this.exchangeManager.subscribeTrades(symbol, exchange ? [exchange] : undefined);
-
-    const redisKey = this.subKey('candle', symbol, timeframe, exchange);
-    this.redisIncrSub(redisKey).catch(() => {});
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe, exchange?: ExchangeId): void {
@@ -407,26 +297,17 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.candleSubscriptionRefs.delete(key);
       this.subscribedCandles.delete(key);
       this.exchangeManager.unsubscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
-      
-      // If no other candle or symbol sub needs these trades, they will be cleaned up eventually
-      // For now, let's keep it simple and match subscribeCandle's addition
       this.exchangeManager.unsubscribeTrades(symbol, exchange ? [exchange] : undefined);
-
-      const redisKey = this.subKey('candle', symbol, timeframe, exchange);
-      this.redisDecrSub(redisKey).catch(() => {});
       return;
     }
     this.candleSubscriptionRefs.set(key, currentRefs - 1);
   }
 
   subscribeOrderBook(symbol: string, exchange?: ExchangeId): void {
-    this.logger.log(`[OrderBook] Subscribe request: ${symbol} on ${exchange || 'all exchanges'}`);
     this.exchangeManager.subscribeOrderBook(symbol, exchange ? [exchange] : undefined);
-    this.logger.log(`[OrderBook] Subscription sent to ExchangeManager`);
   }
 
   unsubscribeOrderBook(symbol: string, exchange?: ExchangeId): void {
-    console.log('[MarketService] unsubscribeOrderBook:', symbol, exchange || 'all exchanges');
     this.exchangeManager.unsubscribeOrderBook(symbol, exchange ? [exchange] : undefined);
   }
 
@@ -450,14 +331,18 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       for (const ticker of tickers) {
         const key = `${ticker.exchange}:${ticker.symbol}`;
         const existing = this.tickerCache.get(key);
-        this.tickerCache.set(key, { ...ticker, volatility: existing?.volatility || 0, atr: existing?.atr || 0 });
+        this.tickerCache.set(key, { 
+          ...(existing || {}), 
+          ...ticker, 
+          volatility: existing?.volatility || 0, 
+          atr: existing?.atr || 0 
+        } as TickerWithMeta);
       }
     } catch { /* fail */ }
   }
 
   @Interval(60000)
   private async persistHealth() {
-    const health = this.getExchangeHealth();
-    await this.db.cacheSet(EXCHANGE_HEALTH_KEY, health, 300).catch(() => {});
+    this.db.cacheSet(EXCHANGE_HEALTH_KEY, this.getExchangeHealth(), 300).catch(() => {});
   }
 }

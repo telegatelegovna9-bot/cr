@@ -17,8 +17,8 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log'],
   });
 
-  // Enable trust proxy for Railway load balancer (fixes rate limit issues)
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  // Enable trust proxy for Railway load balancer (proper Express way)
+  app.set('trust proxy', 1);
 
   // Enable raw WebSocket adapter
   app.useWebSocketAdapter(new WsAdapter(app));

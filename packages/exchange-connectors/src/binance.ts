@@ -19,7 +19,6 @@ export class BinanceConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
-  // Active stream names that survive reconnects (not cleared on close)
   private activeFuturesSubs = new Set<string>();
   private futuresReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private spotPendingStreams = new Map<string, 'SUBSCRIBE' | 'UNSUBSCRIBE'>();
@@ -45,7 +44,6 @@ export class BinanceConnector extends BaseExchangeConnector {
     const futuresWs = new WebSocket(BINANCE_FUTURES_WS_URL);
     this.setupFuturesWS(futuresWs);
 
-    // Wait for BOTH to be ready (or timeout)
     await Promise.allSettled([
       new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, 10_000);
@@ -65,7 +63,6 @@ export class BinanceConnector extends BaseExchangeConnector {
 
     futuresWs.on('open', () => {
       this.futuresConnected = true;
-      // Re-subscribe all active futures streams
       for (const stream of this.activeFuturesSubs) {
         this.enqueueFuturesControl('SUBSCRIBE', stream);
       }
@@ -75,9 +72,6 @@ export class BinanceConnector extends BaseExchangeConnector {
       try {
         const msg = JSON.parse(data.toString()) as Record<string, unknown>;
         msg.__marketType = 'futures';
-        if (msg.data && typeof msg.data === 'object') {
-          (msg.data as Record<string, unknown>).__marketType = 'futures';
-        }
         this.handleMessage(msg);
       } catch { /* ignore non-JSON */ }
     });
@@ -101,7 +95,7 @@ export class BinanceConnector extends BaseExchangeConnector {
 
     futuresWs.on('unexpected-response', (_req: unknown, res: { statusCode: number }) => {
       if (res.statusCode === 451) {
-        console.error('[binance] Futures WS geo-blocked (HTTP 451) — futures disabled');
+        console.error('[binance] Futures WS geo-blocked (HTTP 451)');
         this.futuresWs?.close();
       }
     });
@@ -124,172 +118,167 @@ export class BinanceConnector extends BaseExchangeConnector {
     return isFutures ? `${base}USDT` : this.toLocalSymbol(symbol);
   }
 
+  private toFuturesSymbol(raw: string): string {
+    const base = raw.toUpperCase().replace(/USDT$/, '');
+    return `${base}/USDT:USDT`;
+  }
+
   subscribeTicker(symbol: string): void {
+    const local = this.toBinanceSymbol(symbol).toLowerCase();
+    const key = `ticker:${symbol}`;
+
     if (this.isFuturesSymbol(symbol)) {
-      const local = this.toBinanceSymbol(symbol).toLowerCase();
-      const key = `ticker:${symbol}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
       const stream = `${local}@ticker`;
       this.activeFuturesSubs.add(stream);
       this.enqueueFuturesControl('SUBSCRIBE', stream);
-      return;
+    } else {
+      if (this.subscriptions.has(key)) return;
+      this.subscriptions.add(key);
+      this.enqueueSpotControl('SUBSCRIBE', `${local}@ticker`);
     }
-
-    const local = this.toLocalSymbol(symbol).toLowerCase();
-    const key = `ticker:${symbol}`;
-    if (this.subscriptions.has(key)) return;
-    this.subscriptions.add(key);
-    this.enqueueSpotControl('SUBSCRIBE', `${local}@ticker`);
   }
 
   subscribeCandle(symbol: string, timeframe: Timeframe): void {
+    const local = this.toBinanceSymbol(symbol).toLowerCase();
+    const tf = TIMEFRAME_MAP[timeframe];
+    const key = `candle:${symbol}:${timeframe}`;
+
     if (this.isFuturesSymbol(symbol)) {
-      const local = this.toBinanceSymbol(symbol).toLowerCase();
-      const tf = TIMEFRAME_MAP[timeframe];
-      const key = `candle:${symbol}:${timeframe}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
       const stream = `${local}@kline_${tf}`;
       this.activeFuturesSubs.add(stream);
       this.enqueueFuturesControl('SUBSCRIBE', stream);
-      return;
+    } else {
+      if (this.subscriptions.has(key)) return;
+      this.subscriptions.add(key);
+      this.enqueueSpotControl('SUBSCRIBE', `${local}@kline_${tf}`);
     }
-
-    const local = this.toLocalSymbol(symbol).toLowerCase();
-    const tf = TIMEFRAME_MAP[timeframe];
-    const key = `candle:${symbol}:${timeframe}`;
-    if (this.subscriptions.has(key)) return;
-    this.subscriptions.add(key);
-    this.enqueueSpotControl('SUBSCRIBE', `${local}@kline_${tf}`);
   }
 
   subscribeOrderBook(symbol: string): void {
+    const local = this.toBinanceSymbol(symbol).toLowerCase();
     const key = `orderbook:${symbol}`;
+
     if (this.isFuturesSymbol(symbol)) {
       if (this.futuresSubscriptions.has(key)) return;
-      const local = this.toBinanceSymbol(symbol).toLowerCase();
       this.futuresSubscriptions.add(key);
       const stream = `${local}@depth@100ms`;
       this.activeFuturesSubs.add(stream);
       this.enqueueFuturesControl('SUBSCRIBE', stream);
     } else {
       if (this.subscriptions.has(key)) return;
-      const local = this.toLocalSymbol(symbol).toLowerCase();
       this.subscriptions.add(key);
       this.enqueueSpotControl('SUBSCRIBE', `${local}@depth@100ms`);
     }
   }
 
   subscribeTrades(symbol: string): void {
+    const local = this.toBinanceSymbol(symbol).toLowerCase();
     const key = `trades:${symbol}`;
+
     if (this.isFuturesSymbol(symbol)) {
       if (this.futuresSubscriptions.has(key)) return;
-      const local = this.toBinanceSymbol(symbol).toLowerCase();
       this.futuresSubscriptions.add(key);
       const stream = `${local}@aggTrade`;
       this.activeFuturesSubs.add(stream);
       this.enqueueFuturesControl('SUBSCRIBE', stream);
-      return;
+    } else {
+      if (this.subscriptions.has(key)) return;
+      this.subscriptions.add(key);
+      this.enqueueSpotControl('SUBSCRIBE', `${local}@aggTrade`);
     }
-
-    const local = this.toLocalSymbol(symbol).toLowerCase();
-    if (this.subscriptions.has(key)) return;
-    this.subscriptions.add(key);
-    this.enqueueSpotControl('SUBSCRIBE', `${local}@aggTrade`);
   }
 
   unsubscribeTicker(symbol: string): void {
-    if (this.isFuturesSymbol(symbol)) {
-      const local = this.toBinanceSymbol(symbol).toLowerCase();
-      this.futuresSubscriptions.delete(`ticker:${symbol}`);
-      const stream = `${local}@ticker`;
-      this.activeFuturesSubs.delete(stream);
-      this.enqueueFuturesControl('UNSUBSCRIBE', stream);
-      return;
-    }
+    const local = this.toBinanceSymbol(symbol).toLowerCase();
+    const key = `ticker:${symbol}`;
 
-    const local = this.toLocalSymbol(symbol).toLowerCase();
-    this.subscriptions.delete(`ticker:${symbol}`);
-    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@ticker`);
+    if (this.isFuturesSymbol(symbol)) {
+      this.futuresSubscriptions.delete(key);
+      this.activeFuturesSubs.delete(`${local}@ticker`);
+      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@ticker`);
+    } else {
+      this.subscriptions.delete(key);
+      this.enqueueSpotControl('UNSUBSCRIBE', `${local}@ticker`);
+    }
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe): void {
-    if (this.isFuturesSymbol(symbol)) {
-      const local = this.toBinanceSymbol(symbol).toLowerCase();
-      const tf = TIMEFRAME_MAP[timeframe];
-      this.futuresSubscriptions.delete(`candle:${symbol}:${timeframe}`);
-      const stream = `${local}@kline_${tf}`;
-      this.activeFuturesSubs.delete(stream);
-      this.enqueueFuturesControl('UNSUBSCRIBE', stream);
-      return;
-    }
-
-    const local = this.toLocalSymbol(symbol).toLowerCase();
+    const local = this.toBinanceSymbol(symbol).toLowerCase();
     const tf = TIMEFRAME_MAP[timeframe];
-    this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
-    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@kline_${tf}`);
+    const key = `candle:${symbol}:${timeframe}`;
+
+    if (this.isFuturesSymbol(symbol)) {
+      this.futuresSubscriptions.delete(key);
+      this.activeFuturesSubs.delete(`${local}@kline_${tf}`);
+      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@kline_${tf}`);
+    } else {
+      this.subscriptions.delete(key);
+      this.enqueueSpotControl('UNSUBSCRIBE', `${local}@kline_${tf}`);
+    }
   }
 
   unsubscribeOrderBook(symbol: string): void {
+    const local = this.toBinanceSymbol(symbol).toLowerCase();
     const key = `orderbook:${symbol}`;
+
     if (this.isFuturesSymbol(symbol)) {
       this.futuresSubscriptions.delete(key);
-      const local = this.toBinanceSymbol(symbol).toLowerCase();
-      const stream = `${local}@depth@100ms`;
-      this.activeFuturesSubs.delete(stream);
-      this.enqueueFuturesControl('UNSUBSCRIBE', stream);
+      this.activeFuturesSubs.delete(`${local}@depth@100ms`);
+      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@depth@100ms`);
     } else {
       this.subscriptions.delete(key);
-      const local = this.toLocalSymbol(symbol).toLowerCase();
       this.enqueueSpotControl('UNSUBSCRIBE', `${local}@depth@100ms`);
     }
   }
 
   unsubscribeTrades(symbol: string): void {
+    const local = this.toBinanceSymbol(symbol).toLowerCase();
     const key = `trades:${symbol}`;
-    if (this.isFuturesSymbol(symbol)) {
-      const local = this.toBinanceSymbol(symbol).toLowerCase();
-      this.futuresSubscriptions.delete(key);
-      const stream = `${local}@aggTrade`;
-      this.activeFuturesSubs.delete(stream);
-      this.enqueueFuturesControl('UNSUBSCRIBE', stream);
-      return;
-    }
 
-    const local = this.toLocalSymbol(symbol).toLowerCase();
-    this.subscriptions.delete(key);
-    this.enqueueSpotControl('UNSUBSCRIBE', `${local}@aggTrade`);
+    if (this.isFuturesSymbol(symbol)) {
+      this.futuresSubscriptions.delete(key);
+      this.activeFuturesSubs.delete(`${local}@aggTrade`);
+      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@aggTrade`);
+    } else {
+      this.subscriptions.delete(key);
+      this.enqueueSpotControl('UNSUBSCRIBE', `${local}@aggTrade`);
+    }
   }
 
   protected handleMessage(msg: Record<string, unknown>): void {
     if (msg.error) {
-      console.error(`[binance] WS error message:`, JSON.stringify(msg));
+      console.error(`[binance] WS error:`, JSON.stringify(msg));
       return;
     }
 
     if (!msg.e && !msg.data && !msg.stream) return;
 
     const data = msg.data as Record<string, unknown> | undefined;
-    const eventType = (data?.e as string) || (msg.e as string);
+    const payload = data || msg;
+    const eventType = (payload.e as string) || (msg.e as string);
 
-    if (data && msg.stream) {
-      (data as Record<string, unknown>).__stream = msg.stream;
+    // Explicitly copy market type to payload to avoid loss during data passing
+    if (!payload.__marketType) {
+      (payload as any).__marketType = msg.__marketType;
     }
 
     switch (eventType) {
       case '24hrTicker':
-        this.handleTicker(data || msg);
+        this.handleTicker(payload);
         break;
       case 'kline':
-        this.handleKline(data || msg);
+        this.handleKline(payload);
         break;
       case 'depthUpdate':
-        this.handleDepthUpdate(data || msg);
+        this.handleDepthUpdate(payload);
         break;
       case 'trade':
       case 'aggTrade':
-        this.handleTrade(data || msg);
+        this.handleTrade(payload);
         break;
     }
   }
@@ -342,24 +331,16 @@ export class BinanceConnector extends BaseExchangeConnector {
 
   private handleDepthUpdate(data: Record<string, unknown>): void {
     const bidsRaw = (data.bids || data.b) as [string, string][] | undefined;
-    const bids = bidsRaw?.map(([p, q]: [string, string]) => ({
-      price: parseFloat(p),
-      quantity: parseFloat(q),
-    })).filter(l => l.quantity > 0) || [];
+    const bids = bidsRaw?.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })).filter(l => l.quantity > 0) || [];
     const asksRaw = (data.asks || data.a) as [string, string][] | undefined;
-    const asks = asksRaw?.map(([p, q]: [string, string]) => ({
-      price: parseFloat(p),
-      quantity: parseFloat(q),
-    })).filter(l => l.quantity > 0) || [];
+    const asks = asksRaw?.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })).filter(l => l.quantity > 0) || [];
 
     const isFutures = data.__marketType === 'futures';
     let rawSymbol = (data.s as string) || '';
     if (!rawSymbol && data.__stream) {
       rawSymbol = (data.__stream as string).split('@')[0].toUpperCase();
     }
-    const symbol = rawSymbol
-      ? (isFutures ? this.toFuturesSymbol(rawSymbol) : this.fromLocalSymbol(rawSymbol))
-      : 'unknown';
+    const symbol = rawSymbol ? (isFutures ? this.toFuturesSymbol(rawSymbol) : this.fromLocalSymbol(rawSymbol)) : 'unknown';
 
     if (symbol === 'unknown' || (!bids.length && !asks.length)) return;
 
@@ -387,15 +368,6 @@ export class BinanceConnector extends BaseExchangeConnector {
       timestamp: (data.T || data.E) as number,
     };
     this.emit('trade', trade);
-
-    const ticker: Partial<Ticker> = {
-      exchange: 'binance',
-      marketType: isFutures ? 'futures' : 'spot',
-      symbol,
-      lastPrice: trade.price,
-      timestamp: trade.timestamp,
-    };
-    this.emit('ticker', ticker as Ticker);
   }
 
   async fetchTickers(symbols?: string[]): Promise<Ticker[]> {
@@ -407,13 +379,34 @@ export class BinanceConnector extends BaseExchangeConnector {
     const results: Ticker[] = [];
 
     if (spotRes.status === 'fulfilled') {
-      const spot = spotRes.value
-        .filter(t => (t.symbol as string).endsWith('USDT'))
-        .map((t): Ticker => ({
+      results.push(...spotRes.value.filter(t => (t.symbol as string).endsWith('USDT')).map((t): Ticker => ({
+        exchange: 'binance',
+        marketType: 'spot',
+        symbol: normalizeSymbol(t.symbol as string, 'binance'),
+        lastPrice: parseFloat(t.lastPrice as string),
+        priceChange24h: parseFloat(t.priceChange as string),
+        volume24h: parseFloat(t.volume as string),
+        high24h: parseFloat(t.highPrice as string),
+        low24h: parseFloat(t.lowPrice as string),
+        timestamp: Date.now(),
+        priceChangePercent24h: parseFloat(t.priceChangePercent as string),
+        quoteVolume24h: parseFloat(t.quoteVolume as string),
+        trades24h: parseInt(t.count as string, 10),
+        bid: parseFloat(t.bidPrice as string),
+        ask: parseFloat(t.askPrice as string),
+        spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
+      })));
+    }
+
+    if (futuresRes.status === 'fulfilled') {
+      results.push(...futuresRes.value.filter(t => (t.symbol as string).endsWith('USDT')).map((t): Ticker => {
+        const symbol = this.toFuturesSymbol(t.symbol as string);
+        const lastPrice = parseFloat(t.lastPrice as string);
+        return {
           exchange: 'binance',
-          marketType: 'spot',
-          symbol: normalizeSymbol(t.symbol as string, 'binance'),
-          lastPrice: parseFloat(t.lastPrice as string),
+          marketType: 'futures',
+          symbol,
+          lastPrice,
           priceChange24h: parseFloat(t.priceChange as string),
           volume24h: parseFloat(t.volume as string),
           high24h: parseFloat(t.highPrice as string),
@@ -422,40 +415,11 @@ export class BinanceConnector extends BaseExchangeConnector {
           priceChangePercent24h: parseFloat(t.priceChangePercent as string),
           quoteVolume24h: parseFloat(t.quoteVolume as string),
           trades24h: parseInt(t.count as string, 10),
-          bid: parseFloat(t.bidPrice as string),
-          ask: parseFloat(t.askPrice as string),
-          spread: parseFloat(t.askPrice as string) - parseFloat(t.bidPrice as string),
-        }));
-      results.push(...spot);
-    }
-
-    if (futuresRes.status === 'fulfilled') {
-      const futures = futuresRes.value
-        .filter(t => (t.symbol as string).endsWith('USDT'))
-        .map((t): Ticker => {
-          const raw = t.symbol as string;
-          const base = raw.slice(0, -4);
-          const symbol = `${base}/USDT:USDT`;
-          const lastPrice = parseFloat(t.lastPrice as string);
-          return {
-            exchange: 'binance',
-            marketType: 'futures',
-            symbol,
-            lastPrice,
-            priceChange24h: parseFloat(t.priceChange as string),
-            volume24h: parseFloat(t.volume as string),
-            high24h: parseFloat(t.highPrice as string),
-            low24h: parseFloat(t.lowPrice as string),
-            timestamp: Date.now(),
-            priceChangePercent24h: parseFloat(t.priceChangePercent as string),
-            quoteVolume24h: parseFloat(t.quoteVolume as string),
-            trades24h: parseInt(t.count as string, 10),
-            bid: lastPrice,
-            ask: lastPrice,
-            spread: 0,
-          };
-        });
-      results.push(...futures);
+          bid: lastPrice,
+          ask: lastPrice,
+          spread: 0,
+        };
+      }));
     }
 
     if (symbols) return results.filter(t => symbols.includes(t.symbol));
@@ -471,10 +435,10 @@ export class BinanceConnector extends BaseExchangeConnector {
     let url = `${baseUrl}${path}?symbol=${local}&interval=${tf}&limit=${limit}`;
     if (endTime) url += `&endTime=${endTime}`;
 
-    const data = await this.fetchArray<unknown[]>(url, `${symbol} ${timeframe} candles`);
+    const data = await this.fetchArray<unknown[]>(url, `${symbol} candles`);
     if (!Array.isArray(data)) return [];
 
-    return (data as unknown[][]).map((k: unknown[]): Candle => ({
+    return (data as unknown[][]).map((k): Candle => ({
       exchange: 'binance',
       marketType: isFutures ? 'futures' : 'spot',
       symbol,
@@ -492,11 +456,7 @@ export class BinanceConnector extends BaseExchangeConnector {
 
   async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
     const local = this.toLocalSymbol(symbol);
-    const data = await this.fetch<{
-      bids: [string, string][];
-      asks: [string, string][];
-    }>(`/api/v3/depth?symbol=${local}&limit=${limit}`);
-
+    const data = await this.fetch<{ bids: [string, string][]; asks: [string, string][] }>(`/api/v3/depth?symbol=${local}&limit=${limit}`);
     return {
       symbol,
       exchange: 'binance',
@@ -506,28 +466,17 @@ export class BinanceConnector extends BaseExchangeConnector {
     };
   }
 
-  private toFuturesSymbol(raw: string): string {
-    const base = raw.toUpperCase().replace(/USDT$/, '');
-    return `${base}/USDT:USDT`;
-  }
-
   private sendFutures(data: unknown): void {
     if (this.futuresWs && this.futuresWs.readyState === 1) {
       this.futuresWs.send(JSON.stringify(data));
     }
   }
 
-  protected getPingMessage(): null {
-    return null;
-  }
+  protected getPingMessage(): null { return null; }
 
   disconnect(): void {
     super.disconnect();
     this.clearControlBatchTimers();
-    if (this.futuresReconnectTimer) {
-      clearTimeout(this.futuresReconnectTimer);
-      this.futuresReconnectTimer = null;
-    }
     if (this.futuresWs) {
       this.futuresWs.removeAllListeners();
       this.futuresWs.close();
@@ -536,8 +485,6 @@ export class BinanceConnector extends BaseExchangeConnector {
     this.futuresConnected = false;
     this.futuresSubscriptions.clear();
     this.activeFuturesSubs.clear();
-    this.spotPendingStreams.clear();
-    this.futuresPendingStreams.clear();
   }
 
   private enqueueSpotControl(method: 'SUBSCRIBE' | 'UNSUBSCRIBE', stream: string): void {
@@ -584,9 +531,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     this.futuresPendingStreams.clear();
   }
 
-  private groupPendingStreams(
-    streams: Map<string, 'SUBSCRIBE' | 'UNSUBSCRIBE'>,
-  ): Array<['SUBSCRIBE' | 'UNSUBSCRIBE', string[]]> {
+  private groupPendingStreams(streams: Map<string, 'SUBSCRIBE' | 'UNSUBSCRIBE'>): Array<['SUBSCRIBE' | 'UNSUBSCRIBE', string[]]> {
     const groups = new Map<'SUBSCRIBE' | 'UNSUBSCRIBE', string[]>();
     for (const [stream, method] of streams) {
       const params = groups.get(method) || [];
@@ -597,42 +542,14 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   private clearControlBatchTimers(): void {
-    this.clearSpotControlBatch();
-    this.clearFuturesControlBatch();
-  }
-
-  private clearSpotControlBatch(): void {
-    if (this.spotBatchTimer) {
-      clearTimeout(this.spotBatchTimer);
-      this.spotBatchTimer = null;
-    }
-    this.spotPendingStreams.clear();
-  }
-
-  private clearFuturesControlBatch(): void {
-    if (this.futuresBatchTimer) {
-      clearTimeout(this.futuresBatchTimer);
-      this.futuresBatchTimer = null;
-    }
-    this.futuresPendingStreams.clear();
+    if (this.spotBatchTimer) { clearTimeout(this.spotBatchTimer); this.spotBatchTimer = null; }
+    if (this.futuresBatchTimer) { clearTimeout(this.futuresBatchTimer); this.futuresBatchTimer = null; }
   }
 
   private async fetchArray<T>(url: string, label: string): Promise<T[]> {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`[binance] Failed to fetch ${label}: HTTP ${response.status} ${body.slice(0, 200)}`);
-    }
-
+    const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error(`[binance] Failed to fetch ${label}: HTTP ${response.status}`);
     const data = await response.json();
-    if (!Array.isArray(data)) {
-      throw new Error(`[binance] Failed to fetch ${label}: unexpected response`);
-    }
-
-    return data as T[];
+    return Array.isArray(data) ? data : (data as { data?: T[] }).data || [];
   }
 }
