@@ -304,7 +304,19 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     const { open, high, low, close, volume, time: timestamp } = latestCandle;
     if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
 
-    const time = (timestamp / 1000) as Time;
+    // Update our history ref so ticker updates use the correct open price
+    const timeInSeconds = Math.floor(timestamp / 1000);
+    const existingIdx = allRawRef.current.findIndex(c => Math.floor((c.time || c.timestamp) / 1000) === timeInSeconds);
+    
+    if (existingIdx >= 0) {
+      allRawRef.current[existingIdx] = { ...latestCandle };
+    } else {
+      // New candle arrived
+      allRawRef.current.push({ ...latestCandle });
+      if (allRawRef.current.length > 2000) allRawRef.current.shift();
+    }
+
+    const time = timeInSeconds as Time;
     try {
       candleSeriesRef.current.applyOptions({ priceFormat: getChartPriceFormat(close) });
       candleSeriesRef.current.update({ time, open, high, low, close });
@@ -316,6 +328,41 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       setCurrentPrice(close);
     } catch { /* chart transitioning */ }
   }, [latestCandle, symbol, effectiveSymbol, exchange, timeframe, marketType, paused]);
+
+  // ─── Real-time Tick Update (Inside Candle) ─────────────────
+  useEffect(() => {
+    if (paused || !dataLoadedRef.current || !candleSeriesRef.current || !volumeSeriesRef.current || !ticker) return;
+    
+    // Ensure ticker is for this specific chart
+    if (ticker.symbol !== effectiveSymbol || ticker.exchange !== exchange) return;
+
+    const lastCandle = allRawRef.current[allRawRef.current.length - 1];
+    if (!lastCandle) return;
+
+    const time = (Math.floor((lastCandle.time || lastCandle.timestamp) / 1000)) as Time;
+    const price = ticker.lastPrice;
+    
+    // Only update if it's the same time bucket as our last known candle
+    // and if the ticker is reasonably fresh
+    if (Date.now() - ticker.timestamp > 10000) return;
+
+    try {
+      const newHigh = Math.max(lastCandle.high, price);
+      const newLow = Math.min(lastCandle.low, price);
+      
+      // Update visual candle without modifying allRawRef (let the real candle WS update it properly)
+      candleSeriesRef.current.update({
+        time,
+        open: lastCandle.open,
+        high: newHigh,
+        low: newLow,
+        close: price
+      });
+      
+      // Update header price
+      setCurrentPrice(price);
+    } catch (err) { /* ignore */ }
+  }, [ticker, paused, exchange, effectiveSymbol]);
 
   // ─── Chart Initialization ───────────────────────────────────
   useEffect(() => {
