@@ -308,6 +308,8 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       // New candle arrived
       allRawRef.current.push({ ...latestCandle });
       if (allRawRef.current.length > 2000) allRawRef.current.shift();
+      // If REST load returned empty, seed oldestTime so scroll-to-history works
+      if (oldestTimeRef.current === null) oldestTimeRef.current = timeInSeconds;
     }
 
     const time = timeInSeconds as Time;
@@ -435,12 +437,21 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         if (initialData && initialData.length > 0 && (!initialTimeframe || initialTimeframe === timeframe)) {
           raw = initialData;
         } else {
-          const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(effectiveSymbol)}&timeframe=${timeframe}&limit=300`
-          );
-          if (!cancelled && resp.ok) {
+          const fetchCandles = async () => {
+            const resp = await fetch(
+              `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(effectiveSymbol)}&timeframe=${timeframe}&limit=300`
+            );
+            if (!resp.ok) return [];
             const data = await resp.json();
-            raw = data.data || [];
+            return data.data || [];
+          };
+          if (!cancelled) {
+            raw = await fetchCandles();
+            // Retry once if empty — Binance REST sometimes returns [] on first request
+            if (!raw.length && !cancelled) {
+              await new Promise(r => setTimeout(r, 800));
+              if (!cancelled) raw = await fetchCandles();
+            }
           }
         }
         if (raw.length && !cancelled) {

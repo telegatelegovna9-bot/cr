@@ -232,7 +232,12 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     const cached = this.candleCache.get(cacheKey);
     if (cached?.length && !endTime) return cached.slice(-limit);
     try {
-      const candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);
+      let candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);
+      // Retry once on empty result (Binance REST can return [] on cold start)
+      if (!candles.length && !endTime) {
+        await new Promise(r => setTimeout(r, 600));
+        candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);
+      }
       if (candles.length > 0 && !endTime) this.candleCache.set(cacheKey, candles);
       return candles;
     } catch (err) {
