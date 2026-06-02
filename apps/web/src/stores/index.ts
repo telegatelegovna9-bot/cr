@@ -9,10 +9,14 @@ import { DEFAULT_HEATMAP_SETTINGS } from '@/lib/liquidity-engine';
 // Market Store
 // ============================================================
 
+function candleMapKey(candle: { exchange: string; marketType?: string; symbol: string; timeframe: string }): string {
+  return `${candle.exchange}:${candle.marketType ?? 'spot'}:${candle.symbol}:${candle.timeframe}`;
+}
+
 interface MarketStore {
   tickers: Map<string, Ticker>;
   tickersLoaded: boolean;
-  latestCandle: Candle | null;
+  latestCandles: Map<string, Candle>;
   selectedSymbol: string;
   selectedExchange: ExchangeId;
   selectedTimeframe: Timeframe;
@@ -22,6 +26,7 @@ interface MarketStore {
   setTickers: (tickers: Ticker[]) => void;
   updateTicker: (ticker: Ticker) => void;
   updateCandle: (candle: Candle) => void;
+  getLatestCandle: (exchange: string, marketType: string, symbol: string, timeframe: string) => Candle | undefined;
   setSelectedSymbol: (symbol: string) => void;
   setSelectedExchange: (exchange: ExchangeId) => void;
   setSelectedTimeframe: (timeframe: Timeframe) => void;
@@ -34,7 +39,7 @@ interface MarketStore {
 export const useMarketStore = create<MarketStore>((set, get) => ({
   tickers: new Map(),
   tickersLoaded: false,
-  latestCandle: null,
+  latestCandles: new Map(),
   selectedSymbol: 'BTC/USDT',
   selectedExchange: 'binance',
   selectedTimeframe: '1h',
@@ -56,7 +61,16 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   },
 
   updateCandle: (candle) => {
-    set({ latestCandle: candle });
+    const key = candleMapKey(candle);
+    set(state => {
+      const newMap = new Map(state.latestCandles);
+      newMap.set(key, candle);
+      return { latestCandles: newMap };
+    });
+  },
+
+  getLatestCandle: (exchange, marketType, symbol, timeframe) => {
+    return get().latestCandles.get(`${exchange}:${marketType}:${symbol}:${timeframe}`);
   },
 
   setSelectedSymbol: (symbol) => set({ selectedSymbol: symbol }),

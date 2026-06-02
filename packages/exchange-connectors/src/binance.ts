@@ -25,6 +25,8 @@ export class BinanceConnector extends BaseExchangeConnector {
   private futuresPendingStreams = new Map<string, 'SUBSCRIBE' | 'UNSUBSCRIBE'>();
   private spotBatchTimer: ReturnType<typeof setTimeout> | null = null;
   private futuresBatchTimer: ReturnType<typeof setTimeout> | null = null;
+  private futuresControlRetries = 0;
+  private static readonly MAX_FUTURES_CONTROL_RETRIES = 10;
 
   constructor() {
     super({ id: 'binance', wsUrl: BINANCE_SPOT_WS_URL, restUrl: BINANCE_SPOT_REST_URL, rateLimit: 1200 });
@@ -46,6 +48,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     this.futuresWs = ws;
     ws.on('open', () => {
       this.futuresConnected = true;
+      this.emit('connected');
       for (const s of this.activeFuturesSubs) this.enqueueFuturesControl('SUBSCRIBE', s);
     });
     ws.on('message', (data: Buffer) => {
@@ -60,7 +63,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       this.futuresConnected = false; this.futuresWs = null; this.futuresSubscriptions.clear(); this.clearFuturesControlBatch();
       if (!this.futuresReconnectTimer) this.futuresReconnectTimer = setTimeout(() => { this.futuresReconnectTimer = null; this.reconnectFuturesWS(); }, WS_RECONNECT_DELAY);
     });
-    ws.on('error', (err: Error) => console.warn(`[binance] Futures WS error: ${err.message}`));
+    ws.on('error', (err: Error) => { console.warn(`[binance] Futures WS error: ${err.message}`); ws.close(); });
     ws.on('unexpected-response', (_req, res) => { if (res.statusCode === 451) { console.error('[binance] Futures blocked (451)'); this.futuresWs?.close(); } });
   }
 
@@ -299,12 +302,20 @@ export class BinanceConnector extends BaseExchangeConnector {
   private flushFuturesControl(): void {
     if (!this.futuresWs || this.futuresWs.readyState !== 1 || this.futuresPendingStreams.size === 0) {
       if (this.futuresPendingStreams.size > 0 && (!this.futuresWs || this.futuresWs.readyState !== 1)) {
+        this.futuresControlRetries++;
+        if (this.futuresControlRetries >= BinanceConnector.MAX_FUTURES_CONTROL_RETRIES) {
+          console.warn(`[binance] Max futures control retries reached (${this.futuresControlRetries}), discarding ${this.futuresPendingStreams.size} pending`);
+          this.futuresPendingStreams.clear();
+          this.futuresControlRetries = 0;
+          return;
+        }
         if (!this.futuresBatchTimer) this.futuresBatchTimer = setTimeout(() => { this.futuresBatchTimer = null; this.flushFuturesControl(); }, 1000);
       }
       return;
     }
     for (const [m, p] of this.groupPendingStreams(this.futuresPendingStreams)) this.sendFutures({ method: m, params: p, id: Date.now() });
     this.futuresPendingStreams.clear();
+    this.futuresControlRetries = 0;
   }
 
   private groupPendingStreams(streams: Map<string, any>): Array<[any, string[]]> {
@@ -321,5 +332,10 @@ export class BinanceConnector extends BaseExchangeConnector {
     const data = await r.json(); return Array.isArray(data) ? data : data.data || [];
   }
 
-  private clearFuturesControlBatch(): void { if (this.futuresBatchTimer) { clearTimeout(this.futuresBatchTimer); this.futuresBatchTimer = null; } this.futuresPendingStreams.clear(); }
+  private clearFuturesControlBatch(): void { if (this.futuresBatchTimer) { clearTimeout(this.futuresBatchTimer); this.futuresBatchTimer = null; } this.futuresPendingStreams.clear(); this.futuresControlRetries = 0; }
+
+  /** Override isConnected to also check the independent futures WS connection. */
+  isConnected(): boolean {
+    return this.connected || this.futuresConnected;
+  }
 }

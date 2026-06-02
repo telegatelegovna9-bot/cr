@@ -82,7 +82,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
-  const latestCandle = useMarketStore(state => state.latestCandle);
+  const latestCandle = useMarketStore(state => state.getLatestCandle(exchange, marketType, effectiveSymbol, timeframe));
   const showHeatmap = useUIStore(state => state.showHeatmap);
   const heatmapSettings = useUIStore(state => state.heatmapSettings);
   const chartGridSize = useUIStore(state => state.chartGridSize);
@@ -294,10 +294,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   // ─── Handle Incoming Candle Updates from Global Store ───────
   useEffect(() => {
     if (!latestCandle || paused) return;
-    if (latestCandle.symbol !== effectiveSymbol) return;
-    if (latestCandle.timeframe !== timeframe) return;
-    if (latestCandle.exchange && latestCandle.exchange !== exchange) return;
-    if (latestCandle.marketType && latestCandle.marketType !== marketType) return;
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
     if (!dataLoadedRef.current) return; // ignore WS updates until REST data is loaded
 
@@ -327,7 +323,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       });
       setCurrentPrice(close);
     } catch { /* chart transitioning */ }
-  }, [latestCandle, symbol, effectiveSymbol, exchange, timeframe, marketType, paused]);
+  }, [latestCandle, paused]);
 
   // ─── Real-time Tick Update (Inside Candle) ─────────────────
   useEffect(() => {
