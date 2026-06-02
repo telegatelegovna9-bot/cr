@@ -56,9 +56,7 @@ export class BinanceConnector extends BaseExchangeConnector {
         const msg = JSON.parse(data.toString());
         msg.__marketType = 'futures';
         if (msg.data && typeof msg.data === 'object') msg.data.__marketType = 'futures';
-        // Debug: log event type for futures messages
-        const evt = msg.e || (msg.data && (msg.data as any).e) || (msg.stream ? 'stream' : 'other');
-        if (evt !== '24hrTicker') console.log(`[binance/futures] msg event=${evt} keys=${Object.keys(msg).join(',')}`);
+        console.log(`[binance/futures] RECV: event=${msg.e || '?'} keys=${Object.keys(msg).join(',')} len=${data.length}`);
         this.handleMessage(msg);
       } catch { /* ignore */ }
     });
@@ -283,7 +281,15 @@ export class BinanceConnector extends BaseExchangeConnector {
     return { symbol: s, exchange: 'binance', bids: data.bids.map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })), asks: data.asks.map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })), timestamp: Date.now() };
   }
 
-  private sendFutures(data: unknown): void { if (this.futuresWs && this.futuresWs.readyState === 1) this.futuresWs.send(JSON.stringify(data)); }
+  private sendFutures(data: unknown): void {
+    if (this.futuresWs && this.futuresWs.readyState === 1) {
+      const msg = JSON.stringify(data);
+      console.log(`[binance/futures] SENDING: ${msg.slice(0, 200)}`);
+      this.futuresWs.send(msg);
+    } else {
+      console.warn(`[binance/futures] send skipped: ws=${!!this.futuresWs} readyState=${this.futuresWs?.readyState}`);
+    }
+  }
 
   protected getPingMessage(): null { return null; }
 
