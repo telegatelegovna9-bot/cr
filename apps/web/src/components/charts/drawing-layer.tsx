@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { IChartApi, ISeriesApi } from 'lightweight-charts';
+import { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
 import { useDrawingStore, Drawing, DrawingType } from '@/stores';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -159,9 +159,9 @@ export function DrawingLayer({ chart, series, symbol, exchange }: DrawingLayerPr
       }
 
       if (d.type === 'trendline') {
-        const x1 = chart.timeScale().timeToCoordinate(d.points.t1);
+        const x1 = chart.timeScale().timeToCoordinate(d.points.t1 as Time);
         const y1 = series.priceToCoordinate(d.points.p1);
-        const x2 = chart.timeScale().timeToCoordinate(d.points.t2);
+        const x2 = chart.timeScale().timeToCoordinate(d.points.t2 as Time);
         const y2 = series.priceToCoordinate(d.points.p2);
 
         if (x1 === null || y1 === null || x2 === null || y2 === null) return null;
