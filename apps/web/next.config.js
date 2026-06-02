@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@crypto-screener/shared'],
+  transpilePackages: ['@crypto-screener/shared', '@crypto-screener/exchange-connectors'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },

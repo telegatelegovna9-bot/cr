@@ -36,7 +36,9 @@
     "socket.io": "^4.8.0",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^10.0.0",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "@crypto-screener/shared": "*",
+    "@crypto-screener/exchange-connectors": "*"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.0",
