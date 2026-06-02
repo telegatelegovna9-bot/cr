@@ -1,4 +1,4 @@
-import type { AnyDrawing } from './models.ts';
+import type { AnyDrawing } from './models';
 
 export const DRAWINGS_STORAGE_KEY = 'aionui_drawings_v1';
 

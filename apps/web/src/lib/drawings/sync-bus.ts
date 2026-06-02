@@ -1,5 +1,5 @@
-import type { DrawingOperationEvent } from './models.ts';
-import { isDrawingOperationType } from './models.ts';
+import type { DrawingOperationEvent } from './models';
+import { isDrawingOperationType } from './models';
 
 export const DRAWINGS_SYNC_CHANNEL = 'aionui-drawings';
 

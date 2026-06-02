@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isDrawingKind, makeInstrumentKey } from './models.ts';
-import { DRAWINGS_STORAGE_KEY, loadPersistedDrawings, savePersistedDrawings } from './persistence.ts';
+import { isDrawingKind, makeInstrumentKey } from './models';
+import { DRAWINGS_STORAGE_KEY, loadPersistedDrawings, savePersistedDrawings } from './persistence';
 
 test('makeInstrumentKey builds exchange:marketType:symbol key', () => {
   assert.equal(makeInstrumentKey('binance', 'futures', 'BTC/USDT:USDT'), 'binance:futures:BTC/USDT:USDT');

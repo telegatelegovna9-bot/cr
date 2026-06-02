@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { DrawingOperationEvent } from './models.ts';
-import { createDrawingSyncBus } from './sync-bus.ts';
+import type { DrawingOperationEvent } from './models';
+import { createDrawingSyncBus } from './sync-bus';
 
 test('sync bus forwards remote events and ignores same-origin events', () => {
   const events: DrawingOperationEvent[] = [];
