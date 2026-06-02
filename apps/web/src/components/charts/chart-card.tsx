@@ -72,6 +72,9 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
+import { DrawingToolbar } from './drawing-toolbar';
+import { DrawingLayer } from './drawing-layer';
+
 export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onDataLoaded }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -773,6 +776,20 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             filter: 'blur(3px)',
           }}
         />
+        
+        {/* Drawing Toolbar */}
+        <DrawingToolbar symbol={symbol} exchange={exchange} />
+
+        {/* Drawing Layer */}
+        {chartRef.current && candleSeriesRef.current && (
+          <DrawingLayer 
+            chart={chartRef.current} 
+            series={candleSeriesRef.current} 
+            symbol={symbol} 
+            exchange={exchange} 
+          />
+        )}
+
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
         {/* Heatmap controls overlay */}
         {showHeatmap && <HeatmapControls />}
