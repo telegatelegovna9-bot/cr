@@ -10,7 +10,10 @@ const TIMEFRAME_MAP: Record<Timeframe, string> = {
 };
 
 const BINANCE_SPOT_WS_URL = 'wss://stream.binance.com:9443/ws';
-const BINANCE_FUTURES_WS_URL = 'wss://fstream.binance.com/ws';
+// Note: use /market/ws for kline, aggTrade, ticker streams.
+// /ws (legacy) only receives /public data (depth, bookTicker).
+// https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams
+const BINANCE_FUTURES_WS_URL = 'wss://fstream.binance.com/market/ws';
 const BINANCE_SPOT_REST_URL = 'https://api.binance.com';
 const BINANCE_FUTURES_REST_URL = 'https://fapi.binance.com';
 const SUBSCRIPTION_BATCH_DELAY_MS = 250;
@@ -56,7 +59,6 @@ export class BinanceConnector extends BaseExchangeConnector {
         const msg = JSON.parse(data.toString());
         msg.__marketType = 'futures';
         if (msg.data && typeof msg.data === 'object') msg.data.__marketType = 'futures';
-        console.log(`[binance/futures] RECV: event=${msg.e || '?'} keys=${Object.keys(msg).join(',')} len=${data.length}`);
         this.handleMessage(msg);
       } catch { /* ignore */ }
     });
@@ -180,10 +182,6 @@ export class BinanceConnector extends BaseExchangeConnector {
       case 'kline': this.handleKline(data); break;
       case 'depthUpdate': this.handleDepthUpdate(data); break;
       case 'trade': case 'aggTrade': this.handleTrade(data); break;
-      default:
-        // Log unexpected event types for debugging
-        if (data.__marketType === 'futures') console.log(`[binance] futures unknown event: ${eventType}`);
-        break;
     }
   }
 
@@ -202,15 +200,12 @@ export class BinanceConnector extends BaseExchangeConnector {
   private handleKline(data: Record<string, unknown>): void {
     const k = data.k as Record<string, unknown>; if (!k) return;
     const isF = data.__marketType === 'futures';
-    const symbol = isF ? this.toFuturesSymbol(k.s as string) : this.fromLocalSymbol(k.s as string);
-    const candle: Candle = {
-      exchange: 'binance', marketType: isF ? 'futures' : 'spot', symbol,
+    this.emit('candle', {
+      exchange: 'binance', marketType: isF ? 'futures' : 'spot', symbol: isF ? this.toFuturesSymbol(k.s as string) : this.fromLocalSymbol(k.s as string),
       timeframe: k.i as string, time: k.t as number, open: parseFloat(k.o as string), high: parseFloat(k.h as string),
       low: parseFloat(k.l as string), close: parseFloat(k.c as string), volume: parseFloat(k.v as string),
       isClosed: k.x as boolean, trades: parseInt(k.n as string, 10),
-    };
-    if (isF) console.log(`[binance/futures] kline emitted: ${candle.symbol} ${candle.timeframe} O:${candle.open} C:${candle.close} closed:${candle.isClosed}`);
-    this.emit('candle', candle);
+    } as Candle);
   }
 
   private handleDepthUpdate(data: Record<string, unknown>): void {
@@ -281,15 +276,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     return { symbol: s, exchange: 'binance', bids: data.bids.map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })), asks: data.asks.map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })), timestamp: Date.now() };
   }
 
-  private sendFutures(data: unknown): void {
-    if (this.futuresWs && this.futuresWs.readyState === 1) {
-      const msg = JSON.stringify(data);
-      console.log(`[binance/futures] SENDING: ${msg.slice(0, 200)}`);
-      this.futuresWs.send(msg);
-    } else {
-      console.warn(`[binance/futures] send skipped: ws=${!!this.futuresWs} readyState=${this.futuresWs?.readyState}`);
-    }
-  }
+  private sendFutures(data: unknown): void { if (this.futuresWs && this.futuresWs.readyState === 1) this.futuresWs.send(JSON.stringify(data)); }
 
   protected getPingMessage(): null { return null; }
 

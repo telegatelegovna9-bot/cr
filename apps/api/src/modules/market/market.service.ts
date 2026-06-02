@@ -144,10 +144,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   }
 
   private handleCandle(candle: Candle) {
-    // Debug futures candle flow
-    if (candle.marketType === 'futures' && candle.exchange === 'binance') {
-      console.log(`[handleCandle] futures candle: ${candle.symbol} ${candle.timeframe} O:${candle.open} C:${candle.close}`);
-    }
     const key = `candle:${candle.symbol}:${candle.exchange}:${candle.timeframe}`;
     let candles = this.candleCache.get(key) || [];
     const idx = candles.findIndex(c => c.time === candle.time);
