@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
 import { useDrawingStore, Drawing, DrawingType } from '@/stores';
-import { v4 as uuidv4 } from 'uuid';
+import { Trash2 } from 'lucide-react';
 
 interface DrawingLayerProps {
   chart: IChartApi;
@@ -16,7 +16,6 @@ export function DrawingLayer({ chart, series, symbol, exchange }: DrawingLayerPr
   const containerRef = useRef<SVGSVGElement>(null);
   const { drawings, selectedTool, addDrawing, removeDrawing, setSelectedTool } = useDrawingStore();
   
-  // Local state for active drawing interaction
   const [activeDrawing, setActiveDrawing] = useState<{
     type: DrawingType | 'ruler';
     p1: { t: number; p: number; x: number; y: number };
@@ -24,8 +23,9 @@ export function DrawingLayer({ chart, series, symbol, exchange }: DrawingLayerPr
   } | null>(null);
 
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+  const [hoveredDrawing, setHoveredDrawing] = useState<string | null>(null);
 
-  // Sync with chart's coordinate system on every move/scroll
+  // Sync with chart's coordinate system
   const [, forceUpdate] = useState({});
   useEffect(() => {
     const handleVisibleRangeChange = () => forceUpdate({});
@@ -33,71 +33,69 @@ export function DrawingLayer({ chart, series, symbol, exchange }: DrawingLayerPr
     return () => chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
   }, [chart]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (selectedTool === 'cursor') return;
-
+  const getChartCoords = useCallback((e: React.MouseEvent) => {
     const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    if (!rect) return null;
 
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // Use chart internal coordinate system mapping
     const time = chart.timeScale().coordinateToTime(x);
     const price = series.coordinateToPrice(y);
 
-    if (time === null || price === null) return;
+    if (time === null || price === null) return null;
 
     const timestamp = typeof time === 'number' ? time : (new Date(time as string).getTime() / 1000);
+    return { x, y, t: timestamp, p: price };
+  }, [chart, series]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (selectedTool === 'cursor') return;
+    
+    const coords = getChartCoords(e);
+    if (!coords) return;
 
     if (selectedTool === 'horizontal_line' || selectedTool === 'signal_level') {
-      const newDrawing: Drawing = {
-        id: uuidv4(),
+      addDrawing({
+        id: crypto.randomUUID(),
         type: selectedTool,
         symbol,
         exchange,
-        price,
+        price: coords.p,
         color: selectedTool === 'signal_level' ? '#f59e0b' : '#6366f1',
         visible: true,
         timestamp: Date.now(),
         ...(selectedTool === 'signal_level' ? { triggered: false } : {})
-      } as any;
-      addDrawing(newDrawing);
+      } as any);
       setSelectedTool('cursor');
     } else if (selectedTool === 'trendline' || selectedTool === 'ruler') {
       setActiveDrawing({
         type: selectedTool,
-        p1: { t: timestamp, p: price, x, y }
+        p1: coords
       });
     }
-  }, [selectedTool, chart, series, symbol, exchange, addDrawing, setSelectedTool]);
+  }, [selectedTool, symbol, exchange, addDrawing, setSelectedTool, getChartCoords]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setMousePos({ x, y });
+    const coords = getChartCoords(e);
+    if (!coords) return;
+    setMousePos({ x: coords.x, y: coords.y });
 
     if (activeDrawing) {
-      const time = chart.timeScale().coordinateToTime(x);
-      const price = series.coordinateToPrice(y);
-      if (time !== null && price !== null) {
-        const timestamp = typeof time === 'number' ? time : (new Date(time as string).getTime() / 1000);
-        setActiveDrawing(prev => prev ? {
-          ...prev,
-          p2: { t: timestamp, p: price, x, y }
-        } : null);
-      }
+      setActiveDrawing(prev => prev ? {
+        ...prev,
+        p2: coords
+      } : null);
     }
-  }, [activeDrawing, chart, series]);
+  }, [activeDrawing, getChartCoords]);
 
   const handleMouseUp = useCallback(() => {
     if (!activeDrawing) return;
 
     if (activeDrawing.type === 'trendline' && activeDrawing.p2) {
       addDrawing({
-        id: uuidv4(),
+        id: crypto.randomUUID(),
         type: 'trendline',
         symbol,
         exchange,
@@ -117,7 +115,6 @@ export function DrawingLayer({ chart, series, symbol, exchange }: DrawingLayerPr
     setActiveDrawing(null);
   }, [activeDrawing, symbol, exchange, addDrawing, setSelectedTool]);
 
-  // Filter drawings for this specific chart
   const myDrawings = drawings.filter(d => d.symbol === symbol && d.exchange === exchange);
 
   const renderDrawings = () => {
@@ -125,35 +122,38 @@ export function DrawingLayer({ chart, series, symbol, exchange }: DrawingLayerPr
       if (d.type === 'horizontal_line' || d.type === 'signal_level') {
         const y = series.priceToCoordinate(d.price);
         if (y === null) return null;
+        const isHovered = hoveredDrawing === d.id;
+
         return (
-          <g key={d.id} className="group pointer-events-auto cursor-pointer">
-            <line
-              x1="0" y1={y} x2="100%" y2={y}
-              stroke={d.color}
-              strokeWidth={d.type === 'signal_level' ? 1.5 : 1}
-              strokeDasharray={d.type === 'signal_level' ? "4 2" : "0"}
-              className="transition-all duration-200"
-            />
-            {/* Click area */}
+          <g 
+            key={d.id} 
+            className="group pointer-events-auto cursor-pointer"
+            onMouseEnter={() => setHoveredDrawing(d.id)}
+            onMouseLeave={() => setHoveredDrawing(null)}
+          >
+            {/* Wider interaction area */}
             <line
               x1="0" y1={y} x2="100%" y2={y}
               stroke="transparent"
-              strokeWidth="10"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm('Delete this level?')) removeDrawing(d.id);
-              }}
+              strokeWidth="12"
             />
-            {/* Label */}
-            <text 
-              x="5" y={y - 5} 
-              fill={d.color} 
-              fontSize="10" 
-              fontWeight="bold"
-              className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-            >
-              {d.type === 'signal_level' ? 'SIGNAL' : 'LEVEL'} @ {d.price.toFixed(2)}
-            </text>
+            <line
+              x1="0" y1={y} x2="100%" y2={y}
+              stroke={d.color}
+              strokeWidth={isHovered ? 2 : (d.type === 'signal_level' ? 1.5 : 1)}
+              strokeDasharray={d.type === 'signal_level' ? "4 2" : "0"}
+              className="transition-all duration-200"
+            />
+            {isHovered && (
+              <foreignObject x="10" y={y - 12} width="24" height="24">
+                <button 
+                  onClick={() => removeDrawing(d.id)}
+                  className="w-6 h-6 flex items-center justify-center bg-negative/90 text-white rounded-md shadow-lg hover:bg-negative transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </foreignObject>
+            )}
           </g>
         );
       }
@@ -165,23 +165,36 @@ export function DrawingLayer({ chart, series, symbol, exchange }: DrawingLayerPr
         const y2 = series.priceToCoordinate(d.points.p2);
 
         if (x1 === null || y1 === null || x2 === null || y2 === null) return null;
+        const isHovered = hoveredDrawing === d.id;
 
         return (
-          <g key={d.id} className="group pointer-events-auto cursor-pointer">
+          <g 
+            key={d.id} 
+            className="group pointer-events-auto cursor-pointer"
+            onMouseEnter={() => setHoveredDrawing(d.id)}
+            onMouseLeave={() => setHoveredDrawing(null)}
+          >
+            <line
+              x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke="transparent"
+              strokeWidth="12"
+            />
             <line
               x1={x1} y1={y1} x2={x2} y2={y2}
               stroke={d.color}
-              strokeWidth="2"
+              strokeWidth={isHovered ? 3 : 2}
+              className="transition-all duration-200"
             />
-             <line
-              x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke="transparent"
-              strokeWidth="10"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm('Delete trendline?')) removeDrawing(d.id);
-              }}
-            />
+            {isHovered && (
+              <foreignObject x={(x1+x2)/2 - 12} y={(y1+y2)/2 - 12} width="24" height="24">
+                <button 
+                  onClick={() => removeDrawing(d.id)}
+                  className="w-6 h-6 flex items-center justify-center bg-negative/90 text-white rounded-md shadow-lg hover:bg-negative transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </foreignObject>
+            )}
           </g>
         );
       }
@@ -249,14 +262,6 @@ export function DrawingLayer({ chart, series, symbol, exchange }: DrawingLayerPr
       onMouseUp={handleMouseUp}
       style={{ cursor: selectedTool === 'cursor' ? 'default' : 'crosshair' }}
     >
-      <defs>
-        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="2" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
-      </defs>
-
-      {/* Background interactions layer */}
       <rect 
         width="100%" height="100%" 
         fill="transparent" 
@@ -266,7 +271,6 @@ export function DrawingLayer({ chart, series, symbol, exchange }: DrawingLayerPr
       {renderDrawings()}
       {renderActivePreview()}
 
-      {/* Crosshair guide for drawing */}
       {selectedTool !== 'cursor' && mousePos && (
         <g className="pointer-events-none opacity-50">
           <line x1={mousePos.x} y1="0" x2={mousePos.x} y2="100%" stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeDasharray="2 2" />

@@ -46,9 +46,7 @@ export function DrawingToolbar({ symbol, exchange }: { symbol: string; exchange:
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
       switch (e.key.toLowerCase()) {
         case 'v': setSelectedTool('cursor'); break;
         case 'h': setSelectedTool('horizontal_line'); break;
@@ -61,42 +59,44 @@ export function DrawingToolbar({ symbol, exchange }: { symbol: string; exchange:
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [setSelectedTool]);
 
-  const tools: { id: DrawingType | 'cursor' | 'ruler'; label: string; icon: any }[] = [
-    { id: 'cursor', label: 'Cursor (V)', icon: MousePointer2 },
-    { id: 'horizontal_line', label: 'Horizontal Line (H)', icon: Minus },
-    { id: 'trendline', label: 'Trendline (T)', icon: TrendingUp },
-    { id: 'signal_level', label: 'Signal Level (A)', icon: BellRing },
-    { id: 'ruler', label: 'Ruler (R)', icon: Ruler },
+  const tools: { id: DrawingType | 'cursor' | 'ruler'; label: string; icon: any; shortcut: string }[] = [
+    { id: 'cursor', label: 'Cursor', icon: MousePointer2, shortcut: 'V' },
+    { id: 'horizontal_line', label: 'Horizontal Line', icon: Minus, shortcut: 'H' },
+    { id: 'trendline', label: 'Trendline', icon: TrendingUp, shortcut: 'T' },
+    { id: 'signal_level', label: 'Signal Level', icon: BellRing, shortcut: 'A' },
+    { id: 'ruler', label: 'Ruler', icon: Ruler, shortcut: 'R' },
   ];
 
   return (
     <motion.div 
-      initial={{ x: -20, opacity: 0 }}
+      initial={{ x: -10, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
-      className="absolute left-2 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 p-1.5 glass-panel rounded-2xl shadow-glass-lg border border-border/50"
+      className="absolute left-1 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-1 p-1 glass-panel rounded-xl shadow-glass-lg border border-border/30 scale-[0.85] origin-left sm:scale-100"
     >
       {tools.map((tool) => (
-        <ToolbarButton
+        <button
           key={tool.id}
-          icon={tool.icon}
-          label={tool.label}
-          active={selectedTool === tool.id}
           onClick={() => setSelectedTool(tool.id)}
-        />
+          className={`group relative flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 cursor-pointer
+            ${selectedTool === tool.id 
+              ? 'bg-accent/20 text-accent-light shadow-glow-sm border border-accent/30' 
+              : 'text-text-muted hover:text-text-secondary hover:bg-surface-hover'
+            }`}
+          title={tool.label}
+        >
+          <tool.icon className={`w-4 h-4 ${selectedTool === tool.id ? 'animate-pulse-slow' : ''}`} />
+        </button>
       ))}
 
-      <div className="w-full h-px bg-border/50 my-1" />
+      <div className="w-full h-px bg-border/50 my-0.5" />
 
-      <ToolbarButton
-        icon={Trash2}
-        label="Clear All"
-        active={false}
-        onClick={() => {
-          if (confirm('Clear all drawings for this chart?')) {
-            clearDrawings(symbol, exchange);
-          }
-        }}
-      />
+      <button
+        onClick={() => clearDrawings(symbol, exchange)}
+        className="flex items-center justify-center w-8 h-8 rounded-lg text-text-muted hover:text-negative hover:bg-negative/10 transition-all cursor-pointer"
+        title="Clear All"
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
     </motion.div>
   );
 }
