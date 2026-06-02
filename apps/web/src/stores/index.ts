@@ -176,10 +176,10 @@ export const useDrawingStore = create<DrawingStore>((set, get) => {
     scheduleDrawingPersist(drawingSnapshot(byId));
   };
 
-  const publish = (event: Omit<DrawingOperationEvent, 'origin' | 'occurredAt'>) => {
+  const publish = (payload: DrawingOperationPayload) => {
     if (!drawingSyncBus) return;
     drawingSyncBus.emit({
-      ...event,
+      ...payload,
       origin: drawingSyncOrigin,
       occurredAt: Date.now(),
     } as DrawingOperationEvent);
