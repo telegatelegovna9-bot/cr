@@ -230,15 +230,22 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   async getCandles(symbol: string, timeframe: Timeframe, exchange?: ExchangeId, limit = 500, endTime?: number): Promise<Candle[]> {
     const cacheKey = `candle:${symbol}:${exchange || 'all'}:${timeframe}`;
     const cached = this.candleCache.get(cacheKey);
-    if (cached?.length && !endTime) return cached.slice(-limit);
+    // Only use cache for history requests if it has enough candles (≥ limit).
+    // A small cache means only WS real-time candles have been stored so far —
+    // returning those would cause charts to show only 1-2 candles instead of full history.
+    if (cached && cached.length >= limit && !endTime) return cached.slice(-limit);
     try {
       let candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);
-      // Retry once on empty result (Binance REST can return [] on cold start)
-      if (!candles.length && !endTime) {
-        await new Promise(r => setTimeout(r, 600));
-        candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);
+      if (candles.length > 0 && !endTime) {
+        // Merge with any newer WS candles already in cache so we don't lose them
+        const existing = this.candleCache.get(cacheKey) || [];
+        const merged = [...candles];
+        for (const ws of existing) {
+          if (!merged.find(c => c.time === ws.time)) merged.push(ws);
+        }
+        merged.sort((a, b) => a.time - b.time);
+        this.candleCache.set(cacheKey, merged.slice(-2000));
       }
-      if (candles.length > 0 && !endTime) this.candleCache.set(cacheKey, candles);
       return candles;
     } catch (err) {
       return cached?.slice(-limit) || [];

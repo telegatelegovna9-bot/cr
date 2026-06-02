@@ -12,6 +12,11 @@ import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
 import { HeatmapControls } from './heatmap-controls';
+import {
+  getInitialHistoryBackfillEndTime,
+  mergeChartHistory,
+  shouldBackfillInitialHistory,
+} from './chart-history';
 
 interface ChartCardProps {
   symbol: string;
@@ -28,6 +33,7 @@ interface ChartCardProps {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const INITIAL_VISIBLE_CANDLES = 100;
+const INITIAL_HISTORY_LIMIT = 300;
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 
@@ -79,6 +85,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const loadingHistoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialRangeSetRef = useRef(false);
   const dataLoadedRef = useRef(false);
+  const initialHistoryBackfillTriedRef = useRef(false);
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
@@ -323,6 +330,47 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       });
       setCurrentPrice(close);
     } catch { /* chart transitioning */ }
+
+    if (
+      !initialHistoryBackfillTriedRef.current &&
+      !loadingMoreRef.current &&
+      shouldBackfillInitialHistory(allRawRef.current, INITIAL_HISTORY_LIMIT)
+    ) {
+      const endTime = getInitialHistoryBackfillEndTime(allRawRef.current);
+      if (endTime != null) {
+        initialHistoryBackfillTriedRef.current = true;
+        loadingMoreRef.current = true;
+        setLoadingHistory(true);
+
+        fetch(
+          `${API_BASE}/api/history?exchange=${exchangeRef.current}&marketType=${marketTypeRef.current}&symbol=${encodeURIComponent(effectiveSymbolRef.current)}&timeframe=${timeframeRef.current}&limit=${INITIAL_HISTORY_LIMIT}&endTime=${endTime}`
+        )
+          .then(resp => resp.ok ? resp.json() : { data: [] })
+          .then(data => {
+            const older: any[] = data.data || [];
+            if (!older.length || !candleSeriesRef.current || !volumeSeriesRef.current) return;
+
+            allRawRef.current = mergeChartHistory(older, allRawRef.current);
+            const { candles, volumes } = buildCandles(allRawRef.current);
+            if (!candles.length || !candleSeriesRef.current || !volumeSeriesRef.current) return;
+
+            candleSeriesRef.current.setData(candles);
+            volumeSeriesRef.current.setData(volumes);
+            const firstTime = allRawRef.current[0]?.time || allRawRef.current[0]?.timestamp;
+            if (firstTime) oldestTimeRef.current = firstTime / 1000;
+            chartRef.current?.timeScale().setVisibleLogicalRange({
+              from: Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES),
+              to: candles.length + 3,
+            });
+            initialRangeSetRef.current = true;
+          })
+          .catch(() => {})
+          .finally(() => {
+            loadingMoreRef.current = false;
+            setLoadingHistory(false);
+          });
+      }
+    }
   }, [latestCandle, paused]);
 
   // ─── Real-time Tick Update (Inside Candle) ─────────────────
@@ -370,6 +418,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     loadingMoreRef.current = false;
     initialRangeSetRef.current = false;
     dataLoadedRef.current = false;
+    initialHistoryBackfillTriedRef.current = false;
     setLoadingHistory(false);
 
     if (chartRef.current) {
@@ -437,9 +486,18 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         if (initialData && initialData.length > 0 && (!initialTimeframe || initialTimeframe === timeframe)) {
           raw = initialData;
         } else {
-          const fetchCandles = async () => {
+          const fetchCandles = async (endTime?: number) => {
+            const params = new URLSearchParams({
+              exchange,
+              marketType,
+              symbol: effectiveSymbol,
+              timeframe,
+              limit: String(INITIAL_HISTORY_LIMIT),
+            });
+            if (endTime != null) params.set('endTime', String(endTime));
+
             const resp = await fetch(
-              `${API_BASE}/api/history?exchange=${exchange}&marketType=${marketType}&symbol=${encodeURIComponent(effectiveSymbol)}&timeframe=${timeframe}&limit=300`
+              `${API_BASE}/api/history?${params.toString()}`
             );
             if (!resp.ok) return [];
             const data = await resp.json();
@@ -451,6 +509,14 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             if (!raw.length && !cancelled) {
               await new Promise(r => setTimeout(r, 800));
               if (!cancelled) raw = await fetchCandles();
+            }
+            if (!cancelled && shouldBackfillInitialHistory(raw, INITIAL_HISTORY_LIMIT)) {
+              const endTime = getInitialHistoryBackfillEndTime(raw);
+              if (endTime != null) {
+                initialHistoryBackfillTriedRef.current = true;
+                const older = await fetchCandles(endTime);
+                if (!cancelled && older.length) raw = mergeChartHistory(older, raw);
+              }
             }
           }
         }
