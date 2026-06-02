@@ -82,26 +82,24 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
-  const latestCandle = useMarketStore(state => state.getLatestCandle(exchange, marketType, effectiveSymbol, timeframe));
-  const showHeatmap = useUIStore(state => state.showHeatmap);
-  const heatmapSettings = useUIStore(state => state.heatmapSettings);
-  const chartGridSize = useUIStore(state => state.chartGridSize);
   const exchange = exchangeProp || selectedExchange;
-  const ticker = useMarketStore(state => state.getTicker(symbol, exchange));
-
-  // Per-card local state
   const [timeframe, setTimeframe] = useState<TF>(selectedTimeframe as TF);
   const [marketType, setMarketType] = useState<'spot' | 'futures'>(
     initialMarketType ?? (symbol.includes(':USDT') ? 'futures' : 'spot')
   );
-
-  // Derive the correct symbol for WS subscriptions based on marketType
-  // (chart-grid may pass 'BTC/USDT' even when marketType='futures')
   const effectiveSymbol = useMemo(() => {
     if (marketType === 'futures' && !symbol.includes(':')) return `${symbol}:USDT`;
     if (marketType === 'spot' && symbol.includes(':USDT')) return symbol.replace(':USDT', '');
     return symbol;
   }, [symbol, marketType]);
+
+  // Must come AFTER exchange/timeframe/marketType/effectiveSymbol are declared
+  // (Zustand selectors are invoked immediately during render)
+  const latestCandle = useMarketStore(state => state.getLatestCandle(exchange, marketType, effectiveSymbol, timeframe));
+  const showHeatmap = useUIStore(state => state.showHeatmap);
+  const heatmapSettings = useUIStore(state => state.heatmapSettings);
+  const chartGridSize = useUIStore(state => state.chartGridSize);
+  const ticker = useMarketStore(state => state.getTicker(symbol, exchange));
 
   // Refs that always hold the latest values so async closures don't go stale
   const timeframeRef = useRef<TF>(timeframe);
