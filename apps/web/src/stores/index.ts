@@ -203,11 +203,19 @@ export const useDrawingStore = create<DrawingStore>((set, get) => {
         };
       });
 
-      publish({
-        type: existing ? 'update' : 'create',
-        drawing,
-        instrumentKey: drawing.instrumentKey,
-      });
+      if (existing) {
+        publish({
+          type: 'update',
+          drawing,
+          instrumentKey: drawing.instrumentKey,
+        });
+      } else {
+        publish({
+          type: 'create',
+          drawing,
+          instrumentKey: drawing.instrumentKey,
+        });
+      }
     },
 
     removeDrawing: (id) => {
