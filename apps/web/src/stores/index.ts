@@ -7,6 +7,7 @@ import { DEFAULT_HEATMAP_SETTINGS } from '@/lib/liquidity-engine';
 import type {
   AnyDrawing,
   DrawingOperationEvent,
+  DrawingOperationPayload,
   DrawingTool,
   InstrumentMarketType,
 } from '@/lib/drawings/models';

@@ -95,18 +95,17 @@ export const DRAWING_OPERATION_TYPES = [
 
 export type DrawingOperationType = (typeof DRAWING_OPERATION_TYPES)[number];
 
-interface DrawingOperationBase {
-  origin: string;
-  instrumentKey: string;
-  occurredAt: number;
-}
+export type DrawingOperationPayload =
+  | { type: 'create'; drawing: AnyDrawing; instrumentKey: string }
+  | { type: 'update'; drawing: AnyDrawing; instrumentKey: string }
+  | { type: 'delete'; drawingId: string; instrumentKey: string }
+  | { type: 'reset'; drawingId: string; instrumentKey: string }
+  | { type: 'visibility'; hidden: boolean; instrumentKey: string };
 
-export type DrawingOperationEvent =
-  | (DrawingOperationBase & { type: 'create'; drawing: AnyDrawing })
-  | (DrawingOperationBase & { type: 'update'; drawing: AnyDrawing })
-  | (DrawingOperationBase & { type: 'delete'; drawingId: string })
-  | (DrawingOperationBase & { type: 'reset'; drawingId: string })
-  | (DrawingOperationBase & { type: 'visibility'; hidden: boolean });
+export type DrawingOperationEvent = DrawingOperationPayload & {
+  origin: string;
+  occurredAt: number;
+};
 
 export function makeInstrumentKey(exchange: string, marketType: string, symbol: string): string {
   return `${exchange}:${marketType}:${symbol}`;
