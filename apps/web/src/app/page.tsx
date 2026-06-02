@@ -13,16 +13,11 @@ import { useUIStore, useMarketStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { marketApi } from '@/lib/api';
 
-import { useAlertMonitor } from '@/hooks/useAlertMonitor';
-
 export default function TerminalPage() {
   const { viewMode } = useUIStore();
   const { setTickers, setConnectedExchanges } = useMarketStore();
   const { subscribe } = useWebSocket(); // This hook now uses relative URLs
   const [loading, setLoading] = useState(true);
-
-  // Enable persistent signal level monitoring
-  useAlertMonitor();
 
   // ─── Initial Data Load ───────────────────────────────────
   useEffect(() => {
