@@ -56,6 +56,9 @@ export class BinanceConnector extends BaseExchangeConnector {
         const msg = JSON.parse(data.toString());
         msg.__marketType = 'futures';
         if (msg.data && typeof msg.data === 'object') msg.data.__marketType = 'futures';
+        // Debug: log event type for futures messages
+        const evt = msg.e || (msg.data && (msg.data as any).e) || (msg.stream ? 'stream' : 'other');
+        if (evt !== '24hrTicker') console.log(`[binance/futures] msg event=${evt} keys=${Object.keys(msg).join(',')}`);
         this.handleMessage(msg);
       } catch { /* ignore */ }
     });
@@ -179,6 +182,10 @@ export class BinanceConnector extends BaseExchangeConnector {
       case 'kline': this.handleKline(data); break;
       case 'depthUpdate': this.handleDepthUpdate(data); break;
       case 'trade': case 'aggTrade': this.handleTrade(data); break;
+      default:
+        // Log unexpected event types for debugging
+        if (data.__marketType === 'futures') console.log(`[binance] futures unknown event: ${eventType}`);
+        break;
     }
   }
 
@@ -197,12 +204,15 @@ export class BinanceConnector extends BaseExchangeConnector {
   private handleKline(data: Record<string, unknown>): void {
     const k = data.k as Record<string, unknown>; if (!k) return;
     const isF = data.__marketType === 'futures';
-    this.emit('candle', {
-      exchange: 'binance', marketType: isF ? 'futures' : 'spot', symbol: isF ? this.toFuturesSymbol(k.s as string) : this.fromLocalSymbol(k.s as string),
+    const symbol = isF ? this.toFuturesSymbol(k.s as string) : this.fromLocalSymbol(k.s as string);
+    const candle: Candle = {
+      exchange: 'binance', marketType: isF ? 'futures' : 'spot', symbol,
       timeframe: k.i as string, time: k.t as number, open: parseFloat(k.o as string), high: parseFloat(k.h as string),
       low: parseFloat(k.l as string), close: parseFloat(k.c as string), volume: parseFloat(k.v as string),
       isClosed: k.x as boolean, trades: parseInt(k.n as string, 10),
-    } as Candle);
+    };
+    if (isF) console.log(`[binance/futures] kline emitted: ${candle.symbol} ${candle.timeframe} O:${candle.open} C:${candle.close} closed:${candle.isClosed}`);
+    this.emit('candle', candle);
   }
 
   private handleDepthUpdate(data: Record<string, unknown>): void {
