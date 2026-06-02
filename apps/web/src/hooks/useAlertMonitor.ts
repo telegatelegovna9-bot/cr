@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
-import { useMarketStore, useDrawingStore, useUIStore } from '@/stores';
+import { useMarketStore, useDrawingStore, useUIStore, SignalLevelDrawing } from '@/stores';
 
 export function useAlertMonitor() {
   const { tickers } = useMarketStore();
@@ -24,7 +24,7 @@ export function useAlertMonitor() {
   }, []);
 
   useEffect(() => {
-    const signalLevels = drawings.filter(d => d.type === 'signal_level' && !d.triggered);
+    const signalLevels = drawings.filter((d): d is SignalLevelDrawing => d.type === 'signal_level' && !d.triggered);
     if (signalLevels.length === 0) return;
 
     for (const level of signalLevels) {
