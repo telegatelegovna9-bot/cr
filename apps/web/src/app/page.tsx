@@ -8,9 +8,10 @@ import { ChartGrid } from '@/components/charts/chart-grid';
 import { ScreenerView } from '@/components/screener/screener-view';
 import { HeatmapView } from '@/components/terminal/heatmap-view';
 import { SettingsView } from '@/components/terminal/settings-view';
-import { AlertToast } from '@/components/alerts/alert-toast';
+import { AlertToast, AlertModal } from '@/components/alerts/alert-toast';
 import { useUIStore, useMarketStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useSignalMonitor } from '@/hooks/useSignalMonitor';
 import { marketApi } from '@/lib/api';
 
 export default function TerminalPage() {
@@ -18,6 +19,8 @@ export default function TerminalPage() {
   const { setTickers, setConnectedExchanges } = useMarketStore();
   const { subscribe } = useWebSocket(); // This hook now uses relative URLs
   const [loading, setLoading] = useState(true);
+
+  useSignalMonitor();
 
   // ─── Initial Data Load ───────────────────────────────────
   useEffect(() => {
@@ -61,6 +64,7 @@ export default function TerminalPage() {
       </div>
 
       <AlertToast />
+      <AlertModal />
     </div>
   );
 }

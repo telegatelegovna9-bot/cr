@@ -12,6 +12,8 @@ import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
 import { HeatmapControls } from './heatmap-controls';
+import { DrawingToolbar } from './drawing-toolbar';
+import { DrawingOverlay } from './drawing-overlay';
 import {
   getInitialHistoryBackfillEndTime,
   mergeChartHistory,
@@ -774,6 +776,23 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           }}
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
+        
+        <DrawingOverlay
+          chart={chartRef.current}
+          candleSeries={candleSeriesRef.current}
+          exchange={exchange}
+          marketType={marketType}
+          symbol={effectiveSymbol}
+          compact={chartGridSize !== 1 && !isModal}
+        />
+
+        <DrawingToolbar
+          exchange={exchange}
+          marketType={marketType}
+          symbol={effectiveSymbol}
+          compact={chartGridSize !== 1 && !isModal}
+        />
+
         {/* Heatmap controls overlay */}
         {showHeatmap && <HeatmapControls />}
       </div>

@@ -4,6 +4,15 @@ import { create } from 'zustand';
 import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle, OrderBook } from '@crypto-screener/shared';
 import type { HeatmapSettings } from '@/lib/liquidity-engine';
 import { DEFAULT_HEATMAP_SETTINGS } from '@/lib/liquidity-engine';
+import type {
+  AnyDrawing,
+  DrawingOperationEvent,
+  DrawingTool,
+  InstrumentMarketType,
+} from '@/lib/drawings/models';
+import { makeInstrumentKey } from '@/lib/drawings/models';
+import { loadPersistedDrawings, savePersistedDrawings } from '@/lib/drawings/persistence';
+import { createDrawingSyncBus } from '@/lib/drawings/sync-bus';
 
 // ============================================================
 // Market Store
@@ -82,6 +91,266 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   getTicker: (symbol, exchange) => get().tickers.get(`${exchange}:${symbol}`),
   getTickersArray: () => Array.from(get().tickers.values()),
 }));
+
+// ============================================================
+// Drawing Store
+// ============================================================
+
+const DRAWING_VISIBILITY_SCOPE = '*';
+
+function debounce<T extends (...args: never[]) => void>(fn: T, waitMs: number) {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      fn(...args);
+    }, waitMs);
+  };
+}
+
+function appendDrawingId(ids: string[] | undefined, id: string): string[] {
+  if (!ids || ids.length === 0) return [id];
+  if (ids.includes(id)) return ids;
+  return [...ids, id];
+}
+
+function removeDrawingId(ids: string[] | undefined, id: string): string[] {
+  if (!ids || ids.length === 0) return [];
+  return ids.filter(currentId => currentId !== id);
+}
+
+function indexDrawings(drawings: AnyDrawing[]): Pick<DrawingStore, 'byId' | 'byInstrument'> {
+  const byId: Record<string, AnyDrawing> = {};
+  const byInstrument: Record<string, string[]> = {};
+
+  for (const drawing of drawings) {
+    byId[drawing.id] = drawing;
+    byInstrument[drawing.instrumentKey] = appendDrawingId(byInstrument[drawing.instrumentKey], drawing.id);
+  }
+
+  return { byId, byInstrument };
+}
+
+function drawingSnapshot(byId: Record<string, AnyDrawing>): AnyDrawing[] {
+  return Object.values(byId);
+}
+
+function getInitialDrawingIndex(): Pick<DrawingStore, 'byId' | 'byInstrument'> {
+  if (typeof window === 'undefined') return { byId: {}, byInstrument: {} };
+  const persisted = loadPersistedDrawings(window.localStorage);
+  return indexDrawings(persisted.drawings);
+}
+
+const scheduleDrawingPersist = debounce((drawings: AnyDrawing[]) => {
+  if (typeof window === 'undefined') return;
+  savePersistedDrawings(window.localStorage, drawings);
+}, 120);
+
+const drawingSyncOrigin = `drawings-${Math.random().toString(36).slice(2, 10)}`;
+const drawingSyncBus = typeof window === 'undefined' ? null : createDrawingSyncBus(drawingSyncOrigin);
+let drawingSyncUnsubscribe: (() => void) | null = null;
+
+interface DrawingStore {
+  byId: Record<string, AnyDrawing>;
+  byInstrument: Record<string, string[]>;
+  selectedTool: DrawingTool;
+  hidden: boolean;
+  lastOperation: DrawingOperationEvent | null;
+
+  upsertDrawing: (drawing: AnyDrawing) => void;
+  removeDrawing: (id: string) => void;
+  getDrawingsForInstrument: (exchange: string, marketType: InstrumentMarketType, symbol: string) => AnyDrawing[];
+  clearInstrument: (exchange: string, marketType: InstrumentMarketType, symbol: string) => void;
+  setSelectedTool: (tool: DrawingTool) => void;
+  setHidden: (value: boolean) => void;
+  resetSignal: (id: string) => void;
+  applyOperation: (event: DrawingOperationEvent) => void;
+}
+
+export const useDrawingStore = create<DrawingStore>((set, get) => {
+  const initialIndex = getInitialDrawingIndex();
+
+  const persistById = (byId: Record<string, AnyDrawing>) => {
+    scheduleDrawingPersist(drawingSnapshot(byId));
+  };
+
+  const publish = (event: Omit<DrawingOperationEvent, 'origin' | 'occurredAt'>) => {
+    if (!drawingSyncBus) return;
+    drawingSyncBus.emit({
+      ...event,
+      origin: drawingSyncOrigin,
+      occurredAt: Date.now(),
+    } as DrawingOperationEvent);
+  };
+
+  const store: DrawingStore = {
+    byId: initialIndex.byId,
+    byInstrument: initialIndex.byInstrument,
+    selectedTool: 'cursor',
+    hidden: false,
+    lastOperation: null,
+
+    upsertDrawing: (drawing) => {
+      const existing = get().byId[drawing.id];
+      set(state => {
+        const instrumentIds = appendDrawingId(state.byInstrument[drawing.instrumentKey], drawing.id);
+        const byId = { ...state.byId, [drawing.id]: drawing };
+        persistById(byId);
+        return {
+          byId,
+          byInstrument: { ...state.byInstrument, [drawing.instrumentKey]: instrumentIds },
+        };
+      });
+
+      publish({
+        type: existing ? 'update' : 'create',
+        drawing,
+        instrumentKey: drawing.instrumentKey,
+      });
+    },
+
+    removeDrawing: (id) => {
+      const current = get().byId[id];
+      if (!current) return;
+
+      set(state => {
+        const byId = { ...state.byId };
+        delete byId[id];
+        persistById(byId);
+
+        const nextIds = removeDrawingId(state.byInstrument[current.instrumentKey], id);
+        const byInstrument = { ...state.byInstrument };
+        if (nextIds.length > 0) byInstrument[current.instrumentKey] = nextIds;
+        else delete byInstrument[current.instrumentKey];
+
+        return { byId, byInstrument };
+      });
+
+      publish({
+        type: 'delete',
+        drawingId: id,
+        instrumentKey: current.instrumentKey,
+      });
+    },
+
+    getDrawingsForInstrument: (exchange, marketType, symbol) => {
+      const state = get();
+      const instrumentKey = makeInstrumentKey(exchange, marketType, symbol);
+      const ids = state.byInstrument[instrumentKey] ?? [];
+      return ids.map(id => state.byId[id]).filter((drawing): drawing is AnyDrawing => drawing !== undefined);
+    },
+
+    clearInstrument: (exchange, marketType, symbol) =>
+      set(state => {
+        const instrumentKey = makeInstrumentKey(exchange, marketType, symbol);
+        const ids = state.byInstrument[instrumentKey];
+        if (!ids || ids.length === 0) return state;
+
+        const byId = { ...state.byId };
+        for (const id of ids) delete byId[id];
+        persistById(byId);
+
+        const byInstrument = { ...state.byInstrument };
+        delete byInstrument[instrumentKey];
+        return { byId, byInstrument };
+      }),
+
+    setSelectedTool: (tool) => set({ selectedTool: tool }),
+
+    setHidden: (value) => {
+      set({ hidden: value });
+      publish({
+        type: 'visibility',
+        hidden: value,
+        instrumentKey: DRAWING_VISIBILITY_SCOPE,
+      });
+    },
+
+    resetSignal: (id) => {
+      const current = get().byId[id];
+      if (!current || current.kind !== 'signal_level') return;
+
+      const nextSignal = {
+        ...current,
+        triggered: false,
+        triggeredAt: null,
+        armed: true,
+        updatedAt: Date.now(),
+      };
+
+      set(state => {
+        const byId = { ...state.byId, [id]: nextSignal };
+        persistById(byId);
+        return { byId };
+      });
+
+      publish({
+        type: 'reset',
+        drawingId: id,
+        instrumentKey: nextSignal.instrumentKey,
+      });
+    },
+
+    applyOperation: (event) =>
+      set(state => {
+        if (event.type === 'create' || event.type === 'update') {
+          const instrumentIds = appendDrawingId(state.byInstrument[event.drawing.instrumentKey], event.drawing.id);
+          const byId = { ...state.byId, [event.drawing.id]: event.drawing };
+          persistById(byId);
+          return {
+            byId,
+            byInstrument: { ...state.byInstrument, [event.drawing.instrumentKey]: instrumentIds },
+            lastOperation: event,
+          };
+        }
+
+        if (event.type === 'delete') {
+          const current = state.byId[event.drawingId];
+          if (!current) return { lastOperation: event };
+
+          const byId = { ...state.byId };
+          delete byId[event.drawingId];
+          persistById(byId);
+
+          const ids = removeDrawingId(state.byInstrument[current.instrumentKey], event.drawingId);
+          const byInstrument = { ...state.byInstrument };
+          if (ids.length > 0) byInstrument[current.instrumentKey] = ids;
+          else delete byInstrument[current.instrumentKey];
+
+          return { byId, byInstrument, lastOperation: event };
+        }
+
+        if (event.type === 'reset') {
+          const current = state.byId[event.drawingId];
+          if (!current || current.kind !== 'signal_level') return { lastOperation: event };
+
+          const byId = {
+            ...state.byId,
+            [event.drawingId]: {
+              ...current,
+              triggered: false,
+              triggeredAt: null,
+              armed: true,
+              updatedAt: Date.now(),
+            },
+          };
+          persistById(byId);
+          return { byId, lastOperation: event };
+        }
+
+        return { hidden: event.hidden, lastOperation: event };
+      }),
+  };
+
+  if (drawingSyncBus && !drawingSyncUnsubscribe) {
+    drawingSyncUnsubscribe = drawingSyncBus.subscribe(event => {
+      store.applyOperation(event);
+    });
+  }
+
+  return store;
+});
 
 // ============================================================
 // UI Store
