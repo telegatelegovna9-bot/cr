@@ -210,7 +210,7 @@ export function DrawingOverlay({
     updatedAt: Date.now(),
     style: {
       color: '#3b82f6',
-      lineWidth: 2,
+      lineWidth: 1.25,
       lineStyle: 'solid' as const,
       fillOpacity: 0.12,
     },

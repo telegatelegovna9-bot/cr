@@ -42,13 +42,16 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
           const line = projectHorizontalLine(drawing, projection);
           if (!line) continue;
 
+          context.save();
           context.beginPath();
           context.moveTo(line.x1, line.y1);
           context.lineTo(line.x2, line.y2);
           context.strokeStyle = drawing.style.color;
-          context.lineWidth = selected ? drawing.style.lineWidth + 1 : drawing.style.lineWidth;
+          context.lineWidth = selected ? drawing.style.lineWidth + 0.6 : drawing.style.lineWidth;
+          context.globalAlpha = drawing.kind === 'signal_level' && drawing.triggered ? 0.45 : 1;
           context.setLineDash(drawing.kind === 'signal_level' ? [5, 4] : []);
           context.stroke();
+          context.restore();
           continue;
         }
 
@@ -60,7 +63,7 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
           context.moveTo(line.x1, line.y1);
           context.lineTo(line.x2, line.y2);
           context.strokeStyle = drawing.style.color;
-          context.lineWidth = selected ? drawing.style.lineWidth + 1 : drawing.style.lineWidth;
+          context.lineWidth = selected ? drawing.style.lineWidth + 0.6 : drawing.style.lineWidth;
           context.setLineDash([]);
           context.stroke();
           continue;
@@ -79,7 +82,7 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
           context.moveTo(line.x1, line.y1);
           context.lineTo(line.x2, line.y2);
           context.strokeStyle = '#f59e0b';
-          context.lineWidth = selected ? 3 : 2;
+          context.lineWidth = selected ? 2.2 : 1.4;
           context.setLineDash([6, 4]);
           context.stroke();
 
@@ -108,7 +111,7 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
           context.fillRect(rect.x, rect.y, rect.width, rect.height);
           context.globalAlpha = 1;
           context.strokeStyle = drawing.style.color;
-          context.lineWidth = selected ? drawing.style.lineWidth + 1 : drawing.style.lineWidth;
+          context.lineWidth = selected ? drawing.style.lineWidth + 0.6 : drawing.style.lineWidth;
           context.setLineDash([]);
           context.strokeRect(rect.x, rect.y, rect.width, rect.height);
         }
