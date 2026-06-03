@@ -156,6 +156,7 @@ interface DrawingStore {
   byId: Record<string, AnyDrawing>;
   byInstrument: Record<string, string[]>;
   selectedTool: DrawingTool;
+  selectedDrawingId: string | null;
   hidden: boolean;
   lastOperation: DrawingOperationEvent | null;
 
@@ -164,6 +165,7 @@ interface DrawingStore {
   getDrawingsForInstrument: (exchange: string, marketType: InstrumentMarketType, symbol: string) => AnyDrawing[];
   clearInstrument: (exchange: string, marketType: InstrumentMarketType, symbol: string) => void;
   setSelectedTool: (tool: DrawingTool) => void;
+  setSelectedDrawingId: (id: string | null) => void;
   setHidden: (value: boolean) => void;
   resetSignal: (id: string) => void;
   applyOperation: (event: DrawingOperationEvent) => void;
@@ -189,6 +191,7 @@ export const useDrawingStore = create<DrawingStore>((set, get) => {
     byId: initialIndex.byId,
     byInstrument: initialIndex.byInstrument,
     selectedTool: 'cursor',
+    selectedDrawingId: null,
     hidden: false,
     lastOperation: null,
 
@@ -233,7 +236,11 @@ export const useDrawingStore = create<DrawingStore>((set, get) => {
         if (nextIds.length > 0) byInstrument[current.instrumentKey] = nextIds;
         else delete byInstrument[current.instrumentKey];
 
-        return { byId, byInstrument };
+        return {
+          byId,
+          byInstrument,
+          selectedDrawingId: state.selectedDrawingId === id ? null : state.selectedDrawingId,
+        };
       });
 
       publish({
@@ -262,10 +269,18 @@ export const useDrawingStore = create<DrawingStore>((set, get) => {
 
         const byInstrument = { ...state.byInstrument };
         delete byInstrument[instrumentKey];
-        return { byId, byInstrument };
+        return {
+          byId,
+          byInstrument,
+          selectedDrawingId:
+            state.selectedDrawingId && ids.includes(state.selectedDrawingId)
+              ? null
+              : state.selectedDrawingId,
+        };
       }),
 
     setSelectedTool: (tool) => set({ selectedTool: tool }),
+    setSelectedDrawingId: (id) => set({ selectedDrawingId: id }),
 
     setHidden: (value) => {
       set({ hidden: value });
@@ -327,7 +342,13 @@ export const useDrawingStore = create<DrawingStore>((set, get) => {
           if (ids.length > 0) byInstrument[current.instrumentKey] = ids;
           else delete byInstrument[current.instrumentKey];
 
-          return { byId, byInstrument, lastOperation: event };
+          return {
+            byId,
+            byInstrument,
+            selectedDrawingId:
+              state.selectedDrawingId === event.drawingId ? null : state.selectedDrawingId,
+            lastOperation: event,
+          };
         }
 
         if (event.type === 'reset') {

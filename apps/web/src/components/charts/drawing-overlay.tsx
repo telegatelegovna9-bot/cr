@@ -10,6 +10,14 @@ import {
   makeInstrumentKey,
 } from '@/lib/drawings/models';
 import { DrawingPrimitive } from '@/lib/drawings/primitive';
+import {
+  type ChartProjectionContext,
+  hitTestLine,
+  projectHorizontalLine,
+  projectRectangle,
+  projectRuler,
+  projectTrendline,
+} from '@/lib/drawings/engine';
 
 interface DrawingOverlayProps {
   chart: IChartApi | null;
@@ -24,7 +32,7 @@ interface DrawingOverlayProps {
 
 interface CreationState {
   drawingId: string;
-  kind: 'trendline' | 'rectangle';
+  kind: 'trendline' | 'rectangle' | 'ruler';
 }
 
 function createDrawingId() {
@@ -49,7 +57,10 @@ export function DrawingOverlay({
     byInstrument,
     hidden,
     selectedTool,
+    selectedDrawingId,
+    setSelectedDrawingId,
     upsertDrawing,
+    removeDrawing,
   } = useDrawingStore();
 
   const instrumentKey = useMemo(
@@ -66,7 +77,8 @@ export function DrawingOverlay({
         return drawing.kind === 'horizontal_line'
           || drawing.kind === 'signal_level'
           || drawing.kind === 'trendline'
-          || drawing.kind === 'rectangle';
+          || drawing.kind === 'rectangle'
+          || drawing.kind === 'ruler';
       });
   }, [byId, byInstrument, instrumentKey]);
 
@@ -112,8 +124,27 @@ export function DrawingOverlay({
       drawings,
       hidden,
       lastBarTime,
+      selectedDrawingId,
     });
-  }, [drawings, hidden, lastBarTime]);
+  }, [drawings, hidden, lastBarTime, selectedDrawingId]);
+
+  const projectionContext = useMemo<ChartProjectionContext | null>(() => {
+    if (!chart || !candleSeries || paneWidth <= 0 || paneHeight <= 0) return null;
+
+    const lastBarX =
+      lastBarTime === null ? null : chart.timeScale().timeToCoordinate(lastBarTime as any);
+    const lastRealLogical =
+      lastBarX === null ? null : chart.timeScale().coordinateToLogical(lastBarX);
+
+    return {
+      width: paneWidth,
+      height: paneHeight,
+      timeToX: (time: number) => chart.timeScale().timeToCoordinate(time as any),
+      logicalToX: (logical: number) => chart.timeScale().logicalToCoordinate(logical as any),
+      lastRealLogical: lastRealLogical === null ? null : Number(lastRealLogical),
+      priceToY: (price: number) => candleSeries.priceToCoordinate(price),
+    };
+  }, [chart, candleSeries, lastBarTime, paneHeight, paneWidth]);
 
   const screenToValue = useCallback((clientX: number, clientY: number): DrawingPoint | null => {
     if (!chart || !candleSeries || !hostRef.current || paneWidth <= 0 || paneHeight <= 0) {
@@ -185,9 +216,66 @@ export function DrawingOverlay({
     },
   }), [exchange, instrumentKey, marketType, symbol]);
 
+  const hitTestDrawing = useCallback((x: number, y: number): AnyDrawing | null => {
+    if (!projectionContext) return null;
+
+    for (let index = drawings.length - 1; index >= 0; index -= 1) {
+      const drawing = drawings[index];
+
+      if (drawing.kind === 'horizontal_line' || drawing.kind === 'signal_level') {
+        const line = projectHorizontalLine(drawing, projectionContext);
+        if (line && hitTestLine(x, y, line.x1, line.y1, line.x2, line.y2, 8)) {
+          return drawing;
+        }
+      }
+
+      if (drawing.kind === 'trendline') {
+        const line = projectTrendline(drawing, projectionContext);
+        if (line && hitTestLine(x, y, line.x1, line.y1, line.x2, line.y2, 8)) {
+          return drawing;
+        }
+      }
+
+      if (drawing.kind === 'ruler') {
+        const line = projectRuler(drawing, projectionContext);
+        if (line && hitTestLine(x, y, line.x1, line.y1, line.x2, line.y2, 10)) {
+          return drawing;
+        }
+      }
+
+      if (drawing.kind === 'rectangle') {
+        const rect = projectRectangle(drawing, projectionContext);
+        if (!rect) continue;
+        const inside =
+          x >= rect.x &&
+          x <= rect.x + rect.width &&
+          y >= rect.y &&
+          y <= rect.y + rect.height;
+        if (inside) {
+          return drawing;
+        }
+      }
+    }
+
+    return null;
+  }, [drawings, projectionContext]);
+
   const handlePointerDown = (event: React.PointerEvent<SVGElement>) => {
     if (!chart || !candleSeries || hidden) return;
-    if (selectedTool === 'cursor') return;
+
+    const rect = hostRef.current?.getBoundingClientRect();
+    const chartX = rect ? event.clientX - rect.left : 0;
+    const chartY = rect ? event.clientY - rect.top : 0;
+
+    if (selectedTool === 'cursor' || selectedTool === 'delete') {
+      const hit = hitTestDrawing(chartX, chartY);
+      if (selectedTool === 'delete') {
+        if (hit) removeDrawing(hit.id);
+        return;
+      }
+      setSelectedDrawingId(hit?.id ?? null);
+      return;
+    }
 
     const point = screenToValue(event.clientX, event.clientY);
     if (!point) return;
@@ -195,16 +283,24 @@ export function DrawingOverlay({
     const id = createDrawingId();
     const base = makeBaseDrawing(id);
 
-    if (selectedTool === 'horizontal_line') {
+    if (selectedTool === 'horizontal_line' || selectedTool === 'signal_level') {
       upsertDrawing({
         ...base,
-        kind: 'horizontal_line',
+        kind: selectedTool,
         price: point.price,
+        ...(selectedTool === 'signal_level'
+          ? {
+              triggered: false,
+              triggeredAt: null,
+              armed: true,
+            }
+          : {}),
       } as AnyDrawing);
+      setSelectedDrawingId(id);
       return;
     }
 
-    if (selectedTool === 'trendline' || selectedTool === 'rectangle') {
+    if (selectedTool === 'trendline' || selectedTool === 'rectangle' || selectedTool === 'ruler') {
       upsertDrawing({
         ...base,
         kind: selectedTool,
@@ -216,6 +312,7 @@ export function DrawingOverlay({
         drawingId: id,
         kind: selectedTool,
       });
+      setSelectedDrawingId(id);
       event.currentTarget.setPointerCapture(event.pointerId);
     }
   };
@@ -224,7 +321,7 @@ export function DrawingOverlay({
     if (!creation) return;
 
     const current = byId[creation.drawingId];
-    if (!current || (current.kind !== 'trendline' && current.kind !== 'rectangle')) {
+    if (!current || (current.kind !== 'trendline' && current.kind !== 'rectangle' && current.kind !== 'ruler')) {
       return;
     }
 
@@ -259,6 +356,81 @@ export function DrawingOverlay({
     }
     setCreation(null);
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedDrawingId) {
+        removeDrawing(selectedDrawingId);
+        setSelectedDrawingId(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [removeDrawing, selectedDrawingId, setSelectedDrawingId]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || !chart || !candleSeries || hidden) return;
+
+    let active = false;
+    let activeId: string | null = null;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!event.shiftKey || event.button !== 2) return;
+      const point = screenToValue(event.clientX, event.clientY);
+      if (!point) return;
+
+      active = true;
+      const id = createDrawingId();
+      activeId = id;
+      upsertDrawing({
+        ...makeBaseDrawing(id),
+        kind: 'ruler',
+        p1: point,
+        p2: point,
+      } as AnyDrawing);
+      setSelectedDrawingId(id);
+      event.preventDefault();
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!active || !activeId) return;
+      const current = byId[activeId];
+      if (!current || current.kind !== 'ruler') return;
+      const point = screenToValue(event.clientX, event.clientY);
+      if (!point) return;
+
+      upsertDrawing({
+        ...current,
+        p2: point,
+        updatedAt: Date.now(),
+      });
+    };
+
+    const finish = () => {
+      active = false;
+      activeId = null;
+    };
+
+    const suppressContextMenu = (event: MouseEvent) => {
+      if (event.shiftKey) {
+        event.preventDefault();
+      }
+    };
+
+    host.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', finish);
+    host.addEventListener('contextmenu', suppressContextMenu);
+
+    return () => {
+      host.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', finish);
+      host.removeEventListener('contextmenu', suppressContextMenu);
+    };
+  }, [byId, candleSeries, chart, hidden, hostRef, makeBaseDrawing, removeDrawing, screenToValue, setSelectedDrawingId, upsertDrawing]);
 
   if (!chart || !candleSeries || hidden || paneWidth <= 0 || paneHeight <= 0) {
     return null;

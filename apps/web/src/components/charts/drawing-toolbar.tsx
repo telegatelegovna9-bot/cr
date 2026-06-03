@@ -6,6 +6,8 @@ import {
   Minus, 
   TrendingUp, 
   Square, 
+  Ruler,
+  Siren,
   Eye, 
   EyeOff, 
   Trash2,
@@ -29,15 +31,17 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
     selectedTool, 
     setSelectedTool, 
     hidden, 
-    setHidden, 
-    clearInstrument 
+    setHidden
   } = useDrawingStore();
 
   const tools: { id: DrawingTool; icon: any; label: string }[] = [
     { id: 'cursor', icon: MousePointer2, label: 'Cursor' },
     { id: 'horizontal_line', icon: Minus, label: 'Horizontal Line' },
+    { id: 'signal_level', icon: Siren, label: 'Signal Level' },
     { id: 'trendline', icon: TrendingUp, label: 'Trend Line' },
     { id: 'rectangle', icon: Square, label: 'Rectangle' },
+    { id: 'ruler', icon: Ruler, label: 'Ruler' },
+    { id: 'delete', icon: Trash2, label: 'Delete' },
   ];
 
   const toolbarClass = compact
@@ -91,18 +95,6 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
         title={hidden ? "Show Drawings" : "Hide Drawings"}
       >
         {hidden ? <EyeOff size={compact ? 13 : 15} /> : <Eye size={compact ? 13 : 15} />}
-      </button>
-
-      <button
-        onClick={() => {
-          if (confirm('Clear all drawings for this instrument?')) {
-            clearInstrument(exchange, marketType, symbol);
-          }
-        }}
-        className={cn(buttonClass(false), "hover:text-red-400 hover:bg-red-500/10")}
-        title="Clear All"
-      >
-        <Trash2 size={compact ? 13 : 15} />
       </button>
         </>
       )}

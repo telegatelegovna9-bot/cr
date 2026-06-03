@@ -71,6 +71,13 @@ export function projectTrendline(
   return { x1, y1, x2, y2 };
 }
 
+export function projectRuler(
+  drawing: { p1: PointLike; p2: PointLike },
+  ctx: ChartProjectionContext
+) {
+  return projectTrendline(drawing, ctx);
+}
+
 export function projectRectangle(
   drawing: { p1: PointLike; p2: PointLike },
   ctx: ChartProjectionContext

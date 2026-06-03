@@ -8,7 +8,7 @@ export const DRAWING_KINDS = [
 ] as const;
 
 export type DrawingKind = (typeof DRAWING_KINDS)[number];
-export type DrawingTool = 'cursor' | DrawingKind;
+export type DrawingTool = 'cursor' | 'delete' | DrawingKind;
 export type InstrumentMarketType = 'spot' | 'futures';
 
 export interface InstrumentRef {
