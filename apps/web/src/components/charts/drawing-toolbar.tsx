@@ -47,12 +47,12 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
   ];
 
   const toolbarClass = compact
-    ? 'absolute left-2 top-2 z-40 flex gap-1 p-1 glass-panel rounded-lg shadow-xl border border-white/10'
-    : 'absolute left-3 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-1 p-1 glass-panel rounded-xl shadow-2xl border border-white/10';
+    ? 'absolute left-2 top-2 z-40 flex gap-0.5 p-0.5 glass-panel rounded-lg shadow-xl border border-white/10 max-w-[calc(100%-1rem)] overflow-x-auto'
+    : 'absolute left-2 top-2 z-40 flex flex-col gap-0.5 p-0.5 glass-panel rounded-lg shadow-2xl border border-white/10';
 
   const buttonClass = (active: boolean) => cn(
     'flex items-center justify-center rounded-md transition-all duration-200 group relative',
-    compact ? 'w-7 h-7' : 'w-8 h-8',
+    compact ? 'w-6 h-6 shrink-0' : 'w-7 h-7',
     active 
       ? 'bg-blue-500/20 text-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.3)] border border-blue-500/30' 
       : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
@@ -65,7 +65,7 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
         className={buttonClass(false)}
         title={collapsed ? "Show Toolbar" : "Hide Toolbar"}
       >
-        {collapsed ? <PanelLeftOpen size={compact ? 14 : 16} /> : <PanelLeftClose size={compact ? 14 : 16} />}
+        {collapsed ? <PanelLeftOpen size={compact ? 12 : 14} /> : <PanelLeftClose size={compact ? 12 : 14} />}
       </button>
 
       {!collapsed && (
@@ -77,7 +77,7 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
           className={buttonClass(selectedTool === tool.id)}
           title={tool.label}
         >
-          <tool.icon size={compact ? 15 : 17} />
+          <tool.icon size={compact ? 13 : 15} />
           {!compact && (
             <div className="absolute left-full ml-3 px-2 py-1 bg-zinc-900 text-zinc-200 text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 border border-white/10 shadow-xl">
               {tool.label}
@@ -96,7 +96,7 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
         className={buttonClass(hidden)}
         title={hidden ? "Show Drawings" : "Hide Drawings"}
       >
-        {hidden ? <EyeOff size={compact ? 15 : 17} /> : <Eye size={compact ? 15 : 17} />}
+        {hidden ? <EyeOff size={compact ? 13 : 15} /> : <Eye size={compact ? 13 : 15} />}
       </button>
 
       <button
@@ -108,7 +108,7 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
         className={cn(buttonClass(false), "hover:text-red-400 hover:bg-red-500/10")}
         title="Clear All"
       >
-        <Trash2 size={compact ? 15 : 17} />
+        <Trash2 size={compact ? 13 : 15} />
       </button>
         </>
       )}

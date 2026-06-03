@@ -788,6 +788,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         <DrawingOverlay
           chart={chartRef.current}
           candleSeries={candleSeriesRef.current}
+          hostRef={containerRef}
           exchange={exchange}
           marketType={marketType}
           symbol={effectiveSymbol}

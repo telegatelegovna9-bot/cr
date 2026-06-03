@@ -25,6 +25,7 @@ import { getLocalOverlayPoint, panLogicalRange } from './drawing-overlay-helpers
 interface DrawingOverlayProps {
   chart: IChartApi | null;
   candleSeries: ISeriesApi<'Candlestick'> | null;
+  hostRef: React.RefObject<HTMLDivElement | null>;
   exchange: string;
   marketType: InstrumentMarketType;
   symbol: string;
@@ -43,6 +44,7 @@ interface InteractionState {
 export function DrawingOverlay({ 
   chart, 
   candleSeries, 
+  hostRef,
   exchange, 
   marketType, 
   symbol, 
@@ -74,7 +76,7 @@ export function DrawingOverlay({
   // Sync size with container
   useEffect(() => {
     if (!chart) return;
-    const container = containerRef.current?.parentElement;
+    const container = hostRef.current;
     if (!container) return;
 
     const observer = new ResizeObserver((entries) => {
@@ -83,7 +85,7 @@ export function DrawingOverlay({
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [chart]);
+  }, [chart, hostRef]);
 
   // Redraw on chart changes (scroll, scale)
   useEffect(() => {
@@ -113,7 +115,7 @@ export function DrawingOverlay({
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (hidden || !chart || !candleSeries) return;
-    const rect = containerRef.current?.getBoundingClientRect();
+    const rect = hostRef.current?.getBoundingClientRect();
     if (!rect) return;
     const { x, y } = getLocalOverlayPoint(e.clientX, e.clientY, rect, size.width, size.height);
 
@@ -236,16 +238,13 @@ export function DrawingOverlay({
 
       upsertDrawing(newDrawing);
       setSelectedId(id);
-      if (selectedTool === 'horizontal_line' || selectedTool === 'signal_level' || selectedTool === 'vertical_line') {
-        setSelectedTool('cursor');
-      }
     }
 
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    const rect = containerRef.current?.getBoundingClientRect();
+    const rect = hostRef.current?.getBoundingClientRect();
     if (!rect) return;
     const { x, y } = getLocalOverlayPoint(e.clientX, e.clientY, rect, size.width, size.height);
 
@@ -339,10 +338,28 @@ export function DrawingOverlay({
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
-    if (interaction.type === 'creating') {
-      setSelectedTool('cursor');
-    }
     setInteraction({ type: 'idle' });
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (selectedTool !== 'cursor') {
+      return;
+    }
+
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    host.dispatchEvent(new WheelEvent('wheel', {
+      deltaX: e.deltaX,
+      deltaY: e.deltaY,
+      deltaMode: e.deltaMode,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      bubbles: true,
+      cancelable: true,
+    }));
   };
 
   useEffect(() => {
@@ -384,6 +401,7 @@ export function DrawingOverlay({
       width={size.width}
       height={size.height}
       overflow="visible"
+      onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -416,6 +434,19 @@ export function DrawingOverlay({
                 strokeDasharray={drawing.kind === 'signal_level' ? "4 4" : undefined}
                 filter={isSelected ? "url(#glow)" : undefined}
               />
+              {!compact && (
+                <text
+                  x={size.width - 8}
+                  y={line.y1 - 6}
+                  fill={color}
+                  fontSize="10"
+                  textAnchor="end"
+                  className="font-mono pointer-events-none"
+                  fillOpacity={opacity}
+                >
+                  {drawing.price.toFixed(4)}
+                </text>
+              )}
               {drawing.kind === 'signal_level' && !compact && (
                 <text 
                   x={10} y={line.y1 - 5} 
