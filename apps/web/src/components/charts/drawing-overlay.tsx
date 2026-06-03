@@ -16,7 +16,6 @@ import {
   projectTrendline,
 } from '@/lib/drawings/engine';
 import { formatPrice } from '@/lib/format';
-import { getLocalOverlayPoint } from './drawing-overlay-helpers';
 
 interface DrawingOverlayProps {
   chart: IChartApi | null;
@@ -123,7 +122,13 @@ export function DrawingOverlay({
     }
 
     const rect = hostRef.current.getBoundingClientRect();
-    const { x, y } = getLocalOverlayPoint(clientX, clientY, rect, paneWidth, paneHeight);
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    if (x < 0 || y < 0 || x > paneWidth || y > paneHeight) {
+      return null;
+    }
+
     const time = chart.timeScale().coordinateToTime(x);
     const price = candleSeries.coordinateToPrice(y);
 
@@ -156,7 +161,7 @@ export function DrawingOverlay({
     },
   }), [exchange, instrumentKey, marketType, symbol]);
 
-  const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+  const handlePointerDown = (event: React.PointerEvent<SVGElement>) => {
     if (!projectionContext || hidden) return;
     if (selectedTool === 'cursor') return;
 
@@ -191,7 +196,7 @@ export function DrawingOverlay({
     }
   };
 
-  const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+  const handlePointerMove = (event: React.PointerEvent<SVGElement>) => {
     if (!creation) return;
 
     const current = byId[creation.drawingId];
@@ -209,7 +214,22 @@ export function DrawingOverlay({
     });
   };
 
-  const finishCreation = (event: React.PointerEvent<SVGSVGElement>) => {
+  const forwardWheelToHost = (event: React.WheelEvent<SVGRectElement>) => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    host.dispatchEvent(new WheelEvent('wheel', {
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      bubbles: true,
+      cancelable: true,
+    }));
+  };
+
+  const finishCreation = (event: React.PointerEvent<SVGElement>) => {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -223,24 +243,35 @@ export function DrawingOverlay({
   return (
     <svg
       ref={overlayRef}
-      className="absolute left-0 top-0 z-30 select-none"
-      width={paneWidth}
-      height={paneHeight}
+      className="absolute left-0 top-0 z-30 select-none pointer-events-none"
+      width={hostSize.width}
+      height={hostSize.height}
       style={{
-        width: paneWidth,
-        height: paneHeight,
-        pointerEvents: selectedTool === 'cursor' ? 'none' : 'auto',
-      }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={finishCreation}
-      onPointerCancel={finishCreation}
-      onPointerLeave={(event) => {
-        if (creation) {
-          finishCreation(event);
-        }
+        width: hostSize.width,
+        height: hostSize.height,
       }}
     >
+      {selectedTool !== 'cursor' && (
+        <rect
+          x={0}
+          y={0}
+          width={paneWidth}
+          height={paneHeight}
+          fill="transparent"
+          pointerEvents="auto"
+          onWheel={forwardWheelToHost}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={finishCreation}
+          onPointerCancel={finishCreation}
+          onPointerLeave={(event) => {
+            if (creation) {
+              finishCreation(event);
+            }
+          }}
+        />
+      )}
+
       {drawings.map((drawing) => {
         if (drawing.kind === 'horizontal_line' || drawing.kind === 'signal_level') {
           const line = projectHorizontalLine(drawing, projectionContext);
