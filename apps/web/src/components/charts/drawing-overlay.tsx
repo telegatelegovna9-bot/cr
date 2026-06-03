@@ -20,7 +20,7 @@ import {
   hitTestRectangleHandle
 } from '@/lib/drawings/engine';
 import { cn } from '@/lib/utils';
-import { getLocalOverlayPoint, panLogicalRange } from './drawing-overlay-helpers';
+import { getLocalOverlayPoint } from './drawing-overlay-helpers';
 
 interface DrawingOverlayProps {
   chart: IChartApi | null;
@@ -33,12 +33,10 @@ interface DrawingOverlayProps {
 }
 
 interface InteractionState {
-  type: 'idle' | 'creating' | 'moving' | 'editing_handle' | 'panning';
+  type: 'idle' | 'creating' | 'moving' | 'editing_handle';
   drawingId?: string;
   handleId?: 'p1' | 'p2';
   startPoint?: { x: number; y: number; time: number; price: number };
-  panStartX?: number;
-  panStartRange?: { from: number; to: number } | null;
 }
 
 export function DrawingOverlay({ 
@@ -73,6 +71,10 @@ export function DrawingOverlay({
     return ids.map(id => byId[id]).filter(Boolean) as AnyDrawing[];
   }, [byId, byInstrument, instrumentKey]);
 
+  const timeScaleHeight = chart ? chart.timeScale().height() : 0;
+  const paneWidth = chart ? chart.timeScale().width() : size.width;
+  const paneHeight = Math.max(0, size.height - timeScaleHeight);
+
   // Sync size with container
   useEffect(() => {
     if (!chart) return;
@@ -96,14 +98,14 @@ export function DrawingOverlay({
   }, [chart]);
 
   const getProjectionContext = useCallback((): ChartProjectionContext | null => {
-    if (!chart || !candleSeries || size.width === 0) return null;
+    if (!chart || !candleSeries || paneWidth === 0 || paneHeight === 0) return null;
     return {
-      width: size.width,
-      height: size.height,
+      width: paneWidth,
+      height: paneHeight,
       timeToX: (time: number) => chart.timeScale().timeToCoordinate(time as any),
       priceToY: (price: number) => candleSeries.priceToCoordinate(price),
     };
-  }, [chart, candleSeries, size]);
+  }, [chart, candleSeries, paneWidth, paneHeight]);
 
   const screenToValue = useCallback((x: number, y: number): DrawingPoint | null => {
     if (!chart || !candleSeries) return null;
@@ -117,7 +119,7 @@ export function DrawingOverlay({
     if (hidden || !chart || !candleSeries) return;
     const rect = hostRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const { x, y } = getLocalOverlayPoint(e.clientX, e.clientY, rect, size.width, size.height);
+    const { x, y } = getLocalOverlayPoint(e.clientX, e.clientY, rect, paneWidth, paneHeight);
 
     const ctx = getProjectionContext();
     if (!ctx) return;
@@ -190,12 +192,6 @@ export function DrawingOverlay({
         }
       }
       setSelectedId(null);
-      e.currentTarget.setPointerCapture(e.pointerId);
-      setInteraction({
-        type: 'panning',
-        panStartX: x,
-        panStartRange: chart.timeScale().getVisibleLogicalRange(),
-      });
       return;
     } 
     // 3. Create new drawing
@@ -246,7 +242,7 @@ export function DrawingOverlay({
   const handlePointerMove = (e: React.PointerEvent) => {
     const rect = hostRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const { x, y } = getLocalOverlayPoint(e.clientX, e.clientY, rect, size.width, size.height);
+    const { x, y } = getLocalOverlayPoint(e.clientX, e.clientY, rect, paneWidth, paneHeight);
 
     if (interaction.type === 'idle') {
       // Handle hover
@@ -291,14 +287,6 @@ export function DrawingOverlay({
 
     const val = screenToValue(x, y);
 
-    if (interaction.type === 'panning' && interaction.panStartRange && chart) {
-      const nextRange = panLogicalRange(interaction.panStartRange, x - interaction.panStartX!, size.width);
-      if (nextRange) {
-        chart.timeScale().setVisibleLogicalRange(nextRange);
-      }
-      return;
-    }
-
     if (!val) return;
 
     if (interaction.type === 'creating' && interaction.drawingId) {
@@ -341,27 +329,6 @@ export function DrawingOverlay({
     setInteraction({ type: 'idle' });
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (selectedTool !== 'cursor') {
-      return;
-    }
-
-    const host = hostRef.current;
-    if (!host) {
-      return;
-    }
-
-    host.dispatchEvent(new WheelEvent('wheel', {
-      deltaX: e.deltaX,
-      deltaY: e.deltaY,
-      deltaMode: e.deltaMode,
-      clientX: e.clientX,
-      clientY: e.clientY,
-      bubbles: true,
-      cancelable: true,
-    }));
-  };
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -385,9 +352,10 @@ export function DrawingOverlay({
     <svg
       ref={containerRef}
       className="absolute inset-0 z-30 pointer-events-none"
-      width="100%"
-      height="100%"
+      width={paneWidth || '100%'}
+      height={paneHeight || '100%'}
       overflow="visible"
+      style={{ width: paneWidth || '100%', height: paneHeight || '100%' }}
     />
   );
 
@@ -398,10 +366,14 @@ export function DrawingOverlay({
         "absolute inset-0 z-30 select-none outline-none",
         selectedTool === 'cursor' ? "cursor-grab active:cursor-grabbing" : "cursor-cell"
       )}
-      width={size.width}
-      height={size.height}
+      width={paneWidth}
+      height={paneHeight}
       overflow="visible"
-      onWheel={handleWheel}
+      style={{
+        width: paneWidth,
+        height: paneHeight,
+        pointerEvents: selectedTool === 'cursor' && interaction.type === 'idle' ? 'none' : 'auto',
+      }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
