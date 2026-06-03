@@ -66,15 +66,20 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async runMigrations() {
-    // Drop tables with potentially incompatible schema before recreating
-    await this.query(`
-      DROP TABLE IF EXISTS alert_rules CASCADE;
-      DROP TABLE IF EXISTS watchlists CASCADE;
-      DROP TABLE IF EXISTS users CASCADE;
-      DROP TABLE IF EXISTS candles CASCADE;
-    `);
+    const shouldResetOnBoot = process.env.DB_RESET_ON_BOOT === 'true';
+
+    if (shouldResetOnBoot) {
+      await this.query(`
+        DROP TABLE IF EXISTS alert_rules CASCADE;
+        DROP TABLE IF EXISTS watchlists CASCADE;
+        DROP TABLE IF EXISTS users CASCADE;
+        DROP TABLE IF EXISTS candles CASCADE;
+      `);
+    }
 
     await this.query(`
+      CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
       CREATE TABLE IF NOT EXISTS candles (
         id BIGSERIAL,
         symbol VARCHAR(20) NOT NULL,

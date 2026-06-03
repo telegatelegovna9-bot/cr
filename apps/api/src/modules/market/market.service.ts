@@ -194,9 +194,9 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private async storeCandle(candle: Candle) {
     try {
       await this.db.query(
-        `INSERT INTO candles (symbol, exchange, timeframe, timestamp, open, high, low, close, volume, trades)
+        `INSERT INTO candles (symbol, exchange, timeframe, time, open, high, low, close, volume, trades)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         ON CONFLICT (symbol, exchange, timeframe, timestamp) DO UPDATE SET
+         ON CONFLICT (symbol, exchange, timeframe, time) DO UPDATE SET
            open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
            close = EXCLUDED.close, volume = EXCLUDED.volume, trades = EXCLUDED.trades`,
         [candle.symbol, candle.exchange, candle.timeframe, candle.time,
