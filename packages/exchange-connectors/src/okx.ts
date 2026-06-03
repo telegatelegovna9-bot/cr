@@ -2,7 +2,7 @@
 
 import WebSocket from 'ws';
 import type { Ticker, Candle, Timeframe, OrderBook, Trade } from '@crypto-screener/shared';
-import { normalizeSymbol } from '@crypto-screener/shared';
+import { normalizeSymbol, WS_RECONNECT_DELAY } from '@crypto-screener/shared';
 import { BaseExchangeConnector } from './base';
 
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
@@ -19,9 +19,17 @@ const REVERSE_TIMEFRAME_MAP: Record<string, Timeframe> = {
 };
 
 const OKX_WS_PUBLIC = 'wss://ws.okx.com:8443/ws/v5/public';
+const OKX_WS_BUSINESS = 'wss://ws.okx.com:8443/ws/v5/business';
 const OKX_REST = 'https://www.okx.com';
 
 export class OKXConnector extends BaseExchangeConnector {
+  private businessWs: WebSocket | null = null;
+  private businessConnected = false;
+  private businessSubscriptions = new Set<string>();
+  private activeBusinessSubs = new Set<string>();
+  private businessHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private businessReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor() {
     super({
       id: 'okx',
@@ -32,12 +40,117 @@ export class OKXConnector extends BaseExchangeConnector {
   }
 
   async connectWS(): Promise<void> {
-    const ws = new WebSocket(this.wsUrl);
-    this.setupWebSocket(ws);
-    return new Promise((resolve, reject) => {
-      ws.on('open', () => resolve());
-      ws.on('error', (err) => reject(err));
+    if (this.connected || this.ws) return;
+
+    const publicWs = new WebSocket(this.wsUrl);
+    this.setupWebSocket(publicWs);
+
+    const businessWs = new WebSocket(OKX_WS_BUSINESS);
+    this.setupBusinessWebSocket(businessWs);
+
+    await Promise.allSettled([
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 10_000);
+        publicWs.once('open', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        publicWs.once('error', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        publicWs.once('close', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      }),
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 10_000);
+        businessWs.once('open', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        businessWs.once('error', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        businessWs.once('close', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      }),
+    ]);
+  }
+
+  private setupBusinessWebSocket(ws: WebSocket): void {
+    this.businessWs = ws;
+
+    ws.on('open', () => {
+      this.businessConnected = true;
+      this.startBusinessHeartbeat();
+      for (const sub of this.activeBusinessSubs) {
+        this.sendBusinessSubscription('subscribe', sub);
+      }
     });
+
+    ws.on('message', (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+        this.handleMessage(msg);
+      } catch {
+        // ignore malformed messages
+      }
+    });
+
+    ws.on('close', () => {
+      this.businessConnected = false;
+      this.businessWs = null;
+      this.businessSubscriptions.clear();
+      this.stopBusinessHeartbeat();
+      if (!this.businessReconnectTimer) {
+        this.businessReconnectTimer = setTimeout(() => {
+          this.businessReconnectTimer = null;
+          this.reconnectBusinessWS();
+        }, WS_RECONNECT_DELAY);
+      }
+    });
+
+    ws.on('error', (err: Error) => {
+      console.warn(`[okx] Business WS error: ${err.message}`);
+    });
+  }
+
+  private reconnectBusinessWS(): void {
+    if (this.businessWs) return;
+    this.setupBusinessWebSocket(new WebSocket(OKX_WS_BUSINESS));
+  }
+
+  private startBusinessHeartbeat(): void {
+    this.stopBusinessHeartbeat();
+    this.businessHeartbeatTimer = setInterval(() => {
+      if (this.businessWs && this.businessConnected && this.businessWs.readyState === 1) {
+        this.businessWs.send(JSON.stringify({ op: 'ping' }));
+      }
+    }, 30000);
+  }
+
+  private stopBusinessHeartbeat(): void {
+    if (this.businessHeartbeatTimer) {
+      clearInterval(this.businessHeartbeatTimer);
+      this.businessHeartbeatTimer = null;
+    }
+  }
+
+  private sendBusiness(data: unknown): void {
+    if (this.businessWs && this.businessConnected && this.businessWs.readyState === 1) {
+      this.businessWs.send(JSON.stringify(data));
+    }
+  }
+
+  private sendBusinessSubscription(op: 'subscribe' | 'unsubscribe', stream: string): void {
+    const [channel, instId] = stream.split('|');
+    if (!channel || !instId) return;
+    this.sendBusiness({ op, args: [{ channel, instId }] });
   }
 
   private isFuturesSymbol(symbol: string): boolean {
@@ -72,9 +185,11 @@ export class OKXConnector extends BaseExchangeConnector {
     const instId = this.toOKXInstId(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
     const key = `candle:${symbol}:${timeframe}`;
-    if (this.subscriptions.has(key)) return;
-    this.subscriptions.add(key);
-    this.send({ op: 'subscribe', args: [{ channel: `candle${tf}`, instId }] });
+    if (this.businessSubscriptions.has(key)) return;
+    this.businessSubscriptions.add(key);
+    const stream = `candle${tf}|${instId}`;
+    this.activeBusinessSubs.add(stream);
+    this.sendBusinessSubscription('subscribe', stream);
   }
 
   subscribeOrderBook(symbol: string): void {
@@ -102,8 +217,10 @@ export class OKXConnector extends BaseExchangeConnector {
   unsubscribeCandle(symbol: string, timeframe: Timeframe): void {
     const instId = this.toOKXInstId(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
-    this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
-    this.send({ op: 'unsubscribe', args: [{ channel: `candle${tf}`, instId }] });
+    this.businessSubscriptions.delete(`candle:${symbol}:${timeframe}`);
+    const stream = `candle${tf}|${instId}`;
+    this.activeBusinessSubs.delete(stream);
+    this.sendBusinessSubscription('unsubscribe', stream);
   }
 
   unsubscribeOrderBook(symbol: string): void {
@@ -294,5 +411,26 @@ export class OKXConnector extends BaseExchangeConnector {
       asks: book.asks.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       timestamp: Date.now(),
     };
+  }
+
+  disconnect(): void {
+    super.disconnect();
+    this.stopBusinessHeartbeat();
+    if (this.businessReconnectTimer) {
+      clearTimeout(this.businessReconnectTimer);
+      this.businessReconnectTimer = null;
+    }
+    if (this.businessWs) {
+      this.businessWs.removeAllListeners();
+      this.businessWs.close();
+      this.businessWs = null;
+    }
+    this.businessConnected = false;
+    this.businessSubscriptions.clear();
+    this.activeBusinessSubs.clear();
+  }
+
+  isConnected(): boolean {
+    return this.connected || this.businessConnected;
   }
 }
