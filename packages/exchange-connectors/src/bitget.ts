@@ -375,23 +375,25 @@ export class BitgetConnector extends BaseExchangeConnector {
       const symbol = isFutures ? this.fromBitgetFuturesSymbol(instId) : normalizeSymbol(instId, 'bitget');
       const tfRaw = channel.replace('candle', '');
       const timeframe = this.reverseTimeframe(tfRaw);
-      data.forEach((k) => {
-        if (!Array.isArray(k) || k.length < 6) return;
-        this.emit('candle', {
-          exchange: 'bitget',
-          marketType: isFutures ? 'futures' : 'spot',
-          symbol,
-          timeframe,
-          time: parseInt(k[0] as string, 10),
-          open: parseFloat(k[1] as string),
-          high: parseFloat(k[2] as string),
-          low: parseFloat(k[3] as string),
-          close: parseFloat(k[4] as string),
-          volume: parseFloat(k[5] as string),
-          isClosed: false,
-          trades: 0,
-        } as Candle);
-      });
+      // Bitget sends a large historical snapshot on initial subscribe.
+      // History is already fetched via REST, so pushing the whole snapshot
+      // through the real-time pipeline creates UI stalls for no benefit.
+      const latest = data[data.length - 1];
+      if (!Array.isArray(latest) || latest.length < 6) return;
+      this.emit('candle', {
+        exchange: 'bitget',
+        marketType: isFutures ? 'futures' : 'spot',
+        symbol,
+        timeframe,
+        time: parseInt(latest[0] as string, 10),
+        open: parseFloat(latest[1] as string),
+        high: parseFloat(latest[2] as string),
+        low: parseFloat(latest[3] as string),
+        close: parseFloat(latest[4] as string),
+        volume: parseFloat(latest[5] as string),
+        isClosed: false,
+        trades: 0,
+      } as Candle);
     } else if (channel === 'books15') {
       const symbol = isFutures ? this.fromBitgetFuturesSymbol(instId) : normalizeSymbol(instId, 'bitget');
       const bids = ((data[0].bids || data[0].b) as [string, string][]).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) }));
