@@ -103,10 +103,10 @@ export function DrawingOverlay({
   }, [chart]);
 
   const rightPriceScaleWidth = chart ? chart.priceScale('right').width() : 0;
-  const leftPriceScaleWidth = chart ? chart.priceScale('left').width() : 0;
+  const timeScaleWidth = chart ? chart.timeScale().width() : 0;
   const timeScaleHeight = chart ? chart.timeScale().height() : 0;
-  const paneLeft = leftPriceScaleWidth;
-  const paneWidth = Math.max(0, hostSize.width - leftPriceScaleWidth - rightPriceScaleWidth);
+  const paneWidth = Math.max(0, Math.min(hostSize.width, timeScaleWidth || (hostSize.width - rightPriceScaleWidth)));
+  const paneLeft = Math.max(0, hostSize.width - rightPriceScaleWidth - paneWidth);
   const paneHeight = Math.max(0, hostSize.height - timeScaleHeight);
   const clipPathId = useMemo(
     () => `drawing-pane-${instrumentKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
