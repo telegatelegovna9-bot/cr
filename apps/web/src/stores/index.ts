@@ -439,7 +439,14 @@ export const useUIStore = create<UIStore>((set) => ({
   setSelectedCoin: (coin) => set({ selectedCoin: coin }),
   setChartGridSize: (size) => set({ chartGridSize: size }),
   toggleHeatmap: () => set(state => ({ showHeatmap: !state.showHeatmap })),
-  toggleAlerts: () => set(state => ({ alertsOpen: !state.alertsOpen })),
+  toggleAlerts: () => set(state => {
+    const nextOpen = !state.alertsOpen;
+    return {
+      alertsOpen: nextOpen,
+      unreadAlertCount: nextOpen ? 0 : state.unreadAlertCount,
+      alerts: nextOpen ? state.alerts.map(a => ({ ...a, read: true })) : state.alerts,
+    };
+  }),
   toggleSettings: () => set(state => ({ settingsOpen: !state.settingsOpen })),
   setHeatmapSettings: (patch) => set(state => ({
     heatmapSettings: { ...state.heatmapSettings, ...patch },
