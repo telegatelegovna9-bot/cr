@@ -19,6 +19,7 @@ const MEXC_SPOT_REST = 'https://api.mexc.com';
 const MEXC_FUTURES_REST = 'https://contract.mexc.com';
 
 export class MexcConnector extends BaseExchangeConnector {
+  private static readonly FUTURES_CANDLE_THROTTLE_MS = 500;
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
@@ -26,6 +27,7 @@ export class MexcConnector extends BaseExchangeConnector {
   private futuresHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private futuresReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private futuresCandleEmitTimes = new Map<string, number>();
 
   constructor() {
     super({
@@ -341,6 +343,11 @@ export class MexcConnector extends BaseExchangeConnector {
       const rawSymbol = (msg.symbol as string) || data.symbol;
       const symbol = this.fromMexcFuturesSymbol(rawSymbol);
       const interval = this.reverseTimeframe(data.interval || 'Min1');
+      const candleKey = `${symbol}:${interval}:${data.t}`;
+      const now = Date.now();
+      const lastEmit = this.futuresCandleEmitTimes.get(candleKey) || 0;
+      if (now - lastEmit < MexcConnector.FUTURES_CANDLE_THROTTLE_MS) return;
+      this.futuresCandleEmitTimes.set(candleKey, now);
       this.emit('candle', {
         exchange: 'mexc',
         marketType: 'futures',
@@ -453,7 +460,7 @@ export class MexcConnector extends BaseExchangeConnector {
       this.futuresReconnectTimer = null;
     }
     if (this.futuresWs) { this.futuresWs.removeAllListeners(); this.futuresWs.close(); this.futuresWs = null; }
-    this.futuresConnected = false; this.futuresSubscriptions.clear(); this.activeFuturesSubs.clear();
+    this.futuresConnected = false; this.futuresSubscriptions.clear(); this.activeFuturesSubs.clear(); this.futuresCandleEmitTimes.clear();
   }
 
   isConnected(): boolean {
