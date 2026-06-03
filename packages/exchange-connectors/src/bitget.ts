@@ -2,7 +2,7 @@
 
 import WebSocket from 'ws';
 import type { Ticker, Candle, Timeframe, OrderBook, Trade } from '@crypto-screener/shared';
-import { normalizeSymbol } from '@crypto-screener/shared';
+import { normalizeSymbol, WS_RECONNECT_DELAY } from '@crypto-screener/shared';
 import { BaseExchangeConnector } from './base';
 
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
@@ -21,8 +21,10 @@ export class BitgetConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
+  private activeFuturesSubs = new Set<string>();
   private futuresHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private futuresReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     super({
@@ -47,12 +49,37 @@ export class BitgetConnector extends BaseExchangeConnector {
     });
 
     const futuresWs = new WebSocket(BITGET_FUTURES_WS);
+    this.setupFuturesWebSocket(futuresWs);
+
+    await Promise.allSettled([
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 10_000);
+        const done = () => { clearTimeout(timer); resolve(); };
+        spotWs.once('open', done);
+        spotWs.once('error', done);
+        spotWs.once('close', done);
+      }),
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 10_000);
+        const done = () => { clearTimeout(timer); resolve(); };
+        futuresWs.once('open', done);
+        futuresWs.once('error', done);
+        futuresWs.once('close', done);
+      }),
+    ]);
+  }
+
+  private setupFuturesWebSocket(futuresWs: WebSocket): void {
     this.futuresWs = futuresWs;
 
     futuresWs.on('open', () => {
       this.futuresConnected = true;
       this.startFuturesHeartbeat();
+      for (const sub of this.activeFuturesSubs) {
+        this.sendFuturesSubscription('subscribe', sub);
+      }
     });
+
     futuresWs.on('message', (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString()) as Record<string, unknown>;
@@ -60,23 +87,28 @@ export class BitgetConnector extends BaseExchangeConnector {
         this.handleMessage(msg);
       } catch { /* ignore */ }
     });
+
     futuresWs.on('close', () => {
       this.futuresConnected = false;
       this.futuresWs = null;
       this.futuresSubscriptions.clear();
       this.stopFuturesHeartbeat();
+      if (!this.futuresReconnectTimer) {
+        this.futuresReconnectTimer = setTimeout(() => {
+          this.futuresReconnectTimer = null;
+          this.reconnectFuturesWS();
+        }, WS_RECONNECT_DELAY);
+      }
     });
+
     futuresWs.on('error', (err: Error) => {
       console.warn(`[bitget] Futures WS error: ${err.message}`);
     });
+  }
 
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, 10_000);
-      const done = () => { clearTimeout(timer); resolve(); };
-      spotWs.once('open', done);
-      spotWs.once('error', done);
-      spotWs.once('close', done);
-    });
+  private reconnectFuturesWS(): void {
+    if (this.futuresWs) return;
+    this.setupFuturesWebSocket(new WebSocket(BITGET_FUTURES_WS));
   }
 
   private startSpotHeartbeat(): void {
@@ -138,16 +170,24 @@ export class BitgetConnector extends BaseExchangeConnector {
     }
   }
 
+  private sendFuturesSubscription(op: 'subscribe' | 'unsubscribe', stream: string): void {
+    const [channel, instId] = stream.split('|');
+    if (!channel || !instId) return;
+    this.sendFutures({
+      op,
+      args: [{ instType: 'USDT-FUTURES', channel, instId }],
+    });
+  }
+
   subscribeTicker(symbol: string): void {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toBitgetFuturesSymbol(symbol);
       const key = `ticker:${symbol}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.sendFutures({
-        op: 'subscribe',
-        args: [{ instType: 'USDT-FUTURES', channel: 'ticker', instId: local }],
-      });
+      const stream = `ticker|${local}`;
+      this.activeFuturesSubs.add(stream);
+      this.sendFuturesSubscription('subscribe', stream);
       return;
     }
 
@@ -168,10 +208,9 @@ export class BitgetConnector extends BaseExchangeConnector {
       const key = `candle:${symbol}:${timeframe}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.sendFutures({
-        op: 'subscribe',
-        args: [{ instType: 'USDT-FUTURES', channel: `candle${tf}`, instId: local }],
-      });
+      const stream = `candle${tf}|${local}`;
+      this.activeFuturesSubs.add(stream);
+      this.sendFuturesSubscription('subscribe', stream);
       return;
     }
 
@@ -191,10 +230,9 @@ export class BitgetConnector extends BaseExchangeConnector {
       const key = `orderbook:${symbol}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.sendFutures({
-        op: 'subscribe',
-        args: [{ instType: 'USDT-FUTURES', channel: 'books15', instId: local }],
-      });
+      const stream = `books15|${local}`;
+      this.activeFuturesSubs.add(stream);
+      this.sendFuturesSubscription('subscribe', stream);
       return;
     }
     const local = this.toBitgetSpotSymbol(symbol);
@@ -213,10 +251,9 @@ export class BitgetConnector extends BaseExchangeConnector {
       const key = `trades:${symbol}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.sendFutures({
-        op: 'subscribe',
-        args: [{ instType: 'USDT-FUTURES', channel: 'trade', instId: local }],
-      });
+      const stream = `trade|${local}`;
+      this.activeFuturesSubs.add(stream);
+      this.sendFuturesSubscription('subscribe', stream);
       return;
     }
     const local = this.toBitgetSpotSymbol(symbol);
@@ -233,10 +270,9 @@ export class BitgetConnector extends BaseExchangeConnector {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toBitgetFuturesSymbol(symbol);
       this.futuresSubscriptions.delete(`ticker:${symbol}`);
-      this.sendFutures({
-        op: 'unsubscribe',
-        args: [{ instType: 'USDT-FUTURES', channel: 'ticker', instId: local }],
-      });
+      const stream = `ticker|${local}`;
+      this.activeFuturesSubs.delete(stream);
+      this.sendFuturesSubscription('unsubscribe', stream);
       return;
     }
     const local = this.toBitgetSpotSymbol(symbol);
@@ -252,10 +288,9 @@ export class BitgetConnector extends BaseExchangeConnector {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toBitgetFuturesSymbol(symbol);
       this.futuresSubscriptions.delete(`candle:${symbol}:${timeframe}`);
-      this.sendFutures({
-        op: 'unsubscribe',
-        args: [{ instType: 'USDT-FUTURES', channel: `candle${tf}`, instId: local }],
-      });
+      const stream = `candle${tf}|${local}`;
+      this.activeFuturesSubs.delete(stream);
+      this.sendFuturesSubscription('unsubscribe', stream);
       return;
     }
     const local = this.toBitgetSpotSymbol(symbol);
@@ -270,10 +305,9 @@ export class BitgetConnector extends BaseExchangeConnector {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toBitgetFuturesSymbol(symbol);
       this.futuresSubscriptions.delete(`orderbook:${symbol}`);
-      this.sendFutures({
-        op: 'unsubscribe',
-        args: [{ instType: 'USDT-FUTURES', channel: 'books15', instId: local }],
-      });
+      const stream = `books15|${local}`;
+      this.activeFuturesSubs.delete(stream);
+      this.sendFuturesSubscription('unsubscribe', stream);
       return;
     }
     const local = this.toBitgetSpotSymbol(symbol);
@@ -288,10 +322,9 @@ export class BitgetConnector extends BaseExchangeConnector {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toBitgetFuturesSymbol(symbol);
       this.futuresSubscriptions.delete(`trades:${symbol}`);
-      this.sendFutures({
-        op: 'unsubscribe',
-        args: [{ instType: 'USDT-FUTURES', channel: 'trade', instId: local }],
-      });
+      const stream = `trade|${local}`;
+      this.activeFuturesSubs.delete(stream);
+      this.sendFuturesSubscription('unsubscribe', stream);
       return;
     }
     const local = this.toBitgetSpotSymbol(symbol);
@@ -319,6 +352,8 @@ export class BitgetConnector extends BaseExchangeConnector {
       const symbol = isFutures ? this.fromBitgetFuturesSymbol(instId) : normalizeSymbol(instId, 'bitget');
       const price = parseFloat(d.lastPr as string);
       const open = parseFloat(d.open24h as string);
+      const bid = parseFloat((d.bidPr as string) || (d.bestBid as string));
+      const ask = parseFloat((d.askPr as string) || (d.bestAsk as string));
       this.emit('ticker', {
         exchange: 'bitget',
         marketType: isFutures ? 'futures' : 'spot',
@@ -332,15 +367,16 @@ export class BitgetConnector extends BaseExchangeConnector {
         priceChangePercent24h: ((price - open) / open) * 100,
         quoteVolume24h: parseFloat(d.quoteVolume as string),
         trades24h: 0,
-        bid: parseFloat(d.bestBid as string),
-        ask: parseFloat(d.bestAsk as string),
-        spread: parseFloat(d.bestAsk as string) - parseFloat(d.bestBid as string),
+        bid: Number.isFinite(bid) ? bid : price,
+        ask: Number.isFinite(ask) ? ask : price,
+        spread: Number.isFinite(bid) && Number.isFinite(ask) ? ask - bid : 0,
       } as Ticker);
     } else if (channel.startsWith('candle')) {
       const symbol = isFutures ? this.fromBitgetFuturesSymbol(instId) : normalizeSymbol(instId, 'bitget');
       const tfRaw = channel.replace('candle', '');
       const timeframe = this.reverseTimeframe(tfRaw);
-      data.forEach((k: Record<string, unknown>) => {
+      data.forEach((k) => {
+        if (!Array.isArray(k) || k.length < 6) return;
         this.emit('candle', {
           exchange: 'bitget',
           marketType: isFutures ? 'futures' : 'spot',
@@ -352,7 +388,7 @@ export class BitgetConnector extends BaseExchangeConnector {
           low: parseFloat(k[3] as string),
           close: parseFloat(k[4] as string),
           volume: parseFloat(k[5] as string),
-          isClosed: (k[6] as string) === '1',
+          isClosed: false,
           trades: 0,
         } as Candle);
       });
@@ -467,8 +503,17 @@ export class BitgetConnector extends BaseExchangeConnector {
     super.disconnect();
     this.stopFuturesHeartbeat();
     this.stopSpotHeartbeat();
+    if (this.futuresReconnectTimer) {
+      clearTimeout(this.futuresReconnectTimer);
+      this.futuresReconnectTimer = null;
+    }
     if (this.futuresWs) { this.futuresWs.removeAllListeners(); this.futuresWs.close(); this.futuresWs = null; }
     this.futuresConnected = false;
     this.futuresSubscriptions.clear();
+    this.activeFuturesSubs.clear();
+  }
+
+  isConnected(): boolean {
+    return this.connected || this.futuresConnected;
   }
 }
