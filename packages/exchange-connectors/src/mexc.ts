@@ -2,7 +2,7 @@
 
 import WebSocket from 'ws';
 import type { Ticker, Candle, Timeframe, OrderBook, Trade } from '@crypto-screener/shared';
-import { normalizeSymbol } from '@crypto-screener/shared';
+import { normalizeSymbol, WS_RECONNECT_DELAY } from '@crypto-screener/shared';
 import { BaseExchangeConnector } from './base';
 
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
@@ -22,8 +22,10 @@ export class MexcConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
+  private activeFuturesSubs = new Set<string>();
   private futuresHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private futuresReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     super({
@@ -48,12 +50,37 @@ export class MexcConnector extends BaseExchangeConnector {
     });
 
     const futuresWs = new WebSocket(MEXC_FUTURES_WS);
+    this.setupFuturesWebSocket(futuresWs);
+
+    await Promise.allSettled([
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 10_000);
+        const done = () => { clearTimeout(timer); resolve(); };
+        spotWs.once('open', done);
+        spotWs.once('error', done);
+        spotWs.once('close', done);
+      }),
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 10_000);
+        const done = () => { clearTimeout(timer); resolve(); };
+        futuresWs.once('open', done);
+        futuresWs.once('error', done);
+        futuresWs.once('close', done);
+      }),
+    ]);
+  }
+
+  private setupFuturesWebSocket(futuresWs: WebSocket): void {
     this.futuresWs = futuresWs;
 
     futuresWs.on('open', () => {
       this.futuresConnected = true;
       this.startFuturesHeartbeat();
+      for (const sub of this.activeFuturesSubs) {
+        this.sendFuturesSubscription('subscribe', sub);
+      }
     });
+
     futuresWs.on('message', (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString()) as Record<string, unknown>;
@@ -61,22 +88,28 @@ export class MexcConnector extends BaseExchangeConnector {
         this.handleMessage(msg);
       } catch { /* ignore */ }
     });
+
     futuresWs.on('close', () => {
       this.futuresConnected = false;
+      this.futuresWs = null;
       this.futuresSubscriptions.clear();
       this.stopFuturesHeartbeat();
+      if (!this.futuresReconnectTimer) {
+        this.futuresReconnectTimer = setTimeout(() => {
+          this.futuresReconnectTimer = null;
+          this.reconnectFuturesWS();
+        }, WS_RECONNECT_DELAY);
+      }
     });
+
     futuresWs.on('error', (err: Error) => {
       console.warn(`[mexc] Futures WS error: ${err.message}`);
     });
+  }
 
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, 10_000);
-      const done = () => { clearTimeout(timer); resolve(); };
-      spotWs.once('open', done);
-      spotWs.once('error', done);
-      spotWs.once('close', done);
-    });
+  private reconnectFuturesWS(): void {
+    if (this.futuresWs) return;
+    this.setupFuturesWebSocket(new WebSocket(MEXC_FUTURES_WS));
   }
 
   private startSpotHeartbeat(): void {
@@ -138,13 +171,22 @@ export class MexcConnector extends BaseExchangeConnector {
     }
   }
 
+  private sendFuturesSubscription(op: 'subscribe' | 'unsubscribe', stream: string): void {
+    const [method, symbol, interval] = stream.split('|');
+    if (!method || !symbol) return;
+    const param = interval ? { symbol, interval } : { symbol };
+    this.sendFutures({ method: `${op === 'subscribe' ? 'sub' : 'unsub'}.${method}`, param });
+  }
+
   subscribeTicker(symbol: string): void {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toMexcFuturesSymbol(symbol);
       const key = `ticker:${symbol}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.sendFutures({ method: 'sub.ticker', param: { symbol: local } });
+      const stream = `ticker|${local}`;
+      this.activeFuturesSubs.add(stream);
+      this.sendFuturesSubscription('subscribe', stream);
       return;
     }
     const key = `ticker:${symbol}`;
@@ -160,11 +202,13 @@ export class MexcConnector extends BaseExchangeConnector {
       const key = `candle:${symbol}:${timeframe}`;
       if (this.futuresSubscriptions.has(key)) return;
       this.futuresSubscriptions.add(key);
-      this.sendFutures({ method: 'sub.kline', param: { symbol: local, interval: tf } });
+      const stream = `kline|${local}|${tf}`;
+      this.activeFuturesSubs.add(stream);
+      this.sendFuturesSubscription('subscribe', stream);
       return;
     }
     const local = this.toMexcSpotSymbol(symbol);
-    const tf = REST_TF_MAP[timeframe];
+    const tf = TIMEFRAME_MAP[timeframe];
     const key = `candle:${symbol}:${timeframe}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
@@ -191,7 +235,9 @@ export class MexcConnector extends BaseExchangeConnector {
     if (this.isFuturesSymbol(symbol)) {
       const local = this.toMexcFuturesSymbol(symbol);
       this.futuresSubscriptions.delete(`ticker:${symbol}`);
-      this.sendFutures({ method: 'unsub.ticker', param: { symbol: local } });
+      const stream = `ticker|${local}`;
+      this.activeFuturesSubs.delete(stream);
+      this.sendFuturesSubscription('unsubscribe', stream);
       return;
     }
     this.subscriptions.delete(`ticker:${symbol}`);
@@ -202,11 +248,13 @@ export class MexcConnector extends BaseExchangeConnector {
       const local = this.toMexcFuturesSymbol(symbol);
       const tf = TIMEFRAME_MAP[timeframe];
       this.futuresSubscriptions.delete(`candle:${symbol}:${timeframe}`);
-      this.sendFutures({ method: 'unsub.kline', param: { symbol: local, interval: tf } });
+      const stream = `kline|${local}|${tf}`;
+      this.activeFuturesSubs.delete(stream);
+      this.sendFuturesSubscription('unsubscribe', stream);
       return;
     }
     const local = this.toMexcSpotSymbol(symbol);
-    const tf = REST_TF_MAP[timeframe];
+    const tf = TIMEFRAME_MAP[timeframe];
     this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
     this.send({ method: 'UNSUBSCRIPTION', params: [`spot@public.kline.v3.api@${local}@${tf}`] });
   }
@@ -226,6 +274,7 @@ export class MexcConnector extends BaseExchangeConnector {
   protected handleMessage(msg: Record<string, unknown>): void {
     const isFutures = msg.__marketType === 'futures';
     if (isFutures) { this.handleFuturesMessage(msg); return; }
+    if (typeof msg.msg === 'string' && msg.msg.includes('Blocked')) return;
     const channel = msg.c as string;
     if (!channel) return;
     if (channel.includes('miniTickers')) {
@@ -274,24 +323,52 @@ export class MexcConnector extends BaseExchangeConnector {
     const channel = msg.channel as string; if (!channel || !msg.data) return;
     const data = msg.data as any;
     if (channel === 'push.ticker') {
-      const symbol = this.fromMexcFuturesSymbol(data.symbol);
+      const rawSymbol = (msg.symbol as string) || data.symbol;
+      const symbol = this.fromMexcFuturesSymbol(rawSymbol);
       const price = parseFloat(data.lastPrice);
+      const bid = parseFloat(data.bid1);
+      const ask = parseFloat(data.ask1);
       this.emit('ticker', {
         exchange: 'mexc', marketType: 'futures', symbol, lastPrice: price, priceChange24h: parseFloat(data.riseFallValue),
-        volume24h: parseFloat(data.volume24), high24h: parseFloat(data.high24Price), low24h: parseFloat(data.low24Price),
+        volume24h: parseFloat(data.volume24), high24h: parseFloat(data.high24Price), low24h: parseFloat(data.lower24Price),
         timestamp: Date.now(), priceChangePercent24h: parseFloat(data.riseFallRate) * 100,
-        quoteVolume24h: parseFloat(data.amount24), trades24h: 0, bid: price, ask: price, spread: 0,
+        quoteVolume24h: parseFloat(data.amount24), trades24h: 0,
+        bid: Number.isFinite(bid) ? bid : price,
+        ask: Number.isFinite(ask) ? ask : price,
+        spread: Number.isFinite(bid) && Number.isFinite(ask) ? ask - bid : 0,
       } as Ticker);
     } else if (channel === 'push.kline') {
-      const symbol = this.fromMexcFuturesSymbol(data.symbol);
-      (data.klines || [data]).forEach((k: any) => {
-        this.emit('candle', {
-          exchange: 'mexc', marketType: 'futures', symbol, timeframe: data.interval || '1m', time: k.time * 1000,
-          open: parseFloat(k.open), high: parseFloat(k.high), low: parseFloat(k.low), close: parseFloat(k.close),
-          volume: parseFloat(k.vol), isClosed: false, trades: 0,
-        } as Candle);
-      });
+      const rawSymbol = (msg.symbol as string) || data.symbol;
+      const symbol = this.fromMexcFuturesSymbol(rawSymbol);
+      const interval = this.reverseTimeframe(data.interval || 'Min1');
+      this.emit('candle', {
+        exchange: 'mexc',
+        marketType: 'futures',
+        symbol,
+        timeframe: interval,
+        time: Number(data.t) * 1000,
+        open: parseFloat(data.o),
+        high: parseFloat(data.h),
+        low: parseFloat(data.l),
+        close: parseFloat(data.c),
+        volume: parseFloat(data.q),
+        isClosed: false,
+        trades: 0,
+      } as Candle);
     }
+  }
+
+  private reverseTimeframe(tf: string): Timeframe {
+    const map: Record<string, Timeframe> = {
+      Min1: '1m',
+      Min5: '5m',
+      Min15: '15m',
+      Min60: '1h',
+      Hour4: '4h',
+      Day1: '1d',
+      Week1: '1w',
+    };
+    return map[tf] || '1m';
   }
 
   async fetchTickers(symbols?: string[]): Promise<Ticker[]> {
@@ -371,7 +448,15 @@ export class MexcConnector extends BaseExchangeConnector {
 
   disconnect(): void {
     super.disconnect(); this.stopFuturesHeartbeat(); this.stopSpotHeartbeat();
+    if (this.futuresReconnectTimer) {
+      clearTimeout(this.futuresReconnectTimer);
+      this.futuresReconnectTimer = null;
+    }
     if (this.futuresWs) { this.futuresWs.removeAllListeners(); this.futuresWs.close(); this.futuresWs = null; }
-    this.futuresConnected = false; this.futuresSubscriptions.clear();
+    this.futuresConnected = false; this.futuresSubscriptions.clear(); this.activeFuturesSubs.clear();
+  }
+
+  isConnected(): boolean {
+    return this.connected || this.futuresConnected;
   }
 }
