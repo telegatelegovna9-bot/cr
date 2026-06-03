@@ -20,6 +20,7 @@ import {
   hitTestRectangleHandle
 } from '@/lib/drawings/engine';
 import { cn } from '@/lib/utils';
+import { getLocalOverlayPoint, panLogicalRange } from './drawing-overlay-helpers';
 
 interface DrawingOverlayProps {
   chart: IChartApi | null;
@@ -31,10 +32,12 @@ interface DrawingOverlayProps {
 }
 
 interface InteractionState {
-  type: 'idle' | 'creating' | 'moving' | 'editing_handle';
+  type: 'idle' | 'creating' | 'moving' | 'editing_handle' | 'panning';
   drawingId?: string;
   handleId?: 'p1' | 'p2';
   startPoint?: { x: number; y: number; time: number; price: number };
+  panStartX?: number;
+  panStartRange?: { from: number; to: number } | null;
 }
 
 export function DrawingOverlay({ 
@@ -112,8 +115,7 @@ export function DrawingOverlay({
     if (hidden || !chart || !candleSeries) return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getLocalOverlayPoint(e.clientX, e.clientY, rect, size.width, size.height);
 
     const ctx = getProjectionContext();
     if (!ctx) return;
@@ -186,6 +188,13 @@ export function DrawingOverlay({
         }
       }
       setSelectedId(null);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setInteraction({
+        type: 'panning',
+        panStartX: x,
+        panStartRange: chart.timeScale().getVisibleLogicalRange(),
+      });
+      return;
     } 
     // 3. Create new drawing
     else {
@@ -231,13 +240,14 @@ export function DrawingOverlay({
         setSelectedTool('cursor');
       }
     }
+
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getLocalOverlayPoint(e.clientX, e.clientY, rect, size.width, size.height);
 
     if (interaction.type === 'idle') {
       // Handle hover
@@ -281,6 +291,15 @@ export function DrawingOverlay({
     }
 
     const val = screenToValue(x, y);
+
+    if (interaction.type === 'panning' && interaction.panStartRange && chart) {
+      const nextRange = panLogicalRange(interaction.panStartRange, x - interaction.panStartX!, size.width);
+      if (nextRange) {
+        chart.timeScale().setVisibleLogicalRange(nextRange);
+      }
+      return;
+    }
+
     if (!val) return;
 
     if (interaction.type === 'creating' && interaction.drawingId) {
@@ -316,7 +335,10 @@ export function DrawingOverlay({
     }
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     if (interaction.type === 'creating') {
       setSelectedTool('cursor');
     }
@@ -345,11 +367,10 @@ export function DrawingOverlay({
   if (!ctx || hidden) return (
     <svg
       ref={containerRef}
-      className="absolute inset-0 z-30 pointer-events-auto"
+      className="absolute inset-0 z-30 pointer-events-none"
       width="100%"
       height="100%"
       overflow="visible"
-      onPointerDown={handlePointerDown}
     />
   );
 
@@ -358,7 +379,7 @@ export function DrawingOverlay({
       ref={containerRef}
       className={cn(
         "absolute inset-0 z-30 select-none outline-none",
-        selectedTool === 'cursor' ? "cursor-crosshair" : "cursor-cell"
+        selectedTool === 'cursor' ? "cursor-grab active:cursor-grabbing" : "cursor-cell"
       )}
       width={size.width}
       height={size.height}
