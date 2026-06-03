@@ -9,13 +9,7 @@ import {
   InstrumentMarketType,
   makeInstrumentKey,
 } from '@/lib/drawings/models';
-import {
-  ChartProjectionContext,
-  projectHorizontalLine,
-  projectRectangle,
-  projectTrendline,
-} from '@/lib/drawings/engine';
-import { formatPrice } from '@/lib/format';
+import { DrawingPrimitive } from '@/lib/drawings/primitive';
 
 interface DrawingOverlayProps {
   chart: IChartApi | null;
@@ -45,11 +39,9 @@ export function DrawingOverlay({
   exchange,
   marketType,
   symbol,
-  compact,
 }: DrawingOverlayProps) {
-  const overlayRef = useRef<SVGSVGElement>(null);
+  const primitiveRef = useRef<DrawingPrimitive | null>(null);
   const [hostSize, setHostSize] = useState({ width: 0, height: 0 });
-  const [renderTick, setRenderTick] = useState(0);
   const [creation, setCreation] = useState<CreationState | null>(null);
 
   const {
@@ -94,53 +86,37 @@ export function DrawingOverlay({
     return () => observer.disconnect();
   }, [hostRef]);
 
-  useEffect(() => {
-    if (!chart) return;
-
-    const bump = () => setRenderTick((value) => value + 1);
-    chart.timeScale().subscribeVisibleLogicalRangeChange(bump);
-    return () => chart.timeScale().unsubscribeVisibleLogicalRangeChange(bump);
-  }, [chart]);
-
-  const rightPriceScaleWidth = chart ? chart.priceScale('right').width() : 0;
   const timeScaleWidth = chart ? chart.timeScale().width() : 0;
   const timeScaleHeight = chart ? chart.timeScale().height() : 0;
-  const paneWidth = Math.max(0, Math.min(hostSize.width, timeScaleWidth || (hostSize.width - rightPriceScaleWidth)));
-  const paneLeft = Math.max(0, hostSize.width - rightPriceScaleWidth - paneWidth);
+  const paneWidth = Math.max(0, Math.min(hostSize.width, timeScaleWidth || hostSize.width));
+  const paneLeft = 0;
   const paneHeight = Math.max(0, hostSize.height - timeScaleHeight);
-  const clipPathId = useMemo(
-    () => `drawing-pane-${instrumentKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
-    [instrumentKey],
-  );
 
-  const projectionContext = useMemo<ChartProjectionContext | null>(() => {
-    if (!chart || !candleSeries || paneWidth <= 0 || paneHeight <= 0) {
-      return null;
-    }
+  useEffect(() => {
+    if (!candleSeries) return;
 
-    const lastBarX =
-      lastBarTime === null ? null : chart.timeScale().timeToCoordinate(lastBarTime as any);
-    const lastRealLogical =
-      lastBarX === null ? null : chart.timeScale().coordinateToLogical(lastBarX);
+    const primitive = new DrawingPrimitive();
+    candleSeries.attachPrimitive(primitive);
+    primitiveRef.current = primitive;
 
-    return {
-      width: paneWidth,
-      height: paneHeight,
-      timeToX: (time: number) => {
-        const x = chart.timeScale().timeToCoordinate(time as any);
-        return x === null ? null : x - paneLeft;
-      },
-      logicalToX: (logical: number) => {
-        const x = chart.timeScale().logicalToCoordinate(logical as any);
-        return x === null ? null : x - paneLeft;
-      },
-      lastRealLogical: lastRealLogical === null ? null : Number(lastRealLogical),
-      priceToY: (price: number) => candleSeries.priceToCoordinate(price),
+    return () => {
+      candleSeries.detachPrimitive(primitive);
+      if (primitiveRef.current === primitive) {
+        primitiveRef.current = null;
+      }
     };
-  }, [chart, candleSeries, lastBarTime, paneHeight, paneLeft, paneWidth, renderTick]);
+  }, [candleSeries]);
+
+  useEffect(() => {
+    primitiveRef.current?.setState({
+      drawings,
+      hidden,
+      lastBarTime,
+    });
+  }, [drawings, hidden, lastBarTime]);
 
   const screenToValue = useCallback((clientX: number, clientY: number): DrawingPoint | null => {
-    if (!chart || !candleSeries || !hostRef.current || !projectionContext || paneWidth <= 0 || paneHeight <= 0) {
+    if (!chart || !candleSeries || !hostRef.current || paneWidth <= 0 || paneHeight <= 0) {
       return null;
     }
 
@@ -163,11 +139,19 @@ export function DrawingOverlay({
 
     let futureOffset: number | undefined;
     if (time === null) {
-      if (logical === null || projectionContext.lastRealLogical === null) {
+      if (logical === null) {
         return null;
       }
 
-      const offset = Number(logical) - projectionContext.lastRealLogical;
+      const lastBarX =
+        lastBarTime === null ? null : chart.timeScale().timeToCoordinate(lastBarTime as any);
+      const lastRealLogical =
+        lastBarX === null ? null : chart.timeScale().coordinateToLogical(lastBarX);
+      if (lastRealLogical === null) {
+        return null;
+      }
+
+      const offset = Number(logical) - Number(lastRealLogical);
       if (offset < 0) {
         return null;
       }
@@ -180,7 +164,7 @@ export function DrawingOverlay({
       price,
       futureOffset,
     };
-  }, [chart, candleSeries, hostRef, paneHeight, paneLeft, paneWidth, projectionContext]);
+  }, [chart, candleSeries, hostRef, lastBarTime, paneHeight, paneLeft, paneWidth]);
 
   const makeBaseDrawing = useCallback((id: string) => ({
     id,
@@ -202,7 +186,7 @@ export function DrawingOverlay({
   }), [exchange, instrumentKey, marketType, symbol]);
 
   const handlePointerDown = (event: React.PointerEvent<SVGElement>) => {
-    if (!projectionContext || hidden) return;
+    if (!chart || !candleSeries || hidden) return;
     if (selectedTool === 'cursor') return;
 
     const point = screenToValue(event.clientX, event.clientY);
@@ -276,13 +260,12 @@ export function DrawingOverlay({
     setCreation(null);
   };
 
-  if (!projectionContext || hidden || paneWidth <= 0 || paneHeight <= 0) {
+  if (!chart || !candleSeries || hidden || paneWidth <= 0 || paneHeight <= 0) {
     return null;
   }
 
   return (
     <svg
-      ref={overlayRef}
       className="absolute left-0 top-0 z-30 select-none pointer-events-none"
       width={hostSize.width}
       height={hostSize.height}
@@ -291,12 +274,6 @@ export function DrawingOverlay({
         height: hostSize.height,
       }}
     >
-      <defs>
-        <clipPath id={clipPathId}>
-          <rect x={paneLeft} y={0} width={paneWidth} height={paneHeight} />
-        </clipPath>
-      </defs>
-
       {selectedTool !== 'cursor' && (
         <rect
           x={paneLeft}
@@ -317,79 +294,6 @@ export function DrawingOverlay({
           }}
         />
       )}
-
-      <g clipPath={`url(#${clipPathId})`}>
-        {drawings.map((drawing) => {
-        if (drawing.kind === 'horizontal_line' || drawing.kind === 'signal_level') {
-          const line = projectHorizontalLine(drawing, projectionContext);
-          if (!line) return null;
-
-          return (
-            <g key={drawing.id}>
-              <line
-                x1={line.x1 + paneLeft}
-                y1={line.y1}
-                x2={line.x2 + paneLeft}
-                y2={line.y2}
-                stroke={drawing.style.color}
-                strokeWidth={drawing.style.lineWidth}
-                strokeDasharray={drawing.kind === 'signal_level' ? '5 4' : undefined}
-              />
-              {!compact && (
-                <text
-                  x={Math.max(48, line.x2 + paneLeft - 8)}
-                  y={line.y1 - 6}
-                  fill={drawing.style.color}
-                  fontSize="10"
-                  textAnchor="end"
-                  className="font-mono pointer-events-none"
-                >
-                  {formatPrice(drawing.price)}
-                </text>
-              )}
-            </g>
-          );
-        }
-
-        if (drawing.kind === 'trendline') {
-          const line = projectTrendline(drawing, projectionContext);
-          if (!line) return null;
-
-          return (
-            <line
-              key={drawing.id}
-              x1={line.x1 + paneLeft}
-              y1={line.y1}
-              x2={line.x2 + paneLeft}
-              y2={line.y2}
-              stroke={drawing.style.color}
-              strokeWidth={drawing.style.lineWidth}
-            />
-          );
-        }
-
-        if (drawing.kind === 'rectangle') {
-          const rect = projectRectangle(drawing, projectionContext);
-          if (!rect) return null;
-
-          return (
-            <rect
-              key={drawing.id}
-              x={rect.x + paneLeft}
-              y={rect.y}
-              width={rect.width}
-              height={rect.height}
-              fill={drawing.style.color}
-              fillOpacity={drawing.style.fillOpacity}
-              stroke={drawing.style.color}
-              strokeWidth={drawing.style.lineWidth}
-            />
-          );
-        }
-
-        return null;
-      })}
-      </g>
     </svg>
   );
 }
