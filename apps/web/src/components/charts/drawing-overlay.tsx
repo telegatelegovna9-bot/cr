@@ -85,9 +85,9 @@ export function DrawingOverlay({
   // Redraw on chart changes (scroll, scale)
   useEffect(() => {
     if (!chart) return;
-    const handleVisibleRangeChange = () => setRenderVersion(v => v + 1);
-    chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
-    return () => chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleRangeChange);
+    const bump = () => setRenderVersion(v => v + 1);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(bump);
+    return () => chart.timeScale().unsubscribeVisibleLogicalRangeChange(bump);
   }, [chart]);
 
   const getProjectionContext = useCallback((): ChartProjectionContext | null => {
@@ -343,9 +343,12 @@ export function DrawingOverlay({
 
   const ctx = getProjectionContext();
   if (!ctx || hidden) return (
-    <svg 
-      ref={containerRef} 
-      className="absolute inset-0 z-30 pointer-events-auto" 
+    <svg
+      ref={containerRef}
+      className="absolute inset-0 z-30 pointer-events-auto"
+      width="100%"
+      height="100%"
+      overflow="visible"
       onPointerDown={handlePointerDown}
     />
   );
@@ -357,6 +360,9 @@ export function DrawingOverlay({
         "absolute inset-0 z-30 select-none outline-none",
         selectedTool === 'cursor' ? "cursor-crosshair" : "cursor-cell"
       )}
+      width={size.width}
+      height={size.height}
+      overflow="visible"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

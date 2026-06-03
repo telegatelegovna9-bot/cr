@@ -467,6 +467,14 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       if (cancelled) { chart.remove(); return; }
       chartRef.current = chart;
 
+      // Ensure chart matches actual container dimensions in case clientWidth was 0 at createChart time
+      requestAnimationFrame(() => {
+        if (cancelled || !chartRef.current) return;
+        const w = container.clientWidth || container.offsetWidth;
+        const h = container.clientHeight || container.offsetHeight;
+        if (w > 0 && h > 0) chartRef.current.applyOptions({ width: w, height: h });
+      });
+
       const candleSeries = chart.addCandlestickSeries({
         upColor: '#22c55e', downColor: '#ef4444',
         borderUpColor: '#22c55e', borderDownColor: '#ef4444',

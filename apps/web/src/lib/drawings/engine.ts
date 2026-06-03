@@ -29,12 +29,19 @@ export function projectTrendline(
   drawing: { p1: { time: number; price: number }; p2: { time: number; price: number } },
   ctx: ChartProjectionContext
 ) {
-  const x1 = ctx.timeToX(drawing.p1.time);
+  const x1Raw = ctx.timeToX(drawing.p1.time);
   const y1 = ctx.priceToY(drawing.p1.price);
-  const x2 = ctx.timeToX(drawing.p2.time);
+  const x2Raw = ctx.timeToX(drawing.p2.time);
   const y2 = ctx.priceToY(drawing.p2.price);
 
-  if (x1 === null || y1 === null || x2 === null || y2 === null) return null;
+  // Both time coords null → line entirely off-screen
+  if (x1Raw === null && x2Raw === null) return null;
+  if (y1 === null || y2 === null) return null;
+
+  // Extrapolate off-screen x based on time order so SVG clips the line correctly
+  const x1 = x1Raw ?? (drawing.p1.time < drawing.p2.time ? -9999 : ctx.width + 9999);
+  const x2 = x2Raw ?? (drawing.p2.time > drawing.p1.time ? ctx.width + 9999 : -9999);
+
   return { x1, y1, x2, y2 };
 }
 
@@ -42,19 +49,25 @@ export function projectRectangle(
   drawing: { p1: { time: number; price: number }; p2: { time: number; price: number } },
   ctx: ChartProjectionContext
 ) {
-  const x1 = ctx.timeToX(drawing.p1.time);
-  const y1 = ctx.priceToY(drawing.p1.price);
-  const x2 = ctx.timeToX(drawing.p2.time);
-  const y2 = ctx.priceToY(drawing.p2.price);
+  const x1Raw = ctx.timeToX(drawing.p1.time);
+  const y1Raw = ctx.priceToY(drawing.p1.price);
+  const x2Raw = ctx.timeToX(drawing.p2.time);
+  const y2Raw = ctx.priceToY(drawing.p2.price);
 
-  if (x1 === null || y1 === null || x2 === null || y2 === null) return null;
-  
+  if (x1Raw === null && x2Raw === null) return null;
+  if (y1Raw === null && y2Raw === null) return null;
+
+  const x1 = x1Raw ?? (drawing.p1.time < drawing.p2.time ? -9999 : ctx.width + 9999);
+  const x2 = x2Raw ?? (drawing.p2.time > drawing.p1.time ? ctx.width + 9999 : -9999);
+  const y1 = y1Raw ?? (drawing.p1.price > drawing.p2.price ? -9999 : ctx.height + 9999);
+  const y2 = y2Raw ?? (drawing.p2.price < drawing.p1.price ? ctx.height + 9999 : -9999);
+
   return {
     x: Math.min(x1, x2),
     y: Math.min(y1, y2),
     width: Math.abs(x2 - x1),
     height: Math.abs(y2 - y1),
-    x1, y1, x2, y2 // original points for handles
+    x1, y1, x2, y2
   };
 }
 
