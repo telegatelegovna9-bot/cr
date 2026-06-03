@@ -112,6 +112,7 @@ export function DrawingOverlay({
       width: paneWidth,
       height: paneHeight,
       timeToX: (time: number) => chart.timeScale().timeToCoordinate(time as any),
+      logicalToX: (logical: number) => chart.timeScale().logicalToCoordinate(logical as any),
       priceToY: (price: number) => candleSeries.priceToCoordinate(price),
     };
   }, [chart, candleSeries, paneWidth, paneHeight, renderTick]);
@@ -129,16 +130,18 @@ export function DrawingOverlay({
       return null;
     }
 
+    const logical = chart.timeScale().coordinateToLogical(x);
     const time = chart.timeScale().coordinateToTime(x);
     const price = candleSeries.coordinateToPrice(y);
 
-    if (time === null || price === null) {
+    if ((time === null && logical === null) || price === null) {
       return null;
     }
 
     return {
-      time: typeof time === 'number' ? time : (time as any).timestamp || 0,
+      time: time === null ? 0 : (typeof time === 'number' ? time : (time as any).timestamp || 0),
       price,
+      logical: logical === null ? undefined : Number(logical),
     };
   }, [chart, candleSeries, hostRef, paneHeight, paneWidth]);
 

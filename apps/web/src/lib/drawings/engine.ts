@@ -4,7 +4,23 @@ export interface ChartProjectionContext {
   width: number;
   height: number;
   timeToX: (time: number) => number | null;
+  logicalToX?: (logical: number) => number | null;
   priceToY: (price: number) => number | null;
+}
+
+interface PointLike {
+  time: number;
+  price: number;
+  logical?: number;
+}
+
+function pointToX(point: PointLike, ctx: ChartProjectionContext): number | null {
+  if (typeof point.logical === 'number' && ctx.logicalToX) {
+    const x = ctx.logicalToX(point.logical);
+    if (x !== null) return x;
+  }
+
+  return ctx.timeToX(point.time);
 }
 
 export function projectHorizontalLine(
@@ -26,12 +42,12 @@ export function projectVerticalLine(
 }
 
 export function projectTrendline(
-  drawing: { p1: { time: number; price: number }; p2: { time: number; price: number } },
+  drawing: { p1: PointLike; p2: PointLike },
   ctx: ChartProjectionContext
 ) {
-  const x1Raw = ctx.timeToX(drawing.p1.time);
+  const x1Raw = pointToX(drawing.p1, ctx);
   const y1 = ctx.priceToY(drawing.p1.price);
-  const x2Raw = ctx.timeToX(drawing.p2.time);
+  const x2Raw = pointToX(drawing.p2, ctx);
   const y2 = ctx.priceToY(drawing.p2.price);
 
   // Both time coords null → line entirely off-screen
@@ -39,26 +55,30 @@ export function projectTrendline(
   if (y1 === null || y2 === null) return null;
 
   // Extrapolate off-screen x based on time order so SVG clips the line correctly
-  const x1 = x1Raw ?? (drawing.p1.time < drawing.p2.time ? -9999 : ctx.width + 9999);
-  const x2 = x2Raw ?? (drawing.p2.time > drawing.p1.time ? ctx.width + 9999 : -9999);
+  const p1Order = drawing.p1.logical ?? drawing.p1.time;
+  const p2Order = drawing.p2.logical ?? drawing.p2.time;
+  const x1 = x1Raw ?? (p1Order < p2Order ? -9999 : ctx.width + 9999);
+  const x2 = x2Raw ?? (p2Order > p1Order ? ctx.width + 9999 : -9999);
 
   return { x1, y1, x2, y2 };
 }
 
 export function projectRectangle(
-  drawing: { p1: { time: number; price: number }; p2: { time: number; price: number } },
+  drawing: { p1: PointLike; p2: PointLike },
   ctx: ChartProjectionContext
 ) {
-  const x1Raw = ctx.timeToX(drawing.p1.time);
+  const x1Raw = pointToX(drawing.p1, ctx);
   const y1Raw = ctx.priceToY(drawing.p1.price);
-  const x2Raw = ctx.timeToX(drawing.p2.time);
+  const x2Raw = pointToX(drawing.p2, ctx);
   const y2Raw = ctx.priceToY(drawing.p2.price);
 
   if (x1Raw === null && x2Raw === null) return null;
   if (y1Raw === null && y2Raw === null) return null;
 
-  const x1 = x1Raw ?? (drawing.p1.time < drawing.p2.time ? -9999 : ctx.width + 9999);
-  const x2 = x2Raw ?? (drawing.p2.time > drawing.p1.time ? ctx.width + 9999 : -9999);
+  const p1Order = drawing.p1.logical ?? drawing.p1.time;
+  const p2Order = drawing.p2.logical ?? drawing.p2.time;
+  const x1 = x1Raw ?? (p1Order < p2Order ? -9999 : ctx.width + 9999);
+  const x2 = x2Raw ?? (p2Order > p1Order ? ctx.width + 9999 : -9999);
   const y1 = y1Raw ?? (drawing.p1.price > drawing.p2.price ? -9999 : ctx.height + 9999);
   const y2 = y2Raw ?? (drawing.p2.price < drawing.p1.price ? ctx.height + 9999 : -9999);
 
