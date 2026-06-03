@@ -3,8 +3,9 @@ import { test } from 'node:test';
 import { isDrawingKind, makeInstrumentKey } from './models';
 import { DRAWINGS_STORAGE_KEY, loadPersistedDrawings, savePersistedDrawings } from './persistence';
 
-test('makeInstrumentKey builds exchange:marketType:symbol key', () => {
-  assert.equal(makeInstrumentKey('binance', 'futures', 'BTC/USDT:USDT'), 'binance:futures:BTC/USDT:USDT');
+test('makeInstrumentKey shares spot and futures by exchange and normalized symbol', () => {
+  assert.equal(makeInstrumentKey('binance', 'futures', 'BTC/USDT:USDT'), 'binance:BTC/USDT');
+  assert.equal(makeInstrumentKey('binance', 'spot', 'BTC/USDT'), 'binance:BTC/USDT');
 });
 
 test('isDrawingKind accepts supported tool kinds and rejects unknown', () => {

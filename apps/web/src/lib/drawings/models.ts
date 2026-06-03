@@ -108,8 +108,12 @@ export type DrawingOperationEvent = DrawingOperationPayload & {
   occurredAt: number;
 };
 
+export function normalizeDrawingSymbol(symbol: string): string {
+  return symbol.replace(/:.+$/, '');
+}
+
 export function makeInstrumentKey(exchange: string, marketType: string, symbol: string): string {
-  return `${exchange}:${marketType}:${symbol}`;
+  return `${exchange}:${normalizeDrawingSymbol(symbol)}`;
 }
 
 export function makeInstrumentKeyFromRef(instrument: InstrumentRef): string {

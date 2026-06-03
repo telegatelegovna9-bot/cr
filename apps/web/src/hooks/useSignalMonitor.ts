@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useMarketStore, useDrawingStore, useUIStore } from '@/stores';
+import { useMarketStore, useDrawingStore, useUIStore, useAlertStore } from '@/stores';
 import { SignalLevelDrawing } from '@/lib/drawings/models';
 
 export function shouldTriggerSignal(args: {
@@ -36,11 +36,61 @@ export function mapSignalToAlert(input: {
   };
 }
 
+export function mapSignalToTriggeredAlert(input: {
+  id: string;
+  symbol: string;
+  price: number;
+  current: number;
+}) {
+  return {
+    id: `triggered-${input.id}-${Date.now()}`,
+    alertId: input.id,
+    symbol: input.symbol,
+    alert: {
+      type: 'price_cross',
+      condition: input.current >= input.price ? 'above' : 'below',
+      value: input.price,
+    },
+    currentPrice: input.current,
+    triggeredAt: Date.now(),
+  };
+}
+
 export function useSignalMonitor() {
   const lastPricesRef = useRef<Record<string, number>>({});
   const { byId, upsertDrawing } = useDrawingStore();
   const { addAlert } = useUIStore();
+  const { addAlert: addConfiguredAlert, addTriggeredAlert, alerts, removeAlert: removeConfiguredAlert } = useAlertStore();
   const tickers = useMarketStore(state => state.tickers);
+
+  useEffect(() => {
+    const signalLevels = Object.values(byId).filter(
+      (d): d is SignalLevelDrawing => d.kind === 'signal_level'
+    );
+
+    for (const signal of signalLevels) {
+      const exists = alerts.some(alert => alert.id === signal.id);
+      if (exists) continue;
+
+      addConfiguredAlert({
+        id: signal.id,
+        symbol: signal.symbol,
+        type: 'price_cross',
+        condition: 'cross',
+        value: signal.price,
+        enabled: signal.armed,
+        createdAt: signal.createdAt,
+      });
+    }
+
+    for (const alert of alerts) {
+      if (alert.type !== 'price_cross') continue;
+      const stillExists = signalLevels.some(signal => signal.id === alert.id);
+      if (!stillExists) {
+        removeConfiguredAlert(alert.id);
+      }
+    }
+  }, [alerts, addConfiguredAlert, byId, removeConfiguredAlert]);
 
   useEffect(() => {
     // Collect all armed signal levels
@@ -83,6 +133,12 @@ export function useSignalMonitor() {
             price: signal.price,
             current: currentPrice
           }) as any);
+          addTriggeredAlert(mapSignalToTriggeredAlert({
+            id: signal.id,
+            symbol: signal.symbol,
+            price: signal.price,
+            current: currentPrice,
+          }));
           
           console.log(`[Signal] Triggered for ${signal.symbol} at ${signal.price}`);
         }
@@ -90,5 +146,5 @@ export function useSignalMonitor() {
 
       lastPricesRef.current[tickerKey] = currentPrice;
     }
-  }, [tickers, byId, upsertDrawing, addAlert]);
+  }, [tickers, byId, upsertDrawing, addAlert, addTriggeredAlert]);
 }
