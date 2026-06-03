@@ -21,6 +21,7 @@ interface DrawingOverlayProps {
   chart: IChartApi | null;
   candleSeries: ISeriesApi<'Candlestick'> | null;
   hostRef: React.RefObject<HTMLDivElement | null>;
+  lastBarTime: number | null;
   exchange: string;
   marketType: InstrumentMarketType;
   symbol: string;
@@ -40,6 +41,7 @@ export function DrawingOverlay({
   chart,
   candleSeries,
   hostRef,
+  lastBarTime,
   exchange,
   marketType,
   symbol,
@@ -106,23 +108,33 @@ export function DrawingOverlay({
   const paneLeft = leftPriceScaleWidth;
   const paneWidth = Math.max(0, hostSize.width - leftPriceScaleWidth - rightPriceScaleWidth);
   const paneHeight = Math.max(0, hostSize.height - timeScaleHeight);
+  const clipPathId = useMemo(
+    () => `drawing-pane-${instrumentKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+    [instrumentKey],
+  );
 
   const projectionContext = useMemo<ChartProjectionContext | null>(() => {
     if (!chart || !candleSeries || paneWidth <= 0 || paneHeight <= 0) {
       return null;
     }
 
+    const lastBarX =
+      lastBarTime === null ? null : chart.timeScale().timeToCoordinate(lastBarTime as any);
+    const lastRealLogical =
+      lastBarX === null ? null : chart.timeScale().coordinateToLogical(lastBarX);
+
     return {
       width: paneWidth,
       height: paneHeight,
       timeToX: (time: number) => chart.timeScale().timeToCoordinate(time as any),
       logicalToX: (logical: number) => chart.timeScale().logicalToCoordinate(logical as any),
+      lastRealLogical: lastRealLogical === null ? null : Number(lastRealLogical),
       priceToY: (price: number) => candleSeries.priceToCoordinate(price),
     };
-  }, [chart, candleSeries, paneWidth, paneHeight, renderTick]);
+  }, [chart, candleSeries, lastBarTime, paneWidth, paneHeight, renderTick]);
 
   const screenToValue = useCallback((clientX: number, clientY: number): DrawingPoint | null => {
-    if (!chart || !candleSeries || !hostRef.current || paneWidth <= 0 || paneHeight <= 0) {
+    if (!chart || !candleSeries || !hostRef.current || !projectionContext || paneWidth <= 0 || paneHeight <= 0) {
       return null;
     }
 
@@ -142,12 +154,26 @@ export function DrawingOverlay({
       return null;
     }
 
+    let futureOffset: number | undefined;
+    if (time === null) {
+      if (logical === null || projectionContext.lastRealLogical === null) {
+        return null;
+      }
+
+      const offset = Number(logical) - projectionContext.lastRealLogical;
+      if (offset < 0) {
+        return null;
+      }
+
+      futureOffset = offset;
+    }
+
     return {
       time: time === null ? 0 : (typeof time === 'number' ? time : (time as any).timestamp || 0),
       price,
-      logical: logical === null ? undefined : Number(logical),
+      futureOffset,
     };
-  }, [chart, candleSeries, hostRef, paneHeight, paneLeft, paneWidth]);
+  }, [chart, candleSeries, hostRef, paneHeight, paneLeft, paneWidth, projectionContext]);
 
   const makeBaseDrawing = useCallback((id: string) => ({
     id,
@@ -258,6 +284,12 @@ export function DrawingOverlay({
         height: hostSize.height,
       }}
     >
+      <defs>
+        <clipPath id={clipPathId}>
+          <rect x={paneLeft} y={0} width={paneWidth} height={paneHeight} />
+        </clipPath>
+      </defs>
+
       {selectedTool !== 'cursor' && (
         <rect
           x={paneLeft}
@@ -279,7 +311,8 @@ export function DrawingOverlay({
         />
       )}
 
-      {drawings.map((drawing) => {
+      <g clipPath={`url(#${clipPathId})`}>
+        {drawings.map((drawing) => {
         if (drawing.kind === 'horizontal_line' || drawing.kind === 'signal_level') {
           const line = projectHorizontalLine(drawing, projectionContext);
           if (!line) return null;
@@ -349,6 +382,7 @@ export function DrawingOverlay({
 
         return null;
       })}
+      </g>
     </svg>
   );
 }

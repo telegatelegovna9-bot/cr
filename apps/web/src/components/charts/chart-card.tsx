@@ -122,6 +122,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
+  const [lastBarTime, setLastBarTime] = useState<number | null>(null);
 
   const { subscribe, unsubscribe } = useWebSocket();
   const heatmapEngineRef = useRef<LiquidityEngine | null>(null);
@@ -309,6 +310,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
     // Update our history ref so ticker updates use the correct open price
     const timeInSeconds = Math.floor(timestamp / 1000);
+    setLastBarTime(timeInSeconds);
     const existingIdx = allRawRef.current.findIndex(c => Math.floor((c.time || c.timestamp) / 1000) === timeInSeconds);
     
     if (existingIdx >= 0) {
@@ -360,6 +362,8 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             volumeSeriesRef.current.setData(volumes);
             const firstTime = allRawRef.current[0]?.time || allRawRef.current[0]?.timestamp;
             if (firstTime) oldestTimeRef.current = firstTime / 1000;
+            const lastTime = allRawRef.current[allRawRef.current.length - 1]?.time || allRawRef.current[allRawRef.current.length - 1]?.timestamp;
+            if (lastTime) setLastBarTime(Math.floor(lastTime / 1000));
             chartRef.current?.timeScale().setVisibleLogicalRange({
               from: Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES),
               to: candles.length + 3,
@@ -417,6 +421,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     readyRef.current = false;
     oldestTimeRef.current = null;
     allRawRef.current = [];
+    setLastBarTime(null);
     loadingMoreRef.current = false;
     initialRangeSetRef.current = false;
     dataLoadedRef.current = false;
@@ -540,6 +545,8 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             volumeSeries.setData(volumes);
             const firstCandleTime = raw[0].time || raw[0].timestamp;
             oldestTimeRef.current = firstCandleTime / 1000;
+            const lastCandleTime = raw[raw.length - 1].time || raw[raw.length - 1].timestamp;
+            setLastBarTime(Math.floor(lastCandleTime / 1000));
 
             // Force chart to know its real size before setting range
             const w = container.clientWidth || container.offsetWidth;
@@ -789,6 +796,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           chart={chartRef.current}
           candleSeries={candleSeriesRef.current}
           hostRef={containerRef}
+          lastBarTime={lastBarTime}
           exchange={exchange}
           marketType={marketType}
           symbol={effectiveSymbol}

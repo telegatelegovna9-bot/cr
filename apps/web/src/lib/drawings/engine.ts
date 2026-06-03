@@ -4,19 +4,21 @@ export interface ChartProjectionContext {
   width: number;
   height: number;
   timeToX: (time: number) => number | null;
-  logicalToX?: (logical: number) => number | null;
+  logicalToX: (logical: number) => number | null;
+  lastRealLogical: number | null;
   priceToY: (price: number) => number | null;
 }
 
 interface PointLike {
   time: number;
   price: number;
-  logical?: number;
+  futureOffset?: number;
 }
 
 function pointToX(point: PointLike, ctx: ChartProjectionContext): number | null {
-  if (typeof point.logical === 'number' && ctx.logicalToX) {
-    const x = ctx.logicalToX(point.logical);
+  if (typeof point.futureOffset === 'number') {
+    if (ctx.lastRealLogical === null) return null;
+    const x = ctx.logicalToX(ctx.lastRealLogical + point.futureOffset);
     if (x !== null) return x;
   }
 
@@ -55,8 +57,14 @@ export function projectTrendline(
   if (y1 === null || y2 === null) return null;
 
   // Extrapolate off-screen x based on time order so SVG clips the line correctly
-  const p1Order = drawing.p1.logical ?? drawing.p1.time;
-  const p2Order = drawing.p2.logical ?? drawing.p2.time;
+  const p1Order =
+    typeof drawing.p1.futureOffset === 'number' && ctx.lastRealLogical !== null
+      ? ctx.lastRealLogical + drawing.p1.futureOffset
+      : drawing.p1.time;
+  const p2Order =
+    typeof drawing.p2.futureOffset === 'number' && ctx.lastRealLogical !== null
+      ? ctx.lastRealLogical + drawing.p2.futureOffset
+      : drawing.p2.time;
   const x1 = x1Raw ?? (p1Order < p2Order ? -9999 : ctx.width + 9999);
   const x2 = x2Raw ?? (p2Order > p1Order ? ctx.width + 9999 : -9999);
 
@@ -75,8 +83,14 @@ export function projectRectangle(
   if (x1Raw === null && x2Raw === null) return null;
   if (y1Raw === null && y2Raw === null) return null;
 
-  const p1Order = drawing.p1.logical ?? drawing.p1.time;
-  const p2Order = drawing.p2.logical ?? drawing.p2.time;
+  const p1Order =
+    typeof drawing.p1.futureOffset === 'number' && ctx.lastRealLogical !== null
+      ? ctx.lastRealLogical + drawing.p1.futureOffset
+      : drawing.p1.time;
+  const p2Order =
+    typeof drawing.p2.futureOffset === 'number' && ctx.lastRealLogical !== null
+      ? ctx.lastRealLogical + drawing.p2.futureOffset
+      : drawing.p2.time;
   const x1 = x1Raw ?? (p1Order < p2Order ? -9999 : ctx.width + 9999);
   const x2 = x2Raw ?? (p2Order > p1Order ? ctx.width + 9999 : -9999);
   const y1 = y1Raw ?? (drawing.p1.price > drawing.p2.price ? -9999 : ctx.height + 9999);
