@@ -100,8 +100,12 @@ export function DrawingOverlay({
     return () => chart.timeScale().unsubscribeVisibleLogicalRangeChange(bump);
   }, [chart]);
 
-  const paneWidth = chart ? chart.timeScale().width() : hostSize.width;
-  const paneHeight = Math.max(0, hostSize.height - (chart ? chart.timeScale().height() : 0));
+  const rightPriceScaleWidth = chart ? chart.priceScale('right').width() : 0;
+  const leftPriceScaleWidth = chart ? chart.priceScale('left').width() : 0;
+  const timeScaleHeight = chart ? chart.timeScale().height() : 0;
+  const paneLeft = leftPriceScaleWidth;
+  const paneWidth = Math.max(0, hostSize.width - leftPriceScaleWidth - rightPriceScaleWidth);
+  const paneHeight = Math.max(0, hostSize.height - timeScaleHeight);
 
   const projectionContext = useMemo<ChartProjectionContext | null>(() => {
     if (!chart || !candleSeries || paneWidth <= 0 || paneHeight <= 0) {
@@ -123,7 +127,7 @@ export function DrawingOverlay({
     }
 
     const rect = hostRef.current.getBoundingClientRect();
-    const x = clientX - rect.left;
+    const x = clientX - rect.left - paneLeft;
     const y = clientY - rect.top;
 
     if (x < 0 || y < 0 || x > paneWidth || y > paneHeight) {
@@ -143,7 +147,7 @@ export function DrawingOverlay({
       price,
       logical: logical === null ? undefined : Number(logical),
     };
-  }, [chart, candleSeries, hostRef, paneHeight, paneWidth]);
+  }, [chart, candleSeries, hostRef, paneHeight, paneLeft, paneWidth]);
 
   const makeBaseDrawing = useCallback((id: string) => ({
     id,
@@ -256,7 +260,7 @@ export function DrawingOverlay({
     >
       {selectedTool !== 'cursor' && (
         <rect
-          x={0}
+          x={paneLeft}
           y={0}
           width={paneWidth}
           height={paneHeight}
@@ -283,9 +287,9 @@ export function DrawingOverlay({
           return (
             <g key={drawing.id}>
               <line
-                x1={line.x1}
+                x1={line.x1 + paneLeft}
                 y1={line.y1}
-                x2={line.x2}
+                x2={line.x2 + paneLeft}
                 y2={line.y2}
                 stroke={drawing.style.color}
                 strokeWidth={drawing.style.lineWidth}
@@ -293,7 +297,7 @@ export function DrawingOverlay({
               />
               {!compact && (
                 <text
-                  x={Math.max(48, line.x2 - 8)}
+                  x={Math.max(48, line.x2 + paneLeft - 8)}
                   y={line.y1 - 6}
                   fill={drawing.style.color}
                   fontSize="10"
@@ -314,9 +318,9 @@ export function DrawingOverlay({
           return (
             <line
               key={drawing.id}
-              x1={line.x1}
+              x1={line.x1 + paneLeft}
               y1={line.y1}
-              x2={line.x2}
+              x2={line.x2 + paneLeft}
               y2={line.y2}
               stroke={drawing.style.color}
               strokeWidth={drawing.style.lineWidth}
@@ -331,7 +335,7 @@ export function DrawingOverlay({
           return (
             <rect
               key={drawing.id}
-              x={rect.x}
+              x={rect.x + paneLeft}
               y={rect.y}
               width={rect.width}
               height={rect.height}
