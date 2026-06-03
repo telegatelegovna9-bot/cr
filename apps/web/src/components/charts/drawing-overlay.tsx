@@ -126,12 +126,18 @@ export function DrawingOverlay({
     return {
       width: paneWidth,
       height: paneHeight,
-      timeToX: (time: number) => chart.timeScale().timeToCoordinate(time as any),
-      logicalToX: (logical: number) => chart.timeScale().logicalToCoordinate(logical as any),
+      timeToX: (time: number) => {
+        const x = chart.timeScale().timeToCoordinate(time as any);
+        return x === null ? null : x - paneLeft;
+      },
+      logicalToX: (logical: number) => {
+        const x = chart.timeScale().logicalToCoordinate(logical as any);
+        return x === null ? null : x - paneLeft;
+      },
       lastRealLogical: lastRealLogical === null ? null : Number(lastRealLogical),
       priceToY: (price: number) => candleSeries.priceToCoordinate(price),
     };
-  }, [chart, candleSeries, lastBarTime, paneWidth, paneHeight, renderTick]);
+  }, [chart, candleSeries, lastBarTime, paneHeight, paneLeft, paneWidth, renderTick]);
 
   const screenToValue = useCallback((clientX: number, clientY: number): DrawingPoint | null => {
     if (!chart || !candleSeries || !hostRef.current || !projectionContext || paneWidth <= 0 || paneHeight <= 0) {
@@ -139,15 +145,16 @@ export function DrawingOverlay({
     }
 
     const rect = hostRef.current.getBoundingClientRect();
-    const x = clientX - rect.left - paneLeft;
+    const chartX = clientX - rect.left;
+    const x = chartX - paneLeft;
     const y = clientY - rect.top;
 
     if (x < 0 || y < 0 || x > paneWidth || y > paneHeight) {
       return null;
     }
 
-    const logical = chart.timeScale().coordinateToLogical(x);
-    const time = chart.timeScale().coordinateToTime(x);
+    const logical = chart.timeScale().coordinateToLogical(chartX);
+    const time = chart.timeScale().coordinateToTime(chartX);
     const price = candleSeries.coordinateToPrice(y);
 
     if ((time === null && logical === null) || price === null) {
