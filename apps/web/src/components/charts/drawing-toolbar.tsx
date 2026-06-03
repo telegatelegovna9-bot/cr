@@ -4,14 +4,11 @@ import React, { useState } from 'react';
 import { 
   MousePointer2, 
   Minus, 
-  Bell, 
   TrendingUp, 
   Square, 
-  ArrowsUpFromLine, 
   Eye, 
   EyeOff, 
   Trash2,
-  Maximize2,
   PanelLeftClose,
   PanelLeftOpen
 } from 'lucide-react';
@@ -39,11 +36,8 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
   const tools: { id: DrawingTool; icon: any; label: string }[] = [
     { id: 'cursor', icon: MousePointer2, label: 'Cursor' },
     { id: 'horizontal_line', icon: Minus, label: 'Horizontal Line' },
-    { id: 'signal_level', icon: Bell, label: 'Signal Level' },
     { id: 'trendline', icon: TrendingUp, label: 'Trend Line' },
-    { id: 'vertical_line', icon: ArrowsUpFromLine, label: 'Vertical Line' },
     { id: 'rectangle', icon: Square, label: 'Rectangle' },
-    { id: 'ruler', icon: Maximize2, label: 'Ruler' },
   ];
 
   const toolbarClass = compact
