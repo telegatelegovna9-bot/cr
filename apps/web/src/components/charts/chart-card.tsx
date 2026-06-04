@@ -596,13 +596,13 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
           const previousRange = chart.timeScale().getVisibleLogicalRange();
           const previousLength = buildCandles(allRawRef.current).candles.length;
-          allRawRef.current = [...older, ...allRawRef.current];
+          allRawRef.current = mergeChartHistory(older, allRawRef.current);
           const { candles, volumes } = buildCandles(allRawRef.current);
           if (candleSeriesRef.current && volumeSeriesRef.current && candles.length > 0) {
             candleSeriesRef.current.setData(candles);
             volumeSeriesRef.current.setData(volumes);
-            const firstOlderTime = older[0].time || older[0].timestamp;
-            oldestTimeRef.current = firstOlderTime / 1000;
+            const firstMergedTime = allRawRef.current[0]?.time || allRawRef.current[0]?.timestamp;
+            if (firstMergedTime) oldestTimeRef.current = firstMergedTime / 1000;
             if (previousRange) {
               const addedBars = candles.length - previousLength;
               chart.timeScale().setVisibleLogicalRange({
