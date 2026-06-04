@@ -377,7 +377,7 @@ export class OKXConnector extends BaseExchangeConnector {
     const instId = this.toOKXInstId(symbol);
     const isFutures = this.isFuturesSymbol(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
-    let url = `/api/v5/market/candles?instId=${instId}&bar=${tf}&limit=${limit}`;
+    let url = `/api/v5/market/history-candles?instId=${instId}&bar=${tf}&limit=${limit}`;
     if (endTime) url += `&after=${endTime}`;
 
     const data = await this.fetch<{ data: string[][] }>(url);
