@@ -1,26 +1,22 @@
-// Liquidity tracking engine with smart classification
-// Processes orderbook updates and classifies levels: Real, Spoof, Iceberg, Absorption
+import { buildLiquidityBuckets, type LiquidityBand } from './liquidity-buckets';
+import { buildLiquiditySignals, type KeyLevel } from './liquidity-signals';
 
 export type LiquidityType = 'real' | 'spoof' | 'iceberg' | 'absorption';
 
 export interface HeatmapSettings {
-  showReal: boolean;
-  showSpoof: boolean;
-  showIceberg: boolean;
-  showAbsorption: boolean;
-  intensity: number;   // 0.5 – 2.0
-  minSizeUsd: number;  // USD threshold
+  intensity: number;
+  minSizeUsd: number;
+  depthPct: number;
   autoFade: boolean;
+  showDiagnostics: boolean;
 }
 
 export const DEFAULT_HEATMAP_SETTINGS: HeatmapSettings = {
-  showReal: true,
-  showSpoof: true,
-  showIceberg: true,
-  showAbsorption: true,
   intensity: 1.0,
-  minSizeUsd: 0,
+  minSizeUsd: 50_000,
+  depthPct: 0.03,
   autoFade: true,
+  showDiagnostics: false,
 };
 
 interface TrackedLevel {
@@ -29,29 +25,48 @@ interface TrackedLevel {
   currentQty: number;
   peakQty: number;
   minQtyObserved: number;
-  totalAccumQty: number;  // sum of all observations (for intensity)
+  totalAccumQty: number;
   firstSeen: number;
   lastSeen: number;
   snapshotCount: number;
   prevQty: number;
-  refillCount: number;    // iceberg: volume depletes then refills
-  touchCount: number;     // absorption: price hit this level
+  refillCount: number;
+  touchCount: number;
   lastTouchTime: number;
   type: LiquidityType;
-  persistenceScore: number; // 0–100 (drives visual brightness)
+  persistenceScore: number;
 }
 
 export interface VisualLevel {
   price: number;
   side: 'bid' | 'ask';
   type: LiquidityType;
-  /** 0–1: normalized accumulated volume, drives color intensity */
   intensity: number;
-  /** 0–1: transparency after decay/distance/persistence */
   opacity: number;
 }
 
-// Time constants
+export interface HeatmapRenderModel {
+  backgroundBands: Array<LiquidityBand & { opacity: number }>;
+  keyLevels: Array<{
+    price: number;
+    side: 'bid' | 'ask';
+    kind: 'magnet' | 'reaction';
+    usd: number;
+    label: string;
+  }>;
+  diagnostics: Array<{
+    price: number;
+    side: 'bid' | 'ask';
+    kind: 'spoof' | 'iceberg' | 'absorption';
+    confidence: number;
+  }>;
+  summary: {
+    topAbove: { price: number; usd: number } | null;
+    topBelow: { price: number; usd: number } | null;
+    bias: 'pull up' | 'pull down' | 'balanced';
+  };
+}
+
 const FADE_MS = 60_000;
 const EVICT_MS = 180_000;
 const TOUCH_DEBOUNCE_MS = 3_000;
@@ -64,15 +79,14 @@ export class LiquidityEngine {
     this.priceStep = Math.max(step, 1e-10);
   }
 
-  private round(p: number): number {
-    return Math.round(p / this.priceStep) * this.priceStep;
+  private round(price: number) {
+    return Math.round(price / this.priceStep) * this.priceStep;
   }
 
-  private key(side: 'bid' | 'ask', price: number): string {
+  private key(side: 'bid' | 'ask', price: number) {
     return `${side}:${price.toFixed(10)}`;
   }
 
-  /** Feed one orderbook diff/snapshot update */
   addUpdate(
     bids: { price: number; quantity: number }[],
     asks: { price: number; quantity: number }[],
@@ -85,43 +99,48 @@ export class LiquidityEngine {
     ] as const) {
       for (const { price, quantity } of levels) {
         if (quantity <= 0) continue;
-        const rp = this.round(price);
-        const k = this.key(side, rp);
-        const ex = this.levels.get(k);
+        const roundedPrice = this.round(price);
+        const key = this.key(side, roundedPrice);
+        const existing = this.levels.get(key);
 
-        if (ex) {
-          const prev = ex.currentQty;
-          ex.prevQty = prev;
-          ex.currentQty = quantity;
-          ex.lastSeen = now;
-          ex.snapshotCount++;
-          ex.totalAccumQty += quantity;
+        if (existing) {
+          const prev = existing.currentQty;
+          existing.prevQty = prev;
+          existing.currentQty = quantity;
+          existing.lastSeen = now;
+          existing.snapshotCount++;
+          existing.totalAccumQty += quantity;
 
-          if (quantity > ex.peakQty) ex.peakQty = quantity;
-          if (quantity < ex.minQtyObserved) ex.minQtyObserved = quantity;
+          if (quantity > existing.peakQty) existing.peakQty = quantity;
+          if (quantity < existing.minQtyObserved) existing.minQtyObserved = quantity;
 
-          // Iceberg: qty dropped, then jumped back up significantly
-          if (prev > 0 && quantity > prev * 1.5 && prev < ex.peakQty * 0.5 && ex.snapshotCount > 4) {
-            ex.refillCount++;
+          if (prev > 0 && quantity > prev * 1.5 && prev < existing.peakQty * 0.5 && existing.snapshotCount > 4) {
+            existing.refillCount++;
           }
 
-          // Absorption: price is touching this level
-          if (currentPrice > 0 && Math.abs(currentPrice - rp) / currentPrice < 0.0008) {
-            if (now - ex.lastTouchTime > TOUCH_DEBOUNCE_MS) {
-              ex.touchCount++;
-              ex.lastTouchTime = now;
+          if (currentPrice > 0 && Math.abs(currentPrice - roundedPrice) / currentPrice < 0.0008) {
+            if (now - existing.lastTouchTime > TOUCH_DEBOUNCE_MS) {
+              existing.touchCount++;
+              existing.lastTouchTime = now;
             }
           }
         } else {
-          this.levels.set(k, {
-            price: rp, side,
-            currentQty: quantity, peakQty: quantity,
-            minQtyObserved: quantity, prevQty: 0,
+          this.levels.set(key, {
+            price: roundedPrice,
+            side,
+            currentQty: quantity,
+            peakQty: quantity,
+            minQtyObserved: quantity,
             totalAccumQty: quantity,
-            firstSeen: now, lastSeen: now,
+            firstSeen: now,
+            lastSeen: now,
             snapshotCount: 1,
-            refillCount: 0, touchCount: 0, lastTouchTime: 0,
-            type: 'real', persistenceScore: 0,
+            prevQty: 0,
+            refillCount: 0,
+            touchCount: 0,
+            lastTouchTime: 0,
+            type: 'real',
+            persistenceScore: 0,
           });
         }
       }
@@ -131,157 +150,215 @@ export class LiquidityEngine {
     this.evict(now);
   }
 
-  private updateTypes(now: number, currentPrice: number): void {
-    for (const lvl of this.levels.values()) {
-      const age = now - lvl.firstSeen;
-      const staleness = now - lvl.lastSeen;
+  private updateTypes(now: number, currentPrice: number) {
+    for (const level of this.levels.values()) {
+      const age = now - level.firstSeen;
+      const staleness = now - level.lastSeen;
       const isActive = staleness < 800;
 
-      // Persistence score (drives brightness)
-      const ageS = Math.min(age / 40_000, 1) * 40;
-      const cntS = Math.min(lvl.snapshotCount / 150, 1) * 35;
-      const sizeS = Math.min((lvl.peakQty * lvl.price) / 250_000, 1) * 25;
-      lvl.persistenceScore = Math.round(ageS + cntS + sizeS);
+      const ageScore = Math.min(age / 40_000, 1) * 40;
+      const countScore = Math.min(level.snapshotCount / 150, 1) * 35;
+      const sizeScore = Math.min((level.peakQty * level.price) / 250_000, 1) * 25;
+      level.persistenceScore = Math.round(ageScore + countScore + sizeScore);
 
-      // Classify
-      if (lvl.refillCount >= 2) {
-        lvl.type = 'iceberg';
-      } else if (lvl.touchCount >= 2 && isActive) {
-        lvl.type = 'absorption';
-      } else if (!isActive && lvl.peakQty * lvl.price > 25_000 && age < 30_000) {
-        // Appeared, was large, disappeared without price touching → spoof
-        lvl.type = 'spoof';
+      if (level.refillCount >= 2) {
+        level.type = 'iceberg';
+      } else if (level.touchCount >= 2 && isActive) {
+        level.type = 'absorption';
+      } else if (!isActive && level.peakQty * level.price > 25_000 && age < 30_000) {
+        level.type = 'spoof';
       } else {
-        lvl.type = 'real';
+        level.type = 'real';
+      }
+
+      if (currentPrice > 0 && Math.abs(currentPrice - level.price) / currentPrice < 0.0008 && now - level.lastTouchTime > TOUCH_DEBOUNCE_MS) {
+        level.touchCount++;
+        level.lastTouchTime = now;
       }
     }
   }
 
-  private evict(now: number): void {
-    for (const [k, lvl] of this.levels.entries()) {
-      if (now - lvl.lastSeen > EVICT_MS) this.levels.delete(k);
+  private evict(now: number) {
+    for (const [key, level] of this.levels.entries()) {
+      if (now - level.lastSeen > EVICT_MS) this.levels.delete(key);
     }
   }
 
-  /** Returns levels ready for canvas rendering */
   getVisualLevels(settings: HeatmapSettings, currentPrice: number): VisualLevel[] {
-    const now = Date.now();
-    const result: VisualLevel[] = [];
+    const model = this.getRenderModel({
+      currentPrice,
+      depthPct: settings.depthPct,
+      minSizeUsd: settings.minSizeUsd,
+      intensity: settings.intensity,
+      diagnosticsEnabled: settings.showDiagnostics,
+    });
 
-    // Find max for normalization (log scale for better range)
-    let maxAccum = 1;
-    for (const lvl of this.levels.values()) {
-      if (lvl.totalAccumQty > maxAccum) maxAccum = lvl.totalAccumQty;
+    return model.backgroundBands.map(band => ({
+      price: band.price,
+      side: band.side,
+      type: 'real',
+      intensity: band.intensity,
+      opacity: band.opacity,
+    }));
+  }
+
+  getRenderModel(settings: {
+    currentPrice: number;
+    depthPct: number;
+    minSizeUsd: number;
+    intensity: number;
+    diagnosticsEnabled: boolean;
+  }): HeatmapRenderModel {
+    const bands = buildLiquidityBuckets({
+      bids: this.collectSideLevels('bid'),
+      asks: this.collectSideLevels('ask'),
+      currentPrice: settings.currentPrice,
+      bucketSize: this.priceStep,
+      depthPct: settings.depthPct,
+    }).filter(band => band.usd >= settings.minSizeUsd);
+
+    const backgroundBands = bands
+      .map(band => ({
+        ...band,
+        opacity: this.computeBandOpacity(band, settings.currentPrice, settings.intensity),
+      }))
+      .filter(band => band.opacity > 0.02);
+
+    const signals = buildLiquiditySignals({
+      currentPrice: settings.currentPrice,
+      bands: backgroundBands,
+    });
+
+    return {
+      backgroundBands,
+      keyLevels: this.buildKeyLevels(signals.nearestMagnet, signals.reactionZones),
+      diagnostics: settings.diagnosticsEnabled ? this.buildDiagnostics() : [],
+      summary: {
+        topAbove: signals.topAbove ? { price: signals.topAbove.price, usd: signals.topAbove.usd } : null,
+        topBelow: signals.topBelow ? { price: signals.topBelow.price, usd: signals.topBelow.usd } : null,
+        bias: signals.bias,
+      },
+    };
+  }
+
+  private collectSideLevels(side: 'bid' | 'ask') {
+    return Array.from(this.levels.values())
+      .filter(level => level.side === side)
+      .map(level => ({
+        price: level.price,
+        quantity: level.currentQty,
+      }));
+  }
+
+  private computeBandOpacity(band: LiquidityBand, currentPrice: number, intensity: number) {
+    let opacity = 0.08 + band.intensity * 0.35;
+    const distPct = currentPrice > 0 ? Math.abs(currentPrice - band.price) / currentPrice : 0;
+    opacity *= Math.max(0.15, 1 - distPct * 10);
+    return Math.min(opacity * intensity, 0.55);
+  }
+
+  private buildKeyLevels(nearestMagnet: KeyLevel | null, reactionZones: KeyLevel[]) {
+    const levels: HeatmapRenderModel['keyLevels'] = [];
+
+    if (nearestMagnet) {
+      levels.push({
+        price: nearestMagnet.price,
+        side: nearestMagnet.side,
+        kind: 'magnet',
+        usd: nearestMagnet.usd,
+        label: nearestMagnet.side === 'ask'
+          ? `Magnet Above · ${formatCompactUsd(nearestMagnet.usd)}`
+          : `Magnet Below · ${formatCompactUsd(nearestMagnet.usd)}`,
+      });
     }
 
-    for (const lvl of this.levels.values()) {
-      if (!settings.showReal && lvl.type === 'real') continue;
-      if (!settings.showSpoof && lvl.type === 'spoof') continue;
-      if (!settings.showIceberg && lvl.type === 'iceberg') continue;
-      if (!settings.showAbsorption && lvl.type === 'absorption') continue;
-
-      const usd = lvl.currentQty * lvl.price;
-      if (settings.minSizeUsd > 0 && usd < settings.minSizeUsd) continue;
-
-      const age = now - lvl.lastSeen;
-      if (settings.autoFade && age > FADE_MS * 1.1) continue;
-
-      let opacity = 1.0;
-
-      if (settings.autoFade) {
-        opacity *= Math.max(0, 1 - age / FADE_MS);
-      }
-
-      // Persistence brightness: new levels are dim, persistent ones brighter
-      opacity *= 0.1 + 0.9 * (lvl.persistenceScore / 100);
-
-      // Distance fade: levels far from mid-price are nearly invisible
-      if (currentPrice > 0) {
-        const distPct = Math.abs(currentPrice - lvl.price) / currentPrice;
-        opacity *= Math.max(0.05, 1 - distPct * 8);
-      }
-
-      if (lvl.type === 'spoof') opacity *= 0.5;
-      if (lvl.type === 'iceberg') opacity *= 0.85;
-      if (lvl.type === 'spoof') opacity *= 0.65 + 0.35 * Math.sin(now * 0.0025);
-
-      // Cap at 0.55 — dark muted palette, candles always win visually
-      opacity = Math.min(opacity * settings.intensity, 0.55);
-      if (opacity < 0.025) continue;
-
-      const logAccum = Math.log1p(lvl.totalAccumQty);
-      const logMax = Math.log1p(maxAccum);
-      const intensity = Math.min(logAccum / logMax, 1);
-
-      result.push({ price: lvl.price, side: lvl.side, type: lvl.type, intensity, opacity });
+    for (const zone of reactionZones.slice(0, 2)) {
+      levels.push({
+        price: zone.price,
+        side: zone.side,
+        kind: 'reaction',
+        usd: zone.usd,
+        label: zone.side === 'ask'
+          ? `Reaction Above · ${formatCompactUsd(zone.usd)}`
+          : `Reaction Below · ${formatCompactUsd(zone.usd)}`,
+      });
     }
 
-    return result;
+    return levels;
+  }
+
+  private buildDiagnostics(): HeatmapRenderModel['diagnostics'] {
+    const diagnostics: HeatmapRenderModel['diagnostics'] = [];
+
+    for (const level of this.levels.values()) {
+      if (level.type === 'real') continue;
+      diagnostics.push({
+        price: level.price,
+        side: level.side,
+        kind: level.type,
+        confidence: Math.min(1, level.persistenceScore / 100),
+      });
+    }
+
+    return diagnostics;
   }
 
   clear() {
     this.levels.clear();
   }
 
-  get levelCount() { return this.levels.size; }
+  get levelCount() {
+    return this.levels.size;
+  }
 }
 
-// ─── Color System ─────────────────────────────────────────────────────────────
-
-/**
- * Heatmap color palette: dark, muted tones that read as background.
- * Candles must ALWAYS be the primary visual element — colors here
- * are intentionally desaturated so they never compete with price action.
- *
- * Bid palette : dark navy → muted teal (never bright green)
- * Ask palette : dark maroon → muted rust (never bright red)
- * Strong levels get slightly brighter, but cap stays low.
- */
 export function heatColor(
   intensity: number,
   side: 'bid' | 'ask',
   type: LiquidityType,
   opacity: number,
 ): string {
-  const a = (opacity ?? 0).toFixed(3);
+  const alpha = (opacity ?? 0).toFixed(3);
 
   if (type === 'absorption') {
-    // Muted amber — not competing with candle green/red
     const r = Math.round(160 + 60 * intensity);
     const g = Math.round(90 + 50 * intensity);
-    return `rgba(${r},${g},0,${a})`;
+    return `rgba(${r},${g},0,${alpha})`;
   }
 
   if (type === 'iceberg') {
-    // Muted steel blue
     const b = Math.round(120 + 80 * intensity);
     const g = Math.round(100 + 60 * intensity);
-    return `rgba(0,${g},${b},${a})`;
+    return `rgba(0,${g},${b},${alpha})`;
   }
 
   if (side === 'bid') {
-    // Dark navy → muted teal. Never bright green (would clash with bullish candles).
     if (intensity < 0.35) {
       const t = intensity / 0.35;
-      return `rgba(0,${Math.round(30 + t * 50)},${Math.round(60 + t * 60)},${a})`;
-    } else if (intensity < 0.70) {
-      const t = (intensity - 0.35) / 0.35;
-      return `rgba(0,${Math.round(80 + t * 50)},${Math.round(120 + t * 40)},${a})`;
-    } else {
-      const t = (intensity - 0.70) / 0.30;
-      return `rgba(${Math.round(t * 20)},${Math.round(130 + t * 40)},${Math.round(160 - t * 20)},${a})`;
+      return `rgba(0,${Math.round(30 + t * 50)},${Math.round(60 + t * 60)},${alpha})`;
     }
-  } else {
-    // Dark maroon → muted rust. Never bright red (would clash with bearish candles).
-    if (intensity < 0.35) {
-      const t = intensity / 0.35;
-      return `rgba(${Math.round(60 + t * 60)},${Math.round(t * 15)},${Math.round(t * 10)},${a})`;
-    } else if (intensity < 0.70) {
+    if (intensity < 0.7) {
       const t = (intensity - 0.35) / 0.35;
-      return `rgba(${Math.round(120 + t * 60)},${Math.round(15 + t * 40)},10,${a})`;
-    } else {
-      const t = (intensity - 0.70) / 0.30;
-      return `rgba(${Math.round(180 + t * 40)},${Math.round(55 + t * 40)},${Math.round(10 + t * 10)},${a})`;
+      return `rgba(0,${Math.round(80 + t * 50)},${Math.round(120 + t * 40)},${alpha})`;
     }
+    const t = (intensity - 0.7) / 0.3;
+    return `rgba(${Math.round(t * 20)},${Math.round(130 + t * 40)},${Math.round(160 - t * 20)},${alpha})`;
   }
+
+  if (intensity < 0.35) {
+    const t = intensity / 0.35;
+    return `rgba(${Math.round(60 + t * 60)},${Math.round(t * 15)},${Math.round(t * 10)},${alpha})`;
+  }
+  if (intensity < 0.7) {
+    const t = (intensity - 0.35) / 0.35;
+    return `rgba(${Math.round(120 + t * 60)},${Math.round(15 + t * 40)},10,${alpha})`;
+  }
+  const t = (intensity - 0.7) / 0.3;
+  return `rgba(${Math.round(180 + t * 40)},${Math.round(55 + t * 40)},${Math.round(10 + t * 10)},${alpha})`;
+}
+
+function formatCompactUsd(usd: number) {
+  if (usd >= 1_000_000) return `${(usd / 1_000_000).toFixed(1)}M`;
+  if (usd >= 1_000) return `${Math.round(usd / 1_000)}K`;
+  return `${Math.round(usd)}`;
 }

@@ -12,6 +12,7 @@ import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
 import { HeatmapControls } from './heatmap-controls';
+import { HeatmapSummary } from './heatmap-summary';
 import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingOverlay } from './drawing-overlay';
 import {
@@ -129,6 +130,15 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
   const [lastBarTime, setLastBarTime] = useState<number | null>(null);
+  const [heatmapSummary, setHeatmapSummary] = useState<{
+    topAbove: { price: number; usd: number } | null;
+    topBelow: { price: number; usd: number } | null;
+    bias: 'pull up' | 'pull down' | 'balanced';
+  }>({
+    topAbove: null,
+    topBelow: null,
+    bias: 'balanced',
+  });
 
   const { subscribe, unsubscribe } = useWebSocket();
   const heatmapEngineRef = useRef<LiquidityEngine | null>(null);
@@ -227,17 +237,24 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const levels = engine.getVisualLevels(heatmapSettingsRef.current, heatmapPriceRef.current);
+      const model = engine.getRenderModel({
+        currentPrice: heatmapPriceRef.current,
+        depthPct: heatmapSettingsRef.current.depthPct,
+        minSizeUsd: heatmapSettingsRef.current.minSizeUsd,
+        intensity: heatmapSettingsRef.current.intensity,
+        diagnosticsEnabled: heatmapSettingsRef.current.showDiagnostics,
+      });
 
       // Nothing to draw — clear and exit (don't leave stale bands)
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (!levels.length) return;
+      setHeatmapSummary(model.summary);
+      if (!model.backgroundBands.length && !model.keyLevels.length && !model.diagnostics.length) return;
 
       const W = canvas.width;
       const H = canvas.height;
 
       // Band height: pixel gap between adjacent price levels
-      const sortedPrices = [...new Set(levels.map(l => l.price))].sort((a, b) => a - b);
+      const sortedPrices = [...new Set(model.backgroundBands.map(l => l.price))].sort((a, b) => a - b);
       let bandH = 4;
       for (let i = 1; i < sortedPrices.length && i < 6; i++) {
         const y1 = series.priceToCoordinate(sortedPrices[i - 1]);
@@ -248,12 +265,53 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         }
       }
 
-      for (const lvl of levels) {
+      for (const lvl of model.backgroundBands) {
         const y = series.priceToCoordinate(lvl.price);
         if (y == null || y < 0 || y > H) continue;
-        ctx.fillStyle = heatColor(lvl.intensity, lvl.side, lvl.type, lvl.opacity);
+        ctx.fillStyle = heatColor(lvl.intensity, lvl.side, 'real', lvl.opacity);
         ctx.fillRect(0, y - bandH / 2, W, bandH);
       }
+
+      ctx.save();
+      ctx.font = '10px monospace';
+      ctx.textBaseline = 'middle';
+      for (const level of model.keyLevels) {
+        const y = series.priceToCoordinate(level.price);
+        if (y == null || y < 0 || y > H) continue;
+        ctx.strokeStyle = level.kind === 'magnet' ? 'rgba(255,255,255,0.42)' : 'rgba(255,255,255,0.24)';
+        ctx.lineWidth = level.kind === 'magnet' ? 1.2 : 1;
+        ctx.setLineDash(level.kind === 'magnet' ? [] : [4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+
+        const labelWidth = Math.min(140, Math.max(72, ctx.measureText(level.label).width + 12));
+        const labelX = Math.max(6, W - labelWidth - 8);
+        const labelY = Math.max(10, Math.min(H - 10, y));
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(6,10,18,0.78)';
+        ctx.fillRect(labelX, labelY - 8, labelWidth, 16);
+        ctx.strokeStyle = level.kind === 'magnet' ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.16)';
+        ctx.strokeRect(labelX, labelY - 8, labelWidth, 16);
+        ctx.fillStyle = 'rgba(255,255,255,0.82)';
+        ctx.fillText(level.label, labelX + 6, labelY);
+      }
+
+      if (model.diagnostics.length) {
+        for (const marker of model.diagnostics.slice(0, 12)) {
+          const y = series.priceToCoordinate(marker.price);
+          if (y == null || y < 0 || y > H) continue;
+          ctx.fillStyle =
+            marker.kind === 'spoof'
+              ? `rgba(255,166,0,${0.2 + marker.confidence * 0.35})`
+              : marker.kind === 'iceberg'
+                ? `rgba(0,224,255,${0.18 + marker.confidence * 0.35})`
+                : `rgba(255,196,0,${0.18 + marker.confidence * 0.35})`;
+          ctx.fillRect(W - 5, y - 3, 3, 6);
+        }
+      }
+      ctx.restore();
     }
 
     const loop = () => {
@@ -824,6 +882,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           }}
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
+        {showHeatmap && <HeatmapSummary {...heatmapSummary} />}
         
         <DrawingOverlay
           chart={chartRef.current}
