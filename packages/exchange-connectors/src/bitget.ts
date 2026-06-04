@@ -465,23 +465,29 @@ export class BitgetConnector extends BaseExchangeConnector {
     const tf = TIMEFRAME_MAP[timeframe];
     if (isFutures) {
       const local = this.toBitgetFuturesSymbol(symbol);
-      let url = `${BITGET_REST}/api/v2/mix/market/candles?symbol=${local}&granularity=${tf}&limit=${limit}&productType=USDT-FUTURES`;
+      const requestLimit = endTime ? Math.min(limit, 200) : limit;
+      let url = endTime
+        ? `${BITGET_REST}/api/v2/mix/market/history-candles?symbol=${local}&granularity=${tf}&limit=${requestLimit}&productType=USDT-FUTURES`
+        : `${BITGET_REST}/api/v2/mix/market/candles?symbol=${local}&granularity=${tf}&limit=${requestLimit}&productType=USDT-FUTURES`;
       if (endTime) url += `&endTime=${endTime}`;
       const data = await this.fetchRaw<{ data: string[][] }>(url);
       return (data.data || []).map((k): Candle => ({
         exchange: 'bitget', marketType: 'futures', symbol, timeframe, time: parseInt(k[0], 10),
         open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]), isClosed: true, trades: 0,
-      }));
+      })).sort((a, b) => a.time - b.time);
     }
     const local = this.toBitgetSpotSymbol(symbol);
     const tfSpot = TIMEFRAME_MAP_SPOT[timeframe];
-    let url = `${BITGET_REST}/api/v2/spot/market/candles?symbol=${local}&granularity=${tfSpot}&limit=${limit}`;
+    const requestLimit = endTime ? Math.min(limit, 200) : limit;
+    let url = endTime
+      ? `${BITGET_REST}/api/v2/spot/market/history-candles?symbol=${local}&granularity=${tfSpot}&limit=${requestLimit}`
+      : `${BITGET_REST}/api/v2/spot/market/candles?symbol=${local}&granularity=${tfSpot}&limit=${requestLimit}`;
     if (endTime) url += `&endTime=${endTime}`;
     const data = await this.fetchRaw<{ data: string[][] }>(url);
     return (data.data || []).map((k): Candle => ({
       exchange: 'bitget', marketType: 'spot', symbol, timeframe, time: parseInt(k[0], 10),
       open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]), isClosed: true, trades: 0,
-    }));
+    })).sort((a, b) => a.time - b.time);
   }
 
   async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
