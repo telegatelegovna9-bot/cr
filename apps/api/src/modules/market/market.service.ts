@@ -26,6 +26,7 @@ const EXCHANGE_HEALTH_KEY = 'exchange:health';
 @Injectable()
 export class MarketService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MarketService.name);
+  private readonly MAX_CANDLE_CACHE = 20000;
   private exchangeManager!: ExchangeManager;
 
   private tickerCache = new Map<string, TickerWithMeta>();
@@ -149,7 +150,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     const idx = candles.findIndex(c => c.time === candle.time);
     if (idx >= 0) { candles[idx] = candle; } else {
       candles.push(candle);
-      if (candles.length > 2000) candles = candles.slice(-2000);
+      if (candles.length > this.MAX_CANDLE_CACHE) candles = candles.slice(-this.MAX_CANDLE_CACHE);
     }
     this.candleCache.set(key, candles);
     this.gateway.broadcast('candle', candle);
@@ -230,24 +231,29 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   async getCandles(symbol: string, timeframe: Timeframe, exchange?: ExchangeId, limit = 500, endTime?: number): Promise<Candle[]> {
     const cacheKey = `candle:${symbol}:${exchange || 'all'}:${timeframe}`;
     const cached = this.candleCache.get(cacheKey);
+    const cachedHistory = endTime && cached
+      ? cached.filter(c => c.time < endTime).slice(-limit)
+      : [];
     // Only use cache for history requests if it has enough candles (≥ limit).
     // A small cache means only WS real-time candles have been stored so far —
     // returning those would cause charts to show only 1-2 candles instead of full history.
     if (cached && cached.length >= limit && !endTime) return cached.slice(-limit);
+    if (endTime && cachedHistory.length >= limit) return cachedHistory;
     try {
       let candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);
-      if (candles.length > 0 && !endTime) {
-        // Merge with any newer WS candles already in cache so we don't lose them
+      if (candles.length > 0) {
+        // Merge with cached WS/history candles so deep scroll-back can reuse previously loaded ranges.
         const existing = this.candleCache.get(cacheKey) || [];
         const merged = [...candles];
         for (const ws of existing) {
           if (!merged.find(c => c.time === ws.time)) merged.push(ws);
         }
         merged.sort((a, b) => a.time - b.time);
-        this.candleCache.set(cacheKey, merged.slice(-2000));
+        this.candleCache.set(cacheKey, merged.slice(-this.MAX_CANDLE_CACHE));
       }
       return candles;
     } catch (err) {
+      if (endTime) return cachedHistory;
       return cached?.slice(-limit) || [];
     }
   }
