@@ -36,6 +36,8 @@ interface ChartCardProps {
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const INITIAL_VISIBLE_CANDLES = 100;
 const INITIAL_HISTORY_LIMIT = 300;
+const SCROLL_HISTORY_BATCH_LIMIT = 300;
+const MAX_SCROLL_HISTORY_BATCHES = 3;
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 
@@ -584,19 +586,39 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         loadingMoreRef.current = true;
         setLoadingHistory(true);
         try {
-          const endTime = Math.floor(oldestTimeRef.current * 1000) - 1;
-          const resp = await fetch(
-            `${API_BASE}/api/history?exchange=${exchangeRef.current}&marketType=${marketTypeRef.current}&symbol=${encodeURIComponent(effectiveSymbolRef.current)}&timeframe=${timeframeRef.current}&limit=300&endTime=${endTime}`
-          );
-          if (!resp.ok) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
-
-          const data = await resp.json();
-          const older: any[] = data.data || [];
-          if (!older.length) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
-
           const previousRange = chart.timeScale().getVisibleLogicalRange();
           const previousLength = buildCandles(allRawRef.current).candles.length;
-          allRawRef.current = mergeChartHistory(older, allRawRef.current);
+          let mergedHistory = allRawRef.current;
+          let nextOldestTime: number | null = oldestTimeRef.current;
+          let totalFetched = 0;
+
+          for (let batchIndex = 0; batchIndex < MAX_SCROLL_HISTORY_BATCHES; batchIndex++) {
+            if (!nextOldestTime) break;
+
+            const endTime = Math.floor(nextOldestTime * 1000) - 1;
+            const resp = await fetch(
+              `${API_BASE}/api/history?exchange=${exchangeRef.current}&marketType=${marketTypeRef.current}&symbol=${encodeURIComponent(effectiveSymbolRef.current)}&timeframe=${timeframeRef.current}&limit=${SCROLL_HISTORY_BATCH_LIMIT}&endTime=${endTime}`
+            );
+            if (!resp.ok) break;
+
+            const data = await resp.json();
+            const older: any[] = data.data || [];
+            if (!older.length) break;
+
+            const beforeLength = buildCandles(mergedHistory).candles.length;
+            mergedHistory = mergeChartHistory(older, mergedHistory);
+            const afterLength = buildCandles(mergedHistory).candles.length;
+            totalFetched += Math.max(0, afterLength - beforeLength);
+
+            const firstMergedTime = mergedHistory[0]?.time || mergedHistory[0]?.timestamp;
+            nextOldestTime = firstMergedTime ? firstMergedTime / 1000 : null;
+
+            if (older.length < SCROLL_HISTORY_BATCH_LIMIT || range.from > 5) break;
+          }
+
+          if (totalFetched <= 0) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
+
+          allRawRef.current = mergedHistory;
           const { candles, volumes } = buildCandles(allRawRef.current);
           if (candleSeriesRef.current && volumeSeriesRef.current && candles.length > 0) {
             candleSeriesRef.current.setData(candles);
