@@ -393,7 +393,7 @@ export class OKXConnector extends BaseExchangeConnector {
       close: parseFloat(k[4]),
       volume: parseFloat(k[5]),
       isClosed: true,
-    }));
+    })).sort((a, b) => a.time - b.time);
   }
 
   async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {

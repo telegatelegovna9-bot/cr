@@ -2,7 +2,7 @@
 
 import WebSocket from 'ws';
 import type { Ticker, Candle, Timeframe, OrderBook, Trade } from '@crypto-screener/shared';
-import { normalizeSymbol, WS_RECONNECT_DELAY } from '@crypto-screener/shared';
+import { normalizeSymbol, timeframeToMs, WS_RECONNECT_DELAY } from '@crypto-screener/shared';
 import { BaseExchangeConnector } from './base';
 import { decodeMexcSpotMessage, type MexcSpotDecodedMessage } from './mexc-spot-proto';
 
@@ -571,11 +571,15 @@ export class MexcConnector extends BaseExchangeConnector {
     }
     const local = this.toMexcSpotSymbol(symbol);
     let url = `${MEXC_SPOT_REST}/api/v3/klines?symbol=${local}&interval=${REST_TF_MAP[timeframe]}&limit=${limit}`;
-    if (endTime) url += `&endTime=${endTime}`;
+    if (endTime) {
+      const spanMs = timeframeToMs(timeframe) * Math.max(limit - 1, 1);
+      const startTime = Math.max(0, endTime - spanMs);
+      url += `&startTime=${startTime}&endTime=${endTime}`;
+    }
     const data = await this.fetchRaw<any>(url); if (!Array.isArray(data)) return [];
-    return data.map((k: any) => ({
+    return data.map((k: any): Candle => ({
       exchange: 'mexc', marketType: 'spot', symbol, timeframe, time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]), isClosed: true, trades: 0,
-    }));
+    })).sort((a, b) => a.time - b.time);
   }
 
   async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
