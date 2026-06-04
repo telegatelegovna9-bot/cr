@@ -18,6 +18,7 @@ const MEXC_SPOT_WS = 'wss://wbs-api.mexc.com/ws';
 const MEXC_FUTURES_WS = 'wss://contract.mexc.com/edge';
 const MEXC_SPOT_REST = 'https://api.mexc.com';
 const MEXC_FUTURES_REST = 'https://contract.mexc.com';
+const MEXC_SPOT_MINI_TICKERS_STREAM = 'spot@public.miniTickers.v3.api.pb@UTC+8';
 
 type MexcJsonMessage = Record<string, unknown> & {
   __marketType?: 'futures';
@@ -28,14 +29,18 @@ type MexcJsonMessage = Record<string, unknown> & {
 
 export class MexcConnector extends BaseExchangeConnector {
   private static readonly FUTURES_CANDLE_THROTTLE_MS = 500;
+  private static readonly SPOT_ORDERBOOK_THROTTLE_MS = 250;
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
   private futuresSubscriptions = new Set<string>();
   private activeFuturesSubs = new Set<string>();
+  private activeSpotSubs = new Set<string>();
+  private watchedSpotTickerSymbols = new Set<string>();
   private futuresHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private spotHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private futuresReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private futuresCandleEmitTimes = new Map<string, number>();
+  private spotOrderBookEmitTimes = new Map<string, number>();
 
   constructor() {
     super({
@@ -72,6 +77,9 @@ export class MexcConnector extends BaseExchangeConnector {
     });
     spotWs.on('open', () => {
       this.startSpotHeartbeat();
+      for (const sub of this.activeSpotSubs) {
+        this.send({ method: 'SUBSCRIPTION', params: [sub] });
+      }
     });
 
     const futuresWs = new WebSocket(MEXC_FUTURES_WS);
@@ -217,7 +225,11 @@ export class MexcConnector extends BaseExchangeConnector {
     const key = `ticker:${symbol}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIPTION', params: ['spot@public.miniTickers.v3.api.pb@UTC+8'] });
+    this.watchedSpotTickerSymbols.add(this.toMexcSpotSymbol(symbol));
+    if (!this.activeSpotSubs.has(MEXC_SPOT_MINI_TICKERS_STREAM)) {
+      this.activeSpotSubs.add(MEXC_SPOT_MINI_TICKERS_STREAM);
+      this.send({ method: 'SUBSCRIPTION', params: [MEXC_SPOT_MINI_TICKERS_STREAM] });
+    }
   }
 
   subscribeCandle(symbol: string, timeframe: Timeframe): void {
@@ -237,23 +249,27 @@ export class MexcConnector extends BaseExchangeConnector {
     const key = `candle:${symbol}:${timeframe}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIPTION', params: [`spot@public.kline.v3.api.pb@${local}@${tf}`] });
+    const stream = `spot@public.kline.v3.api.pb@${local}@${tf}`;
+    this.activeSpotSubs.add(stream);
+    this.send({ method: 'SUBSCRIPTION', params: [stream] });
   }
 
   subscribeOrderBook(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) return;
     const local = this.toMexcSpotSymbol(symbol);
     const key = `orderbook:${symbol}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIPTION', params: [`spot@public.limit.depth.v3.api@${local}@20`] });
+    const stream = `spot@public.limit.depth.v3.api.pb@${local}@20`;
+    this.activeSpotSubs.add(stream);
+    this.send({ method: 'SUBSCRIPTION', params: [stream] });
   }
 
   subscribeTrades(symbol: string): void {
-    const local = this.toMexcSpotSymbol(symbol);
-    const key = `trades:${symbol}`;
-    if (this.subscriptions.has(key)) return;
-    this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIPTION', params: [`spot@public.deals.v3.api@${local}`] });
+    // MEXC currently blocks both protobuf and JSON public spot deals streams from this runtime,
+    // and futures trades are not implemented. Keep ticker updates on the dedicated ticker stream
+    // instead of adding a broken or noisy fallback subscription here.
+    return;
   }
 
   unsubscribeTicker(symbol: string): void {
@@ -266,6 +282,11 @@ export class MexcConnector extends BaseExchangeConnector {
       return;
     }
     this.subscriptions.delete(`ticker:${symbol}`);
+    this.watchedSpotTickerSymbols.delete(this.toMexcSpotSymbol(symbol));
+    if (this.watchedSpotTickerSymbols.size === 0 && this.activeSpotSubs.has(MEXC_SPOT_MINI_TICKERS_STREAM)) {
+      this.activeSpotSubs.delete(MEXC_SPOT_MINI_TICKERS_STREAM);
+      this.send({ method: 'UNSUBSCRIPTION', params: [MEXC_SPOT_MINI_TICKERS_STREAM] });
+    }
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe): void {
@@ -281,19 +302,22 @@ export class MexcConnector extends BaseExchangeConnector {
     const local = this.toMexcSpotSymbol(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
     this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
-    this.send({ method: 'UNSUBSCRIPTION', params: [`spot@public.kline.v3.api.pb@${local}@${tf}`] });
+    const stream = `spot@public.kline.v3.api.pb@${local}@${tf}`;
+    this.activeSpotSubs.delete(stream);
+    this.send({ method: 'UNSUBSCRIPTION', params: [stream] });
   }
 
   unsubscribeOrderBook(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) return;
     const local = this.toMexcSpotSymbol(symbol);
     this.subscriptions.delete(`orderbook:${symbol}`);
-    this.send({ method: 'UNSUBSCRIPTION', params: [`spot@public.limit.depth.v3.api@${local}@20`] });
+    const stream = `spot@public.limit.depth.v3.api.pb@${local}@20`;
+    this.activeSpotSubs.delete(stream);
+    this.send({ method: 'UNSUBSCRIPTION', params: [stream] });
   }
 
   unsubscribeTrades(symbol: string): void {
-    const local = this.toMexcSpotSymbol(symbol);
-    this.subscriptions.delete(`trades:${symbol}`);
-    this.send({ method: 'UNSUBSCRIPTION', params: [`spot@public.deals.v3.api@${local}`] });
+    return;
   }
 
   protected handleMessage(msg: Record<string, unknown> | MexcSpotDecodedMessage): void {
@@ -357,30 +381,19 @@ export class MexcConnector extends BaseExchangeConnector {
     const channel = msg.channel;
     if (!channel) return;
 
+    if (channel.includes('miniTicker') && !channel.includes('miniTickers')) {
+      const item = msg.publicMiniTicker;
+      if (!item?.symbol || !item.price) return;
+      this.emitSpotTicker(item, msg.sendTime || msg.createTime || Date.now());
+      return;
+    }
+
     if (channel.includes('miniTickers')) {
       const items = msg.publicMiniTickers?.items || [];
       for (const item of items) {
+        if (!item.symbol || !this.watchedSpotTickerSymbols.has(item.symbol)) continue;
         if (!item.symbol?.endsWith('USDT') || !item.price) continue;
-        const price = parseFloat(item.price);
-        const changePercent = parseFloat(item.rate || '0') * 100;
-        const previousPrice = changePercent === -100 ? price : price / (1 + (changePercent / 100));
-        this.emit('ticker', {
-          exchange: 'mexc',
-          marketType: 'spot',
-          symbol: normalizeSymbol(item.symbol, 'mexc'),
-          lastPrice: price,
-          priceChange24h: price - previousPrice,
-          volume24h: parseFloat(item.quantity || '0'),
-          high24h: parseFloat(item.high || '0'),
-          low24h: parseFloat(item.low || '0'),
-          timestamp: msg.sendTime || msg.createTime || Date.now(),
-          priceChangePercent24h: changePercent,
-          quoteVolume24h: parseFloat(item.volume || '0'),
-          trades24h: 0,
-          bid: price,
-          ask: price,
-          spread: 0,
-        } as Ticker);
+        this.emitSpotTicker(item, msg.sendTime || msg.createTime || Date.now());
       }
       return;
     }
@@ -402,7 +415,58 @@ export class MexcConnector extends BaseExchangeConnector {
         isClosed: false,
         trades: 0,
       } as Candle);
+      return;
     }
+
+    if (channel.includes('limit.depth')) {
+      if (!msg.symbol || !msg.publicLimitDepths) return;
+      const orderbookKey = msg.symbol;
+      const now = Date.now();
+      const lastEmit = this.spotOrderBookEmitTimes.get(orderbookKey) || 0;
+      if (now - lastEmit < MexcConnector.SPOT_ORDERBOOK_THROTTLE_MS) return;
+      this.spotOrderBookEmitTimes.set(orderbookKey, now);
+
+      this.emit('orderbook', {
+        symbol: normalizeSymbol(msg.symbol, 'mexc'),
+        exchange: 'mexc',
+        marketType: 'spot',
+        bids: (msg.publicLimitDepths.bids || []).map(level => ({
+          price: parseFloat(level.price || '0'),
+          quantity: parseFloat(level.quantity || '0'),
+        })),
+        asks: (msg.publicLimitDepths.asks || []).map(level => ({
+          price: parseFloat(level.price || '0'),
+          quantity: parseFloat(level.quantity || '0'),
+        })),
+        timestamp: msg.sendTime || msg.createTime || now,
+      } as OrderBook);
+      return;
+    }
+
+  }
+
+  private emitSpotTicker(item: { symbol?: string; price?: string; rate?: string; high?: string; low?: string; volume?: string; quantity?: string }, timestamp: number): void {
+    if (!item.symbol?.endsWith('USDT') || !item.price) return;
+    const price = parseFloat(item.price);
+    const changePercent = parseFloat(item.rate || '0') * 100;
+    const previousPrice = changePercent === -100 ? price : price / (1 + (changePercent / 100));
+    this.emit('ticker', {
+      exchange: 'mexc',
+      marketType: 'spot',
+      symbol: normalizeSymbol(item.symbol, 'mexc'),
+      lastPrice: price,
+      priceChange24h: price - previousPrice,
+      volume24h: parseFloat(item.quantity || '0'),
+      high24h: parseFloat(item.high || '0'),
+      low24h: parseFloat(item.low || '0'),
+      timestamp,
+      priceChangePercent24h: changePercent,
+      quoteVolume24h: parseFloat(item.volume || '0'),
+      trades24h: 0,
+      bid: price,
+      ask: price,
+      spread: 0,
+    } as Ticker);
   }
 
   private handleFuturesMessage(msg: Record<string, unknown>): void {
@@ -544,7 +608,7 @@ export class MexcConnector extends BaseExchangeConnector {
       this.futuresReconnectTimer = null;
     }
     if (this.futuresWs) { this.futuresWs.removeAllListeners(); this.futuresWs.close(); this.futuresWs = null; }
-    this.futuresConnected = false; this.futuresSubscriptions.clear(); this.activeFuturesSubs.clear(); this.futuresCandleEmitTimes.clear();
+    this.futuresConnected = false; this.futuresSubscriptions.clear(); this.activeFuturesSubs.clear(); this.activeSpotSubs.clear(); this.watchedSpotTickerSymbols.clear(); this.futuresCandleEmitTimes.clear(); this.spotOrderBookEmitTimes.clear();
   }
 
   isConnected(): boolean {
