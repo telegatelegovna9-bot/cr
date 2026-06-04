@@ -34,11 +34,9 @@ export function useWebSocket() {
       return;
     }
 
-    console.log(`[WS] Connecting to: ${WS_URL}`);
     const socket = new WebSocket(WS_URL);
 
     socket.onopen = () => {
-      console.log('[WS] Connection established');
       setConnected(true);
       setReconnecting(false);
       if (reconnectTimer) {
@@ -74,7 +72,6 @@ export function useWebSocket() {
             updateCandle(data);
             break;
           case 'orderbook':
-            console.log('[WS] Orderbook received:', data.symbol, data.exchange, 'bids:', data.bids?.length, 'asks:', data.asks?.length);
             updateOrderbook(data);
             break;
           case 'alert':

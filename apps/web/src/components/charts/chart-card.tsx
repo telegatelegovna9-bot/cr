@@ -539,7 +539,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           allRawRef.current = raw;
           onDataLoaded?.(symbol, raw, timeframe);
           const { candles, volumes } = buildCandles(raw);
-          console.log(`[Chart] ${symbol} raw=${raw.length} candles=${candles.length}`);
           if (candles.length > 0) {
             candleSeries.setData(candles);
             volumeSeries.setData(volumes);
@@ -551,12 +550,10 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             // Force chart to know its real size before setting range
             const w = container.clientWidth || container.offsetWidth;
             const h = container.clientHeight || container.offsetHeight;
-            console.log(`[Chart] ${symbol} container=${w}x${h}`);
             if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
 
             const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
             const to = candles.length + 3;
-            console.log(`[Chart] ${symbol} setVisibleLogicalRange from=${from} to=${to}`);
             chart.timeScale().setVisibleLogicalRange({ from, to });
             initialRangeSetRef.current = true;
 
