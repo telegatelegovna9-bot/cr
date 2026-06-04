@@ -4,6 +4,7 @@ import WebSocket from 'ws';
 import type { Ticker, Candle, Timeframe, OrderBook, Trade } from '@crypto-screener/shared';
 import { normalizeSymbol, WS_RECONNECT_DELAY } from '@crypto-screener/shared';
 import { BaseExchangeConnector } from './base';
+import { decodeMexcSpotMessage, type MexcSpotDecodedMessage } from './mexc-spot-proto';
 
 const TIMEFRAME_MAP: Record<Timeframe, string> = {
   '1m': 'Min1', '5m': 'Min5', '15m': 'Min15', '1h': 'Min60', '4h': 'Hour4', '1d': 'Day1', '1w': 'Week1',
@@ -17,6 +18,13 @@ const MEXC_SPOT_WS = 'wss://wbs-api.mexc.com/ws';
 const MEXC_FUTURES_WS = 'wss://contract.mexc.com/edge';
 const MEXC_SPOT_REST = 'https://api.mexc.com';
 const MEXC_FUTURES_REST = 'https://contract.mexc.com';
+
+type MexcJsonMessage = Record<string, unknown> & {
+  __marketType?: 'futures';
+  msg?: string;
+  c?: string;
+  d?: unknown;
+};
 
 export class MexcConnector extends BaseExchangeConnector {
   private static readonly FUTURES_CANDLE_THROTTLE_MS = 500;
@@ -43,6 +51,21 @@ export class MexcConnector extends BaseExchangeConnector {
 
     const spotWs = new WebSocket(this.wsUrl);
     this.setupWebSocket(spotWs);
+    spotWs.on('message', (data, isBinary) => {
+      const raw = typeof data === 'string'
+        ? Buffer.from(data)
+        : Buffer.isBuffer(data)
+          ? data
+          : Buffer.from(data as ArrayBuffer);
+
+      if (!isBinary) {
+        const text = raw.toString('utf8').trimStart();
+        if (text.startsWith('{') || text.startsWith('[')) return;
+      }
+
+      const decoded = decodeMexcSpotMessage(raw);
+      if (decoded) this.handleMessage(decoded);
+    });
     spotWs.on('close', () => {
       console.warn('[mexc] Spot WS closed');
       this.stopSpotHeartbeat();
@@ -194,7 +217,7 @@ export class MexcConnector extends BaseExchangeConnector {
     const key = `ticker:${symbol}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIPTION', params: [`spot@public.miniTickers.v3.api@UTC+8`] });
+    this.send({ method: 'SUBSCRIPTION', params: ['spot@public.miniTickers.v3.api.pb@UTC+8'] });
   }
 
   subscribeCandle(symbol: string, timeframe: Timeframe): void {
@@ -214,7 +237,7 @@ export class MexcConnector extends BaseExchangeConnector {
     const key = `candle:${symbol}:${timeframe}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ method: 'SUBSCRIPTION', params: [`spot@public.kline.v3.api@${local}@${tf}`] });
+    this.send({ method: 'SUBSCRIPTION', params: [`spot@public.kline.v3.api.pb@${local}@${tf}`] });
   }
 
   subscribeOrderBook(symbol: string): void {
@@ -258,7 +281,7 @@ export class MexcConnector extends BaseExchangeConnector {
     const local = this.toMexcSpotSymbol(symbol);
     const tf = TIMEFRAME_MAP[timeframe];
     this.subscriptions.delete(`candle:${symbol}:${timeframe}`);
-    this.send({ method: 'UNSUBSCRIPTION', params: [`spot@public.kline.v3.api@${local}@${tf}`] });
+    this.send({ method: 'UNSUBSCRIPTION', params: [`spot@public.kline.v3.api.pb@${local}@${tf}`] });
   }
 
   unsubscribeOrderBook(symbol: string): void {
@@ -273,14 +296,23 @@ export class MexcConnector extends BaseExchangeConnector {
     this.send({ method: 'UNSUBSCRIPTION', params: [`spot@public.deals.v3.api@${local}`] });
   }
 
-  protected handleMessage(msg: Record<string, unknown>): void {
-    const isFutures = msg.__marketType === 'futures';
-    if (isFutures) { this.handleFuturesMessage(msg); return; }
-    if (typeof msg.msg === 'string' && msg.msg.includes('Blocked')) return;
-    const channel = msg.c as string;
+  protected handleMessage(msg: Record<string, unknown> | MexcSpotDecodedMessage): void {
+    if ('channel' in msg) {
+      const protoChannel = msg.channel;
+      if (typeof protoChannel === 'string' && protoChannel.includes('.pb')) {
+        this.handleSpotProtoMessage(msg as MexcSpotDecodedMessage);
+        return;
+      }
+    }
+
+    const jsonMsg = msg as MexcJsonMessage;
+    const isFutures = jsonMsg.__marketType === 'futures';
+    if (isFutures) { this.handleFuturesMessage(jsonMsg); return; }
+    if (typeof jsonMsg.msg === 'string' && jsonMsg.msg.includes('Blocked')) return;
+    const channel = jsonMsg.c;
     if (!channel) return;
     if (channel.includes('miniTickers')) {
-      const d = msg.d; if (!d) return;
+      const d = jsonMsg.d; if (!d) return;
       (Array.isArray(d) ? d : [d]).forEach((data: any) => {
         if (!data.s?.endsWith('USDT')) return;
         const symbol = normalizeSymbol(data.s, 'mexc');
@@ -293,7 +325,7 @@ export class MexcConnector extends BaseExchangeConnector {
         } as Ticker);
       });
     } else if (channel.includes('kline')) {
-      const data = msg.d as any; if (!data?.k) return;
+      const data = jsonMsg.d as any; if (!data?.k) return;
       const parts = channel.split('@');
       this.emit('candle', {
         exchange: 'mexc', marketType: 'spot', symbol: normalizeSymbol(parts[2], 'mexc'), timeframe: parts[3] || '1m',
@@ -301,7 +333,7 @@ export class MexcConnector extends BaseExchangeConnector {
         close: parseFloat(data.k.c), volume: parseFloat(data.k.v), isClosed: !!data.k.X, trades: 0,
       } as Candle);
     } else if (channel.includes('depth')) {
-      const data = msg.d as any; if (!data) return;
+      const data = jsonMsg.d as any; if (!data) return;
       const parts = channel.split('@');
       this.emit('orderbook', {
         symbol: normalizeSymbol(parts[2], 'mexc'), exchange: 'mexc', marketType: 'spot',
@@ -310,7 +342,7 @@ export class MexcConnector extends BaseExchangeConnector {
         timestamp: Date.now(),
       } as OrderBook);
     } else if (channel.includes('deals')) {
-      const data = msg.d as any; if (!data) return;
+      const data = jsonMsg.d as any; if (!data) return;
       const parts = channel.split('@');
       (data.deals || [data]).forEach((t: any) => {
         this.emit('trade', {
@@ -318,6 +350,58 @@ export class MexcConnector extends BaseExchangeConnector {
           price: parseFloat(t.p), quantity: parseFloat(t.v), side: t.S === 1 ? 'buy' : 'sell', timestamp: t.t,
         } as Trade);
       });
+    }
+  }
+
+  private handleSpotProtoMessage(msg: MexcSpotDecodedMessage): void {
+    const channel = msg.channel;
+    if (!channel) return;
+
+    if (channel.includes('miniTickers')) {
+      const items = msg.publicMiniTickers?.items || [];
+      for (const item of items) {
+        if (!item.symbol?.endsWith('USDT') || !item.price) continue;
+        const price = parseFloat(item.price);
+        const changePercent = parseFloat(item.rate || '0') * 100;
+        const previousPrice = changePercent === -100 ? price : price / (1 + (changePercent / 100));
+        this.emit('ticker', {
+          exchange: 'mexc',
+          marketType: 'spot',
+          symbol: normalizeSymbol(item.symbol, 'mexc'),
+          lastPrice: price,
+          priceChange24h: price - previousPrice,
+          volume24h: parseFloat(item.quantity || '0'),
+          high24h: parseFloat(item.high || '0'),
+          low24h: parseFloat(item.low || '0'),
+          timestamp: msg.sendTime || msg.createTime || Date.now(),
+          priceChangePercent24h: changePercent,
+          quoteVolume24h: parseFloat(item.volume || '0'),
+          trades24h: 0,
+          bid: price,
+          ask: price,
+          spread: 0,
+        } as Ticker);
+      }
+      return;
+    }
+
+    if (channel.includes('kline')) {
+      const kline = msg.publicSpotKline;
+      if (!kline || !msg.symbol || !kline.interval || !kline.windowStart) return;
+      this.emit('candle', {
+        exchange: 'mexc',
+        marketType: 'spot',
+        symbol: normalizeSymbol(msg.symbol, 'mexc'),
+        timeframe: this.reverseTimeframe(kline.interval),
+        time: kline.windowStart * 1000,
+        open: parseFloat(kline.openingPrice || '0'),
+        high: parseFloat(kline.highestPrice || '0'),
+        low: parseFloat(kline.lowestPrice || '0'),
+        close: parseFloat(kline.closingPrice || '0'),
+        volume: parseFloat(kline.volume || '0'),
+        isClosed: false,
+        trades: 0,
+      } as Candle);
     }
   }
 

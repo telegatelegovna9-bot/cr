@@ -9,8 +9,9 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "ws": "^8.18.0",
-    "@crypto-screener/shared": "*"
+    "@crypto-screener/shared": "*",
+    "protobufjs": "^8.5.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/ws": "^8.5.13"
