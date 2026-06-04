@@ -24,7 +24,13 @@ export class HistoryController {
     @Query('limit') limit?: string,
     @Query('endTime') endTime?: string,
   ) {
-    const normalizedSymbol = symbol.replace(/-/g, '/');
+    let normalizedSymbol = symbol.replace(/-/g, '/');
+
+    if (marketType === 'spot' && normalizedSymbol.includes(':USDT')) {
+      normalizedSymbol = normalizedSymbol.replace(':USDT', '');
+    } else if (marketType === 'futures' && !normalizedSymbol.includes(':')) {
+      normalizedSymbol = `${normalizedSymbol}:USDT`;
+    }
 
     const candles = await this.marketService.getCandles(
       normalizedSymbol,
