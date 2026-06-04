@@ -38,6 +38,7 @@ const INITIAL_VISIBLE_CANDLES = 100;
 const INITIAL_HISTORY_LIMIT = 300;
 const SCROLL_HISTORY_BATCH_LIMIT = 300;
 const MAX_SCROLL_HISTORY_BATCHES = 3;
+const MAX_CHART_CANDLES = 20000;
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 
@@ -320,7 +321,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     } else {
       // New candle arrived
       allRawRef.current.push({ ...latestCandle });
-      if (allRawRef.current.length > 2000) allRawRef.current.shift();
+      if (allRawRef.current.length > MAX_CHART_CANDLES) allRawRef.current.shift();
       // If REST load returned empty, seed oldestTime so scroll-to-history works
       if (oldestTimeRef.current === null) oldestTimeRef.current = timeInSeconds;
     }
