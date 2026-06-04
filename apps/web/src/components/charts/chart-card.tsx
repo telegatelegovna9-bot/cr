@@ -39,6 +39,8 @@ const INITIAL_HISTORY_LIMIT = 300;
 const SCROLL_HISTORY_BATCH_LIMIT = 300;
 const MAX_SCROLL_HISTORY_BATCHES = 3;
 const MAX_CHART_CANDLES = 20000;
+const LEFT_EDGE_LOAD_THRESHOLD = 30;
+const POST_BACKFILL_LEFT_BUFFER = 18;
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 
@@ -579,7 +581,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
       const handleRangeChange = (range: any) => {
         if (!range || !readyRef.current || loadingMoreRef.current || !oldestTimeRef.current) return;
-        if (range.from > 30) return;
+        if (range.from > LEFT_EDGE_LOAD_THRESHOLD) return;
 
         if (loadingHistoryTimerRef.current) clearTimeout(loadingHistoryTimerRef.current);
         loadingHistoryTimerRef.current = setTimeout(async () => {
@@ -614,7 +616,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             const firstMergedTime = mergedHistory[0]?.time || mergedHistory[0]?.timestamp;
             nextOldestTime = firstMergedTime ? firstMergedTime / 1000 : null;
 
-            if (older.length < SCROLL_HISTORY_BATCH_LIMIT || range.from > 5) break;
+            if (older.length < SCROLL_HISTORY_BATCH_LIMIT) break;
           }
 
           if (totalFetched <= 0) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
@@ -628,9 +630,14 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             if (firstMergedTime) oldestTimeRef.current = firstMergedTime / 1000;
             if (previousRange) {
               const addedBars = candles.length - previousLength;
+              const visibleBars = Math.max(10, previousRange.to - previousRange.from);
+              const userWasAtLeftEdge = previousRange.from <= LEFT_EDGE_LOAD_THRESHOLD;
+              const targetFrom = userWasAtLeftEdge
+                ? POST_BACKFILL_LEFT_BUFFER
+                : previousRange.from + addedBars;
               chart.timeScale().setVisibleLogicalRange({
-                from: previousRange.from + addedBars,
-                to: previousRange.to + addedBars,
+                from: targetFrom,
+                to: targetFrom + visibleBars,
               });
             }
           }
