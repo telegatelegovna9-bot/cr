@@ -40,7 +40,7 @@ const SCROLL_HISTORY_BATCH_LIMIT = 300;
 const MAX_SCROLL_HISTORY_BATCHES = 3;
 const MAX_CHART_CANDLES = 20000;
 const LEFT_EDGE_LOAD_THRESHOLD = 30;
-const POST_BACKFILL_LEFT_BUFFER = 18;
+const POST_BACKFILL_LEFT_BUFFER = LEFT_EDGE_LOAD_THRESHOLD + 2;
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 
@@ -87,6 +87,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const oldestTimeRef = useRef<number | null>(null);
   const allRawRef = useRef<any[]>([]);
   const loadingMoreRef = useRef(false);
+  const suppressNextRangeChangeRef = useRef(false);
   const readyRef = useRef(false);
   const resizeFrameRef = useRef<number | null>(null);
   const loadingHistoryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -580,6 +581,10 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       readyTimer = setTimeout(() => { readyRef.current = true; }, 200);
 
       const handleRangeChange = (range: any) => {
+        if (suppressNextRangeChangeRef.current) {
+          suppressNextRangeChangeRef.current = false;
+          return;
+        }
         if (!range || !readyRef.current || loadingMoreRef.current || !oldestTimeRef.current) return;
         if (range.from > LEFT_EDGE_LOAD_THRESHOLD) return;
 
@@ -635,6 +640,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
               const targetFrom = userWasAtLeftEdge
                 ? POST_BACKFILL_LEFT_BUFFER
                 : previousRange.from + addedBars;
+              suppressNextRangeChangeRef.current = true;
               chart.timeScale().setVisibleLogicalRange({
                 from: targetFrom,
                 to: targetFrom + visibleBars,
