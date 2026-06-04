@@ -139,6 +139,11 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     topBelow: null,
     bias: 'balanced',
   });
+  const [heatmapOverlayLevels, setHeatmapOverlayLevels] = useState<Array<{
+    y: number;
+    kind: 'magnet' | 'reaction';
+    label: string;
+  }>>([]);
 
   const { subscribe, unsubscribe } = useWebSocket();
   const heatmapEngineRef = useRef<LiquidityEngine | null>(null);
@@ -248,6 +253,18 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       // Nothing to draw — clear and exit (don't leave stale bands)
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       setHeatmapSummary(model.summary);
+      const overlayLevels = model.keyLevels
+        .map(level => {
+          const y = series.priceToCoordinate(level.price);
+          if (y == null || y < 0 || y > canvas.height) return null;
+          return {
+            y: Number(y),
+            kind: level.kind,
+            label: level.label,
+          };
+        })
+        .filter((level): level is { y: number; kind: 'magnet' | 'reaction'; label: string } => level !== null);
+      setHeatmapOverlayLevels(overlayLevels);
       if (!model.backgroundBands.length && !model.keyLevels.length && !model.diagnostics.length) return;
 
       const W = canvas.width;
@@ -273,8 +290,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       }
 
       ctx.save();
-      ctx.font = '10px monospace';
-      ctx.textBaseline = 'middle';
       for (const level of model.keyLevels) {
         const y = series.priceToCoordinate(level.price);
         if (y == null || y < 0 || y > H) continue;
@@ -285,17 +300,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         ctx.moveTo(0, y);
         ctx.lineTo(W, y);
         ctx.stroke();
-
-        const labelWidth = Math.min(140, Math.max(72, ctx.measureText(level.label).width + 12));
-        const labelX = Math.max(6, W - labelWidth - 8);
-        const labelY = Math.max(10, Math.min(H - 10, y));
-        ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(6,10,18,0.78)';
-        ctx.fillRect(labelX, labelY - 8, labelWidth, 16);
-        ctx.strokeStyle = level.kind === 'magnet' ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.16)';
-        ctx.strokeRect(labelX, labelY - 8, labelWidth, 16);
-        ctx.fillStyle = 'rgba(255,255,255,0.82)';
-        ctx.fillText(level.label, labelX + 6, labelY);
       }
 
       if (model.diagnostics.length) {
@@ -882,6 +886,23 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           }}
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
+        {showHeatmap && heatmapOverlayLevels.length > 0 && (
+          <div className="absolute inset-0 z-[3] pointer-events-none">
+            {heatmapOverlayLevels.map((level, index) => (
+              <div
+                key={`${level.kind}:${level.label}:${index}`}
+                className={`absolute right-16 -translate-y-1/2 rounded border px-2 py-0.5 text-[10px] font-mono whitespace-nowrap ${
+                  level.kind === 'magnet'
+                    ? 'border-white/30 bg-black/80 text-white/85'
+                    : 'border-white/15 bg-black/65 text-white/70'
+                }`}
+                style={{ top: `${level.y}px` }}
+              >
+                {level.label}
+              </div>
+            ))}
+          </div>
+        )}
         {showHeatmap && <HeatmapSummary {...heatmapSummary} />}
         
         <DrawingOverlay
