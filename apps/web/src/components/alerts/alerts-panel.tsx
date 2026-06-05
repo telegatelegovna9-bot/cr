@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { useRecentAlerts } from '@/hooks/useData';
 import { alertsApi } from '@/lib/api';
+import { formatDisplaySymbol } from '@/lib/display-symbol';
 import { cn } from '@/lib/utils';
 import { getTimeAgo, formatDateTime } from '@/lib/format';
 import type { AlertType } from '@crypto-screener/shared';
@@ -99,11 +100,11 @@ export function AlertsPanel() {
                 </div>
                 <p className="text-xs text-terminal-muted mt-1">{alert.message}</p>
                 <div className="flex items-center gap-2 mt-2">
-                  {alert.symbol && (
-                    <span className="px-2 py-0.5 bg-terminal-card rounded text-xs font-mono">
-                      {alert.symbol}
-                    </span>
-                  )}
+                    {alert.symbol && (
+                      <span className="px-2 py-0.5 bg-terminal-card rounded text-xs font-mono">
+                        {formatDisplaySymbol(alert.symbol)}
+                      </span>
+                    )}
                   <span className={cn(
                     'px-2 py-0.5 rounded text-xs',
                     alert.priority === 'critical' && 'bg-red-500/20 text-red-400',

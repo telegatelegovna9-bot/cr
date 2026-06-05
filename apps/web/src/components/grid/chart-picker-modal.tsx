@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BarChart2, Layers, Search, X } from 'lucide-react';
 import { useMarketStore } from '@/stores';
+import { formatDisplaySymbol, formatMarketTypeLabel } from '@/lib/display-symbol';
 
 const PICKER_EXCHANGES = ['binance', 'bybit', 'okx', 'kucoin', 'bitget', 'gate', 'mexc', 'hyperliquid', 'coinbase'] as const;
 
@@ -158,9 +159,9 @@ export function ChartPickerModal({
                           : 'border-border bg-bg-primary/30 text-text-secondary hover:bg-surface-hover'
                       }`}
                     >
-                      <div className="text-sm font-medium">{symbol}</div>
+                      <div className="text-sm font-medium">{formatDisplaySymbol(symbol)}</div>
                       <div className="text-[11px] text-text-muted uppercase tracking-wide">
-                        {exchange} · {marketType}
+                        {exchange} · {formatMarketTypeLabel(marketType)}
                       </div>
                     </button>
                   ))

@@ -8,6 +8,7 @@ import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from
 import { useMarketStore, useUIStore, useOrderbookStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { formatPrice, getChartPriceFormat } from '@/lib/format';
+import { formatDisplaySymbol, formatMarketTypeLabel, getDisplayBaseSymbol } from '@/lib/display-symbol';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
@@ -826,7 +827,8 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const livePrice = ticker?.lastPrice ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
   const isPositive = (liveChange ?? 0) >= 0;
-  const base = symbol.split('/')[0];
+  const displaySymbol = formatDisplaySymbol(symbol);
+  const base = getDisplayBaseSymbol(symbol);
 
   return (
     <motion.div
@@ -848,8 +850,13 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             {base.charAt(0)}
           </div>
           <div className="leading-tight">
-            <div className="text-xs font-bold text-text-primary">{symbol}</div>
-            <div className="text-[10px] text-text-muted uppercase tracking-wider">{exchange}</div>
+            <div className="text-xs font-bold text-text-primary">{displaySymbol}</div>
+            <div className="flex items-center gap-1.5 text-[10px] text-text-muted uppercase tracking-wider">
+              <span>{exchange}</span>
+              <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] font-medium normal-case tracking-normal text-text-secondary">
+                {formatMarketTypeLabel(marketType)}
+              </span>
+            </div>
           </div>
         </div>
 

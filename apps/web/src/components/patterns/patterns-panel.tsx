@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useMarketStore, useUIStore } from '@/stores';
 import type { PatternScanResult, PatternType } from '@crypto-screener/shared';
+import { formatDisplaySymbol } from '@/lib/display-symbol';
 import { motion } from 'framer-motion';
 import {
   Search,
@@ -88,7 +89,7 @@ function PatternCard({ pattern, index }: { pattern: PatternScanResult; index: nu
               {getPatternEmoji(pattern.pattern.type)}
             </div>
             <div>
-              <div className="text-sm font-bold text-text-primary">{pattern.symbol}</div>
+              <div className="text-sm font-bold text-text-primary">{formatDisplaySymbol(pattern.symbol)}</div>
               <div className={`text-xs font-medium ${colors.text} mt-0.5`}>
                 {pattern.pattern.type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
               </div>

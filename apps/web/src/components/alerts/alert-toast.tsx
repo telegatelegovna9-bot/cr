@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Clock, Bell, BellOff, Check } from 'lucide-react';
 import { useAlertStore, useUIStore } from '@/stores';
+import { formatDisplaySymbol } from '@/lib/display-symbol';
 
 function formatPrice(price: number): string {
   if (price === undefined || price === null || Number.isNaN(price)) return '0.00';
@@ -68,7 +69,7 @@ export function AlertToast() {
       }
 
       if (config.browserNotifications && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification(`${alert.symbol} Alert`, {
+        new Notification(`${formatDisplaySymbol(alert.symbol)} Alert`, {
           body: `Price: $${formatPrice(alert.currentPrice)} (${alert.alert.condition} $${formatPrice(alert.alert.value)})`,
           icon: '/favicon.ico',
         });
@@ -95,7 +96,7 @@ export function AlertToast() {
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">{colors.icon}</span>
-                  <span className="text-sm font-bold text-text-primary">{alert.symbol}</span>
+                  <span className="text-sm font-bold text-text-primary">{formatDisplaySymbol(alert.symbol)}</span>
                   <span className={`text-xs font-medium ${colors.text}`}>
                     {alert.alert.type.replace(/_/g, ' ')}
                   </span>
@@ -240,7 +241,7 @@ export function AlertModal() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-text-primary">{alert.symbol}</span>
+                      <span className="text-sm font-bold text-text-primary">{formatDisplaySymbol(alert.symbol)}</span>
                       <span className={`text-xs ${colors.text}`}>{alert.title}</span>
                     </div>
                     <div className="text-[10px] text-text-muted mt-0.5">
