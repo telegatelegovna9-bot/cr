@@ -7,6 +7,7 @@
     "dev": "nest start --watch",
     "start": "node dist/main",
     "start:prod": "node dist/main",
+    "test": "node test-runner.cjs",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "db:migrate": "ts-node src/database/migrate.ts",
     "db:seed": "ts-node src/database/seed.ts"
