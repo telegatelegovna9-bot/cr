@@ -3,6 +3,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
 import type { Timeframe } from '@crypto-screener/shared';
@@ -35,6 +36,8 @@ interface ChartCardProps {
   initialMarketType?: 'spot' | 'futures';
   onTimeframeChange?: (timeframe: Timeframe) => void;
   onDataLoaded?: (symbol: string, data: any[], timeframe: string) => void;
+  showHeaderPrice?: boolean;
+  headerActions?: ReactNode;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
@@ -83,7 +86,7 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
-export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded }: ChartCardProps) {
+export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded, showHeaderPrice = true, headerActions }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -906,9 +909,9 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           </div>
         )}
 
-        {/* Right: price + expand */}
+        {/* Right: price/actions */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {livePrice != null && (
+          {showHeaderPrice && livePrice != null && (
             <div className="text-right">
               <div className="text-xs font-bold font-mono text-text-primary leading-tight">
                 ${formatPrice(livePrice)}
@@ -920,9 +923,11 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
               )}
             </div>
           )}
-          <button onClick={onExpand} className="p-1 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer">
-            {isModal ? <X className="w-3.5 h-3.5 text-text-muted" /> : <Maximize2 className="w-3.5 h-3.5 text-text-muted" />}
-          </button>
+          {headerActions ?? (
+            <button onClick={onExpand} className="p-1 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer">
+              {isModal ? <X className="w-3.5 h-3.5 text-text-muted" /> : <Maximize2 className="w-3.5 h-3.5 text-text-muted" />}
+            </button>
+          )}
         </div>
       </div>
 

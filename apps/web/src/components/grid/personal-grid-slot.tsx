@@ -49,31 +49,6 @@ export function PersonalGridSlot({
 
   return (
     <div className="relative h-full min-h-0">
-      <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-bg-primary/70 backdrop-blur rounded-xl border border-border px-1 py-1">
-        <button
-          onClick={() => (expanded ? onCollapse() : onExpand(slot.id))}
-          className="p-2 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer"
-        >
-          {expanded ? (
-            <Minimize2 className="w-4 h-4 text-text-muted" />
-          ) : (
-            <Expand className="w-4 h-4 text-text-muted" />
-          )}
-        </button>
-        <button
-          onClick={() => onReplace(slot.id)}
-          className="p-2 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer"
-        >
-          <Pencil className="w-4 h-4 text-text-muted" />
-        </button>
-        <button
-          onClick={() => onRemove(slot.id)}
-          className="p-2 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer"
-        >
-          <Trash2 className="w-4 h-4 text-text-muted" />
-        </button>
-      </div>
-
       <ChartCard
         symbol={symbol}
         exchange={exchange}
@@ -81,6 +56,33 @@ export function PersonalGridSlot({
         initialTimeframe={slot.timeframe ?? undefined}
         initialMarketType={marketType}
         onTimeframeChange={(timeframe) => onTimeframeChange(slot.id, timeframe)}
+        showHeaderPrice={false}
+        headerActions={
+          <div className="flex items-center gap-0.5 bg-bg-primary/40 rounded-lg p-0.5 border border-border">
+            <button
+              onClick={() => (expanded ? onCollapse() : onExpand(slot.id))}
+              className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
+            >
+              {expanded ? (
+                <Minimize2 className="w-3.5 h-3.5 text-text-muted" />
+              ) : (
+                <Expand className="w-3.5 h-3.5 text-text-muted" />
+              )}
+            </button>
+            <button
+              onClick={() => onReplace(slot.id)}
+              className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+            <button
+              onClick={() => onRemove(slot.id)}
+              className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+          </div>
+        }
       />
     </div>
   );
