@@ -3,12 +3,12 @@ import { test } from 'node:test';
 import {
   DEFAULT_PERSONAL_GRID_STATE,
   createEmptyPersonalGridState,
-} from './models';
+} from './models.ts';
 import {
   PERSONAL_GRID_STORAGE_KEY,
   loadPersistedPersonalGrid,
   savePersistedPersonalGrid,
-} from './persistence';
+} from './persistence.ts';
 
 function createStorageMock(initial: Record<string, string> = {}): Storage {
   const store = new Map(Object.entries(initial));
@@ -42,6 +42,7 @@ test('createEmptyPersonalGridState returns six empty slots', () => {
   assert.equal(state.expandedSlotId, null);
   assert.equal(state.slots.length, 6);
   assert.equal(state.slots.every(slot => slot.symbol === null), true);
+  assert.equal(state.slots.every(slot => slot.timeframe === null), true);
 });
 
 test('loadPersistedPersonalGrid returns defaults when storage is empty', () => {
@@ -60,6 +61,10 @@ test('savePersistedPersonalGrid stores serializable grid state', () => {
       index === 1
         ? { ...slot, symbol: 'BTC/USDT', exchange: 'binance', marketType: 'spot' as const }
         : slot,
+    ).map((slot, index) =>
+      index === 1
+        ? { ...slot, timeframe: '15m' as const }
+        : slot,
     ),
   };
 
@@ -77,4 +82,24 @@ test('loadPersistedPersonalGrid falls back to defaults for malformed data', () =
 
   const state = loadPersistedPersonalGrid(storage);
   assert.deepEqual(state, DEFAULT_PERSONAL_GRID_STATE);
+});
+
+test('loadPersistedPersonalGrid migrates old slot shape without timeframe', () => {
+  const legacyState = {
+    layout: 4,
+    expandedSlotId: null,
+    slots: createEmptyPersonalGridState().slots.map(({ timeframe, ...slot }, index) =>
+      index === 0
+        ? { ...slot, symbol: 'BTC/USDT', exchange: 'binance', marketType: 'spot' as const }
+        : slot,
+    ),
+  };
+
+  const storage = createStorageMock({
+    [PERSONAL_GRID_STORAGE_KEY]: JSON.stringify(legacyState),
+  });
+
+  const state = loadPersistedPersonalGrid(storage);
+  assert.equal(state.slots[0]?.symbol, 'BTC/USDT');
+  assert.equal(state.slots[0]?.timeframe, null);
 });

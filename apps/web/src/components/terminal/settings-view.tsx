@@ -39,7 +39,7 @@ function Toggle({ label, description, enabled, onChange }: {
 export function SettingsView() {
   const { settingsOpen, toggleSettings } = useUIStore();
   const { config: alertConfig, updateConfig: updateAlertConfig } = useAlertStore();
-  const { selectedExchange, setSelectedExchange } = useMarketStore();
+  const { selectedExchange, selectedTimeframe, setSelectedExchange, setSelectedTimeframe } = useMarketStore();
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
@@ -95,8 +95,9 @@ export function SettingsView() {
                 {TIMEFRAMES.map((tf) => (
                   <button
                     key={tf}
+                    onClick={() => setSelectedTimeframe(tf)}
                     className={`px-4 py-2 text-xs rounded-xl transition-all duration-200 cursor-pointer font-medium
-                      ${alertConfig.timeframes.includes(tf)
+                      ${selectedTimeframe === tf
                         ? 'bg-accent/15 text-accent-light border border-accent/20'
                         : 'bg-bg-primary/40 text-text-muted border border-border hover:bg-surface-hover'
                       }`}

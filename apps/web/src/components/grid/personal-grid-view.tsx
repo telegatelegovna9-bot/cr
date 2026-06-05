@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Grid2x2, Grid3x3, Square } from 'lucide-react';
-import { useUIStore } from '@/stores';
+import { useMarketStore, useUIStore } from '@/stores';
 import { ChartPickerModal } from './chart-picker-modal';
 import { PersonalGridSlot } from './personal-grid-slot';
 
@@ -20,7 +20,9 @@ export function PersonalGridView() {
     clearPersonalGridSlot,
     expandPersonalGridSlot,
     collapsePersonalGridSlot,
+    setPersonalGridSlotTimeframe,
   } = useUIStore();
+  const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
   const [pickerSlotId, setPickerSlotId] = useState<string | null>(null);
 
   const visibleSlots = useMemo(
@@ -88,6 +90,7 @@ export function PersonalGridView() {
               onRemove={clearPersonalGridSlot}
               onExpand={expandPersonalGridSlot}
               onCollapse={collapsePersonalGridSlot}
+              onTimeframeChange={setPersonalGridSlotTimeframe}
             />
           </div>
         ) : (
@@ -103,6 +106,7 @@ export function PersonalGridView() {
                 onRemove={clearPersonalGridSlot}
                 onExpand={expandPersonalGridSlot}
                 onCollapse={collapsePersonalGridSlot}
+                onTimeframeChange={setPersonalGridSlotTimeframe}
               />
             ))}
           </div>
@@ -115,7 +119,11 @@ export function PersonalGridView() {
         onClose={() => setPickerSlotId(null)}
         onConfirm={(selection) => {
           if (!pickerSlotId) return;
-          setPersonalGridSlot(pickerSlotId, selection);
+          const existingSlot = personalGrid.slots.find(slot => slot.id === pickerSlotId);
+          setPersonalGridSlot(pickerSlotId, {
+            ...selection,
+            timeframe: existingSlot?.timeframe ?? selectedTimeframe,
+          });
           setPickerSlotId(null);
         }}
         initialSelection={pickerInitialSelection}

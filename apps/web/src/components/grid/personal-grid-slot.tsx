@@ -3,6 +3,7 @@
 import { Expand, Minimize2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ChartCard } from '@/components/charts/chart-card';
 import type { PersonalGridSlotConfig } from '@/lib/personal-grid/models';
+import type { Timeframe } from '@crypto-screener/shared';
 
 interface PersonalGridSlotProps {
   slot: PersonalGridSlotConfig;
@@ -13,6 +14,7 @@ interface PersonalGridSlotProps {
   onRemove: (slotId: string) => void;
   onExpand: (slotId: string) => void;
   onCollapse: () => void;
+  onTimeframeChange: (slotId: string, timeframe: Timeframe) => void;
 }
 
 export function PersonalGridSlot({
@@ -24,6 +26,7 @@ export function PersonalGridSlot({
   onRemove,
   onExpand,
   onCollapse,
+  onTimeframeChange,
 }: PersonalGridSlotProps) {
   if (!slot.symbol || !slot.exchange || !slot.marketType) {
     return (
@@ -75,7 +78,9 @@ export function PersonalGridSlot({
         symbol={symbol}
         exchange={exchange}
         index={index}
+        initialTimeframe={slot.timeframe ?? undefined}
         initialMarketType={marketType}
+        onTimeframeChange={(timeframe) => onTimeframeChange(slot.id, timeframe)}
       />
     </div>
   );

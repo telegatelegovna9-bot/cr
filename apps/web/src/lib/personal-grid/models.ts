@@ -1,3 +1,5 @@
+import type { Timeframe } from '@crypto-screener/shared';
+
 export type PersonalGridLayout = 1 | 4 | 6;
 
 export type PersonalGridMarketType = 'spot' | 'futures';
@@ -7,6 +9,7 @@ export interface PersonalGridSlotConfig {
   symbol: string | null;
   exchange: string | null;
   marketType: PersonalGridMarketType | null;
+  timeframe: Timeframe | null;
 }
 
 export interface PersonalGridState {
@@ -24,6 +27,7 @@ export function createEmptyPersonalGridState(): PersonalGridState {
       symbol: null,
       exchange: null,
       marketType: null,
+      timeframe: null,
     })),
   };
 }

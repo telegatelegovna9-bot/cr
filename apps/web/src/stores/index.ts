@@ -14,6 +14,11 @@ import {
   loadPersistedPersonalGrid,
   savePersistedPersonalGrid,
 } from '@/lib/personal-grid/persistence';
+import {
+  DEFAULT_MARKET_TIMEFRAME,
+  loadPersistedMarketPreferences,
+  savePersistedMarketPreferences,
+} from '@/lib/market-preferences';
 import type {
   AnyDrawing,
   DrawingOperationEvent,
@@ -64,7 +69,7 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   latestCandles: new Map(),
   selectedSymbol: 'BTC/USDT',
   selectedExchange: 'binance',
-  selectedTimeframe: '1h',
+  selectedTimeframe: getInitialSelectedTimeframe(),
   connectedExchanges: [],
   selectedCoin: null,
 
@@ -106,7 +111,7 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
 
   setSelectedSymbol: (symbol) => set({ selectedSymbol: symbol }),
   setSelectedExchange: (exchange) => set({ selectedExchange: exchange }),
-  setSelectedTimeframe: (timeframe) => set({ selectedTimeframe: timeframe }),
+  setSelectedTimeframe: (timeframe) => set({ selectedTimeframe: persistSelectedTimeframe(timeframe) }),
   setConnectedExchanges: (exchanges) => set({ connectedExchanges: exchanges }),
   setSelectedCoin: (coin) => set({ selectedCoin: coin }),
 
@@ -181,6 +186,17 @@ function getInitialPersonalGridState(): PersonalGridState {
 function persistPersonalGridState(personalGrid: PersonalGridState): PersonalGridState {
   if (typeof window === 'undefined') return personalGrid;
   return savePersistedPersonalGrid(window.localStorage, personalGrid);
+}
+
+function getInitialSelectedTimeframe(): Timeframe {
+  if (typeof window === 'undefined') return DEFAULT_MARKET_TIMEFRAME;
+  return loadPersistedMarketPreferences(window.localStorage).selectedTimeframe;
+}
+
+function persistSelectedTimeframe(timeframe: Timeframe): Timeframe {
+  if (typeof window === 'undefined') return timeframe;
+  savePersistedMarketPreferences(window.localStorage, { selectedTimeframe: timeframe });
+  return timeframe;
 }
 
 interface DrawingStore {
@@ -451,8 +467,9 @@ interface UIStore {
   setPersonalGridLayout: (layout: PersonalGridLayout) => void;
   setPersonalGridSlot: (
     slotId: string,
-    next: { symbol: string; exchange: string; marketType: PersonalGridMarketType }
+    next: { symbol: string; exchange: string; marketType: PersonalGridMarketType; timeframe: Timeframe }
   ) => void;
+  setPersonalGridSlotTimeframe: (slotId: string, timeframe: Timeframe) => void;
   clearPersonalGridSlot: (slotId: string) => void;
   expandPersonalGridSlot: (slotId: string) => void;
   collapsePersonalGridSlot: () => void;
@@ -522,6 +539,15 @@ export const useUIStore = create<UIStore>((set) => ({
         ),
       }),
     })),
+  setPersonalGridSlotTimeframe: (slotId, timeframe) =>
+    set(state => ({
+      personalGrid: persistPersonalGridState({
+        ...state.personalGrid,
+        slots: state.personalGrid.slots.map(slot =>
+          slot.id === slotId ? { ...slot, timeframe } : slot
+        ),
+      }),
+    })),
   clearPersonalGridSlot: (slotId) =>
     set(state => ({
       personalGrid: persistPersonalGridState({
@@ -529,7 +555,7 @@ export const useUIStore = create<UIStore>((set) => ({
         expandedSlotId: state.personalGrid.expandedSlotId === slotId ? null : state.personalGrid.expandedSlotId,
         slots: state.personalGrid.slots.map(slot =>
           slot.id === slotId
-            ? { ...slot, symbol: null, exchange: null, marketType: null }
+            ? { ...slot, symbol: null, exchange: null, marketType: null, timeframe: null }
             : slot
         ),
       }),

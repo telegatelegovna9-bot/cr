@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
+import type { Timeframe } from '@crypto-screener/shared';
 import { useMarketStore, useUIStore, useOrderbookStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { formatPrice, getChartPriceFormat } from '@/lib/format';
@@ -32,6 +33,7 @@ interface ChartCardProps {
   initialData?: any[];
   initialTimeframe?: string;
   initialMarketType?: 'spot' | 'futures';
+  onTimeframeChange?: (timeframe: Timeframe) => void;
   onDataLoaded?: (symbol: string, data: any[], timeframe: string) => void;
 }
 
@@ -81,7 +83,7 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
-export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onDataLoaded }: ChartCardProps) {
+export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -100,7 +102,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
   const exchange = exchangeProp || selectedExchange;
-  const [timeframe, setTimeframe] = useState<TF>(selectedTimeframe as TF);
+  const [timeframe, setTimeframe] = useState<TF>((initialTimeframe as TF | undefined) ?? (selectedTimeframe as TF));
   const [marketType, setMarketType] = useState<'spot' | 'futures'>(
     initialMarketType ?? (symbol.includes(':USDT') ? 'futures' : 'spot')
   );
@@ -386,6 +388,11 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   // Keep refs in sync with state so closures always read current values
   useEffect(() => { timeframeRef.current = timeframe; }, [timeframe]);
   useEffect(() => { marketTypeRef.current = marketType; }, [marketType]);
+  useEffect(() => {
+    if (initialTimeframe) {
+      setTimeframe(initialTimeframe as TF);
+    }
+  }, [initialTimeframe]);
 
   const showMarketToggle = isModal || chartGridSize === 1;
 
@@ -865,7 +872,10 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           {TIMEFRAMES.map(tf => (
             <button
               key={tf}
-              onClick={() => setTimeframe(tf)}
+              onClick={() => {
+                setTimeframe(tf);
+                onTimeframeChange?.(tf);
+              }}
               className={`px-1.5 py-0.5 text-[10px] rounded font-mono transition-colors cursor-pointer shrink-0
                 ${timeframe === tf
                   ? 'bg-accent/20 text-accent-light'
