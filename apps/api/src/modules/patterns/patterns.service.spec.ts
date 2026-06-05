@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import {
+  mapCandidateToPersistenceRow,
+  shouldKeepPatternVisible,
+} from './patterns.mapper';
+import {
   PATTERN_FINISHED_RETENTION_MINUTES,
   PATTERN_SCAN_TIMEFRAMES,
   type PatternKind,
@@ -14,3 +18,54 @@ const statuses: PatternStatus[] = ['forming', 'confirmed', 'finished'];
 
 assert.equal(kinds.length, 3);
 assert.equal(statuses.length, 3);
+
+const mapped = mapCandidateToPersistenceRow(
+  {
+    id: 'p1',
+    exchange: 'binance',
+    marketType: 'futures',
+    symbol: 'BTC/USDT:USDT',
+    timeframe: '15m',
+    kind: 'triangle',
+    status: 'confirmed',
+    quality: 81,
+    from: 1,
+    to: 2,
+    geometry: {
+      anchorTimeFrom: 1,
+      anchorTimeTo: 2,
+      priceMin: 10,
+      priceMax: 20,
+      pivots: [],
+      lines: [],
+      zones: [],
+    },
+  },
+  1000,
+);
+
+assert.equal(mapped.symbol, 'BTC/USDT:USDT');
+assert.equal(mapped.status, 'confirmed');
+assert.equal(mapped.updatedAt, 1000);
+
+assert.equal(
+  shouldKeepPatternVisible(
+    {
+      status: 'finished',
+      expiresAt: Date.now() + PATTERN_FINISHED_RETENTION_MINUTES * 60_000,
+    },
+    Date.now(),
+  ),
+  true,
+);
+
+assert.equal(
+  shouldKeepPatternVisible(
+    {
+      status: 'finished',
+      expiresAt: Date.now() - 1,
+    },
+    Date.now(),
+  ),
+  false,
+);

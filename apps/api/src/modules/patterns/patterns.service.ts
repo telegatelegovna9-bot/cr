@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import type { DetectedPattern, PatternType, Candle, Timeframe, ExchangeId } from '@crypto-screener/shared';
 import { generateId } from '@crypto-screener/shared';
+import { PATTERNS_PAGE_SIZE } from './patterns.constants';
+import { mapPatternRow } from './patterns.mapper';
+import type { PersistedPatternPayload } from './patterns.types';
 
 @Injectable()
 export class PatternsService {
@@ -9,6 +12,120 @@ export class PatternsService {
   private readonly MAX_PATTERNS = 500;
 
   constructor(private readonly db: DatabaseService) {}
+
+  async listPatterns(params: {
+    cursor?: number;
+    search?: string;
+    kinds?: string[];
+    timeframes?: string[];
+    statuses?: string[];
+    limit?: number;
+  }): Promise<{
+    items: PersistedPatternPayload[];
+    hasMore: boolean;
+    nextCursor: number | null;
+  }> {
+    const values: unknown[] = [Date.now()];
+    const conditions = [
+      `(status != 'finished' OR (expires_at IS NOT NULL AND expires_at > $1))`,
+    ];
+
+    if (params.search) {
+      values.push(`%${params.search}%`);
+      conditions.push(`symbol ILIKE $${values.length}`);
+    }
+
+    if (params.kinds?.length) {
+      values.push(params.kinds);
+      conditions.push(`kind = ANY($${values.length})`);
+    }
+
+    if (params.timeframes?.length) {
+      values.push(params.timeframes);
+      conditions.push(`timeframe = ANY($${values.length})`);
+    }
+
+    if (params.statuses?.length) {
+      values.push(params.statuses);
+      conditions.push(`status = ANY($${values.length})`);
+    }
+
+    if (params.cursor) {
+      values.push(params.cursor);
+      conditions.push(`updated_at < $${values.length}`);
+    }
+
+    const limit = params.limit ?? PATTERNS_PAGE_SIZE;
+    values.push(limit + 1);
+
+    const result = await this.db.query(
+      `SELECT
+        id,
+        exchange,
+        market_type,
+        symbol,
+        timeframe,
+        kind,
+        status,
+        quality,
+        geometry,
+        detected_at,
+        updated_at,
+        finished_at,
+        expires_at
+      FROM detected_patterns
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY
+        CASE status
+          WHEN 'confirmed' THEN 0
+          WHEN 'forming' THEN 1
+          ELSE 2
+        END,
+        quality DESC,
+        updated_at DESC
+      LIMIT $${values.length}`,
+      values,
+    );
+
+    const rows = result.rows.map(mapPatternRow);
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+
+    return {
+      items,
+      hasMore,
+      nextCursor: hasMore ? items[items.length - 1]?.updatedAt ?? null : null,
+    };
+  }
+
+  async getPattern(id: string): Promise<PersistedPatternPayload | null> {
+    const result = await this.db.query(
+      `SELECT
+        id,
+        exchange,
+        market_type,
+        symbol,
+        timeframe,
+        kind,
+        status,
+        quality,
+        geometry,
+        detected_at,
+        updated_at,
+        finished_at,
+        expires_at
+      FROM detected_patterns
+      WHERE id = $1
+      LIMIT 1`,
+      [id],
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return mapPatternRow(result.rows[0]);
+  }
 
   /**
    * Detect patterns from candle data
