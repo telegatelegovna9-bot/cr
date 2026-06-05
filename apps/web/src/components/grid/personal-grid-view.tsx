@@ -36,6 +36,18 @@ export function PersonalGridView() {
     ? personalGrid.slots.find(slot => slot.id === pickerSlotId) ?? null
     : null;
 
+  const pickerInitialSelection = useMemo(
+    () =>
+      pickerSlot
+        ? {
+            symbol: pickerSlot.symbol,
+            exchange: pickerSlot.exchange,
+            marketType: pickerSlot.marketType,
+          }
+        : undefined,
+    [pickerSlot],
+  );
+
   const gridClass =
     personalGrid.layout === 1
       ? 'grid-cols-1 grid-rows-1'
@@ -106,11 +118,7 @@ export function PersonalGridView() {
           setPersonalGridSlot(pickerSlotId, selection);
           setPickerSlotId(null);
         }}
-        initialSelection={pickerSlot ? {
-          symbol: pickerSlot.symbol,
-          exchange: pickerSlot.exchange,
-          marketType: pickerSlot.marketType,
-        } : undefined}
+        initialSelection={pickerInitialSelection}
       />
     </div>
   );

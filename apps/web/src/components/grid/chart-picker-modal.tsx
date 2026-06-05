@@ -41,7 +41,13 @@ export function ChartPickerModal({
     setMarketType(initialSelection?.marketType ?? 'spot');
     setSelectedSymbol(initialSelection?.symbol ?? null);
     setQuery('');
-  }, [open, initialSelection, selectedExchange]);
+  }, [
+    open,
+    selectedExchange,
+    initialSelection?.exchange,
+    initialSelection?.marketType,
+    initialSelection?.symbol,
+  ]);
 
   const symbols = useMemo(() => {
     const items = tickers
@@ -50,7 +56,7 @@ export function ChartPickerModal({
 
     return Array.from(new Set(items))
       .filter(symbol => symbol.toLowerCase().includes(query.toLowerCase()))
-      .slice(0, 40);
+      .slice(0, 200);
   }, [tickers, exchange, marketType, query]);
 
   useEffect(() => {
