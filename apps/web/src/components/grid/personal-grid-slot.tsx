@@ -1,0 +1,82 @@
+'use client';
+
+import { Expand, Minimize2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ChartCard } from '@/components/charts/chart-card';
+import type { PersonalGridSlotConfig } from '@/lib/personal-grid/models';
+
+interface PersonalGridSlotProps {
+  slot: PersonalGridSlotConfig;
+  index: number;
+  expanded: boolean;
+  onAdd: (slotId: string) => void;
+  onReplace: (slotId: string) => void;
+  onRemove: (slotId: string) => void;
+  onExpand: (slotId: string) => void;
+  onCollapse: () => void;
+}
+
+export function PersonalGridSlot({
+  slot,
+  index,
+  expanded,
+  onAdd,
+  onReplace,
+  onRemove,
+  onExpand,
+  onCollapse,
+}: PersonalGridSlotProps) {
+  if (!slot.symbol || !slot.exchange || !slot.marketType) {
+    return (
+      <button
+        onClick={() => onAdd(slot.id)}
+        className="glass-card border border-dashed border-border-light rounded-2xl h-full min-h-[220px] flex flex-col items-center justify-center gap-3 text-text-muted hover:text-text-secondary hover:border-accent/30 transition-all"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
+          <Plus className="w-5 h-5 text-accent-light" />
+        </div>
+        <div className="text-sm font-medium">Add Chart</div>
+        <div className="text-xs text-text-muted">Choose symbol, exchange, and market type</div>
+      </button>
+    );
+  }
+
+  const symbol: string = slot.symbol;
+  const exchange: string = slot.exchange;
+  const marketType: 'spot' | 'futures' = slot.marketType;
+
+  return (
+    <div className="relative h-full min-h-0">
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-bg-primary/70 backdrop-blur rounded-xl border border-border px-1 py-1">
+        <button
+          onClick={() => (expanded ? onCollapse() : onExpand(slot.id))}
+          className="p-2 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer"
+        >
+          {expanded ? (
+            <Minimize2 className="w-4 h-4 text-text-muted" />
+          ) : (
+            <Expand className="w-4 h-4 text-text-muted" />
+          )}
+        </button>
+        <button
+          onClick={() => onReplace(slot.id)}
+          className="p-2 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer"
+        >
+          <Pencil className="w-4 h-4 text-text-muted" />
+        </button>
+        <button
+          onClick={() => onRemove(slot.id)}
+          className="p-2 rounded-lg hover:bg-surface-hover transition-colors cursor-pointer"
+        >
+          <Trash2 className="w-4 h-4 text-text-muted" />
+        </button>
+      </div>
+
+      <ChartCard
+        symbol={symbol}
+        exchange={exchange}
+        index={index}
+        initialMarketType={marketType}
+      />
+    </div>
+  );
+}
