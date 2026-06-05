@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { Ticker } from '@crypto-screener/shared';
 import { MarketService } from '../market/market.service';
@@ -12,7 +12,7 @@ import { detectTrianglePatterns } from './detectors/triangle.detector';
 import { PatternsService } from './patterns.service';
 
 @Injectable()
-export class PatternsScanner {
+export class PatternsScanner implements OnModuleInit {
   private readonly logger = new Logger(PatternsScanner.name);
 
   constructor(
@@ -20,48 +20,63 @@ export class PatternsScanner {
     private readonly marketService: MarketService,
   ) {}
 
+  onModuleInit(): void {
+    this.logger.log('Patterns scanner initialized');
+    void this.runScan('startup');
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
   async scanMarket(): Promise<void> {
-    const symbols = this.getBinanceFuturesSymbols();
-    const candidates: PatternCandidate[] = [];
+    await this.runScan('cron');
+  }
 
-    for (const symbol of symbols) {
-      for (const timeframe of PATTERN_SCAN_TIMEFRAMES) {
-        const candles = await this.marketService.getCandles(
-          symbol,
-          timeframe,
-          'binance',
-          PATTERN_CANDLE_LIMIT,
-        );
+  private async runScan(source: 'startup' | 'cron'): Promise<void> {
+    try {
+      const symbols = this.getBinanceFuturesSymbols();
+      const candidates: PatternCandidate[] = [];
+      this.logger.log(`Patterns scan started via ${source} for ${symbols.length} symbols`);
 
-        if (candles.length < 6) {
-          continue;
-        }
-
-        const detected = [
-          ...detectCascadePatterns(symbol, timeframe, candles),
-          ...detectTrendlinePatterns(symbol, timeframe, candles),
-          ...detectTrianglePatterns(symbol, timeframe, candles),
-        ]
-          .filter(candidate => candidate.quality >= PATTERN_MIN_QUALITY)
-          .sort((a, b) => b.quality - a.quality);
-
-        for (const candidate of detected) {
-          const duplicate = candidates.find(existing =>
-            patternsOverlapTooMuch(existing, candidate) && existing.quality >= candidate.quality,
+      for (const symbol of symbols) {
+        for (const timeframe of PATTERN_SCAN_TIMEFRAMES) {
+          const candles = await this.marketService.getCandles(
+            symbol,
+            timeframe,
+            'binance',
+            PATTERN_CANDLE_LIMIT,
           );
 
-          if (!duplicate) {
-            candidates.push(candidate);
+          if (candles.length < 6) {
+            continue;
+          }
+
+          const detected = [
+            ...detectCascadePatterns(symbol, timeframe, candles),
+            ...detectTrendlinePatterns(symbol, timeframe, candles),
+            ...detectTrianglePatterns(symbol, timeframe, candles),
+          ]
+            .filter(candidate => candidate.quality >= PATTERN_MIN_QUALITY)
+            .sort((a, b) => b.quality - a.quality);
+
+          for (const candidate of detected) {
+            const duplicate = candidates.find(existing =>
+              patternsOverlapTooMuch(existing, candidate) && existing.quality >= candidate.quality,
+            );
+
+            if (!duplicate) {
+              candidates.push(candidate);
+            }
           }
         }
       }
+
+      await this.patternsService.upsertScannerSnapshot(candidates);
+      await this.patternsService.expireStaleFinishedPatterns();
+
+      this.logger.log(`Patterns scan stored ${candidates.length} candidates`);
+    } catch (error) {
+      const message = error instanceof Error ? error.stack || error.message : String(error);
+      this.logger.error(`Patterns scan failed via ${source}: ${message}`);
     }
-
-    await this.patternsService.upsertScannerSnapshot(candidates);
-    await this.patternsService.expireStaleFinishedPatterns();
-
-    this.logger.log(`Patterns scan stored ${candidates.length} candidates`);
   }
 
   private getBinanceFuturesSymbols(): string[] {
