@@ -4,7 +4,7 @@ import { PatternsService } from './patterns.service';
 import type { PatternType, ExchangeId, Timeframe } from '@crypto-screener/shared';
 
 @ApiTags('Patterns')
-@Controller('api/patterns')
+@Controller('patterns')
 export class PatternsController {
   constructor(private readonly patternsService: PatternsService) {}
 
