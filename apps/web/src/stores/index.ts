@@ -35,6 +35,7 @@ function candleMapKey(candle: { exchange: string; marketType?: string; symbol: s
 
 interface MarketStore {
   tickers: Map<string, Ticker>;
+  tickersList: Ticker[];
   tickersLoaded: boolean;
   latestCandles: Map<string, Candle>;
   selectedSymbol: string;
@@ -58,6 +59,7 @@ interface MarketStore {
 
 export const useMarketStore = create<MarketStore>((set, get) => ({
   tickers: new Map(),
+  tickersList: [],
   tickersLoaded: false,
   latestCandles: new Map(),
   selectedSymbol: 'BTC/USDT',
@@ -69,14 +71,23 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   setTickers: (tickers) => {
     const map = new Map<string, Ticker>();
     tickers.forEach(t => map.set(`${t.exchange}:${t.symbol}`, t));
-    set({ tickers: map, tickersLoaded: true });
+    set({ tickers: map, tickersList: tickers, tickersLoaded: true });
   },
 
   updateTicker: (ticker) => {
     set(state => {
       const newMap = new Map(state.tickers);
       newMap.set(`${ticker.exchange}:${ticker.symbol}`, ticker);
-      return { tickers: newMap };
+      const nextList = [...state.tickersList];
+      const listIndex = nextList.findIndex(
+        current =>
+          current.exchange === ticker.exchange &&
+          current.marketType === ticker.marketType &&
+          current.symbol === ticker.symbol,
+      );
+      if (listIndex >= 0) nextList[listIndex] = ticker;
+      else nextList.push(ticker);
+      return { tickers: newMap, tickersList: nextList };
     });
   },
 
@@ -100,7 +111,7 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   setSelectedCoin: (coin) => set({ selectedCoin: coin }),
 
   getTicker: (symbol, exchange) => get().tickers.get(`${exchange}:${symbol}`),
-  getTickersArray: () => Array.from(get().tickers.values()),
+  getTickersArray: () => get().tickersList,
 }));
 
 // ============================================================

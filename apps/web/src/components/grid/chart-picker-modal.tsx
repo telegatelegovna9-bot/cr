@@ -28,14 +28,12 @@ export function ChartPickerModal({
   onConfirm,
   initialSelection,
 }: ChartPickerModalProps) {
-  const tickerMap = useMarketStore(state => state.tickers);
+  const tickers = useMarketStore(state => state.tickersList);
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const [query, setQuery] = useState('');
   const [exchange, setExchange] = useState(initialSelection?.exchange ?? selectedExchange);
   const [marketType, setMarketType] = useState<'spot' | 'futures'>(initialSelection?.marketType ?? 'spot');
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(initialSelection?.symbol ?? null);
-
-  const tickers = useMemo(() => Array.from(tickerMap.values()), [tickerMap]);
 
   useEffect(() => {
     if (!open) return;
@@ -54,6 +52,12 @@ export function ChartPickerModal({
       .filter(symbol => symbol.toLowerCase().includes(query.toLowerCase()))
       .slice(0, 40);
   }, [tickers, exchange, marketType, query]);
+
+  useEffect(() => {
+    if (selectedSymbol && !symbols.includes(selectedSymbol)) {
+      setSelectedSymbol(null);
+    }
+  }, [selectedSymbol, symbols]);
 
   return (
     <AnimatePresence>

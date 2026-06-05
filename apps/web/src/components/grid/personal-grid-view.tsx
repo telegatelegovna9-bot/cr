@@ -98,6 +98,7 @@ export function PersonalGridView() {
       </div>
 
       <ChartPickerModal
+        key={pickerSlotId ?? 'closed'}
         open={pickerSlotId !== null}
         onClose={() => setPickerSlotId(null)}
         onConfirm={(selection) => {
