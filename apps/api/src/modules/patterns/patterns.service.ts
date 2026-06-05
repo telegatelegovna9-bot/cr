@@ -3,7 +3,8 @@ import { DatabaseService } from '../../database/database.service';
 import type { DetectedPattern, PatternType, Candle, Timeframe, ExchangeId } from '@crypto-screener/shared';
 import { generateId } from '@crypto-screener/shared';
 import { PATTERNS_PAGE_SIZE } from './patterns.constants';
-import { mapPatternRow } from './patterns.mapper';
+import { mapCandidateToPersistenceRow, mapPatternRow } from './patterns.mapper';
+import type { PatternCandidate } from './detectors/detector.types';
 import type { PersistedPatternPayload } from './patterns.types';
 
 @Injectable()
@@ -12,6 +13,78 @@ export class PatternsService {
   private readonly MAX_PATTERNS = 500;
 
   constructor(private readonly db: DatabaseService) {}
+
+  async upsertScannerSnapshot(candidates: PatternCandidate[], now = Date.now()): Promise<void> {
+    for (const candidate of candidates) {
+      const row = mapCandidateToPersistenceRow(candidate, now);
+      await this.db.query(
+        `INSERT INTO detected_patterns (
+          id,
+          symbol,
+          exchange,
+          market_type,
+          type,
+          kind,
+          timeframe,
+          confidence,
+          quality,
+          points,
+          geometry,
+          description,
+          direction,
+          status,
+          detected_at,
+          updated_at,
+          finished_at,
+          expires_at
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16, $17, $18
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          kind = EXCLUDED.kind,
+          timeframe = EXCLUDED.timeframe,
+          status = EXCLUDED.status,
+          quality = EXCLUDED.quality,
+          confidence = EXCLUDED.confidence,
+          points = EXCLUDED.points,
+          geometry = EXCLUDED.geometry,
+          updated_at = EXCLUDED.updated_at,
+          finished_at = EXCLUDED.finished_at,
+          expires_at = EXCLUDED.expires_at`,
+        [
+          row.id,
+          row.symbol,
+          row.exchange,
+          row.marketType,
+          row.kind,
+          row.kind,
+          row.timeframe,
+          row.quality / 100,
+          row.quality,
+          JSON.stringify(row.geometry.pivots),
+          JSON.stringify(row.geometry),
+          `${row.kind} pattern`,
+          null,
+          row.status,
+          row.detectedAt,
+          row.updatedAt,
+          row.finishedAt,
+          row.expiresAt,
+        ],
+      );
+    }
+  }
+
+  async expireStaleFinishedPatterns(now = Date.now()): Promise<void> {
+    await this.db.query(
+      `DELETE FROM detected_patterns
+       WHERE status = 'finished'
+         AND expires_at IS NOT NULL
+         AND expires_at <= $1`,
+      [now],
+    );
+  }
 
   async listPatterns(params: {
     cursor?: number;

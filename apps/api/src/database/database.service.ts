@@ -141,6 +141,42 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       CREATE INDEX IF NOT EXISTS idx_patterns_detected_at 
         ON detected_patterns (detected_at DESC);
 
+      ALTER TABLE detected_patterns
+        ADD COLUMN IF NOT EXISTS market_type VARCHAR(20) DEFAULT 'futures',
+        ADD COLUMN IF NOT EXISTS kind VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS quality INTEGER,
+        ADD COLUMN IF NOT EXISTS geometry JSONB,
+        ADD COLUMN IF NOT EXISTS updated_at BIGINT,
+        ADD COLUMN IF NOT EXISTS finished_at BIGINT,
+        ADD COLUMN IF NOT EXISTS expires_at BIGINT;
+
+      UPDATE detected_patterns
+      SET
+        kind = COALESCE(kind, type),
+        quality = COALESCE(quality, ROUND(confidence * 100)),
+        geometry = COALESCE(
+          geometry,
+          jsonb_build_object(
+            'anchorTimeFrom', detected_at,
+            'anchorTimeTo', detected_at,
+            'priceMin', 0,
+            'priceMax', 0,
+            'pivots', COALESCE(points, '[]'::jsonb),
+            'lines', '[]'::jsonb,
+            'zones', '[]'::jsonb
+          )
+        ),
+        updated_at = COALESCE(updated_at, detected_at)
+      WHERE kind IS NULL
+         OR quality IS NULL
+         OR geometry IS NULL
+         OR updated_at IS NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_patterns_updated_at
+        ON detected_patterns (updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_patterns_kind_status
+        ON detected_patterns (kind, status);
+
       CREATE TABLE IF NOT EXISTS watchlists (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID,
