@@ -30,6 +30,7 @@ export class BinanceConnector extends BaseExchangeConnector {
   private futuresBatchTimer: ReturnType<typeof setTimeout> | null = null;
   private futuresControlRetries = 0;
   private static readonly MAX_FUTURES_CONTROL_RETRIES = 10;
+  private futuresOrderBookPolls = new Map<string, ReturnType<typeof setInterval>>();
 
   constructor() {
     super({ id: 'binance', wsUrl: BINANCE_SPOT_WS_URL, restUrl: BINANCE_SPOT_REST_URL, rateLimit: 1200 });
@@ -111,8 +112,17 @@ export class BinanceConnector extends BaseExchangeConnector {
     const local = this.toBinanceSymbol(s).toLowerCase();
     if (this.isFuturesSymbol(s)) {
       if (this.futuresSubscriptions.has(`orderbook:${s}`)) return;
-      this.futuresSubscriptions.add(`orderbook:${s}`); this.activeFuturesSubs.add(`${local}@depth@100ms`);
-      this.enqueueFuturesControl('SUBSCRIBE', `${local}@depth@100ms`);
+      this.futuresSubscriptions.add(`orderbook:${s}`);
+      if (this.futuresOrderBookPolls.has(s)) return;
+      const emitSnapshot = async () => {
+        try {
+          const ob = await this.fetchOrderBook(s);
+          this.emit('orderbook', ob);
+        } catch { /* ignore */ }
+      };
+      void emitSnapshot();
+      const interval = setInterval(emitSnapshot, 750);
+      this.futuresOrderBookPolls.set(s, interval);
     } else {
       if (this.subscriptions.has(`orderbook:${s}`)) return;
       this.subscriptions.add(`orderbook:${s}`); this.enqueueSpotControl('SUBSCRIBE', `${local}@depth@100ms`);
@@ -155,8 +165,12 @@ export class BinanceConnector extends BaseExchangeConnector {
   unsubscribeOrderBook(s: string): void {
     const local = this.toBinanceSymbol(s).toLowerCase();
     if (this.isFuturesSymbol(s)) {
-      this.futuresSubscriptions.delete(`orderbook:${s}`); this.activeFuturesSubs.delete(`${local}@depth@100ms`);
-      this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@depth@100ms`);
+      this.futuresSubscriptions.delete(`orderbook:${s}`);
+      const interval = this.futuresOrderBookPolls.get(s);
+      if (interval) {
+        clearInterval(interval);
+        this.futuresOrderBookPolls.delete(s);
+      }
     } else {
       this.subscriptions.delete(`orderbook:${s}`); this.enqueueSpotControl('UNSUBSCRIBE', `${local}@depth@100ms`);
     }
@@ -271,9 +285,27 @@ export class BinanceConnector extends BaseExchangeConnector {
   }
 
   async fetchOrderBook(s: string, limit = 50): Promise<OrderBook> {
-    const local = this.toLocalSymbol(s);
-    const data = await this.fetch<any>(`/api/v3/depth?symbol=${local}&limit=${limit}`);
-    return { symbol: s, exchange: 'binance', bids: data.bids.map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })), asks: data.asks.map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })), timestamp: Date.now() };
+    const isFutures = this.isFuturesSymbol(s);
+    const local = this.toBinanceSymbol(s);
+    const url = isFutures
+      ? `${BINANCE_FUTURES_REST_URL}/fapi/v1/depth?symbol=${local}&limit=${limit}`
+      : `${BINANCE_SPOT_REST_URL}/api/v3/depth?symbol=${local}&limit=${limit}`;
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      throw new Error(`[binance] HTTP ${response.status}: ${response.statusText}`);
+    }
+    const data = await response.json() as any;
+    return {
+      symbol: s,
+      exchange: 'binance',
+      marketType: isFutures ? 'futures' : 'spot',
+      bids: data.bids.map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
+      asks: data.asks.map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
+      timestamp: Date.now(),
+    };
   }
 
   private sendFutures(data: unknown): void { if (this.futuresWs && this.futuresWs.readyState === 1) this.futuresWs.send(JSON.stringify(data)); }
@@ -282,6 +314,8 @@ export class BinanceConnector extends BaseExchangeConnector {
 
   disconnect(): void {
     super.disconnect(); this.clearControlBatchTimers();
+    for (const interval of this.futuresOrderBookPolls.values()) clearInterval(interval);
+    this.futuresOrderBookPolls.clear();
     if (this.futuresWs) { this.futuresWs.removeAllListeners(); this.futuresWs.close(); this.futuresWs = null; }
     this.futuresConnected = false; this.futuresSubscriptions.clear(); this.activeFuturesSubs.clear();
   }

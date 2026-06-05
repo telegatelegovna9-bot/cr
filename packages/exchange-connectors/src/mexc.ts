@@ -255,7 +255,16 @@ export class MexcConnector extends BaseExchangeConnector {
   }
 
   subscribeOrderBook(symbol: string): void {
-    if (this.isFuturesSymbol(symbol)) return;
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toMexcFuturesSymbol(symbol);
+      const key = `orderbook:${symbol}`;
+      if (this.futuresSubscriptions.has(key)) return;
+      this.futuresSubscriptions.add(key);
+      const stream = `depth|${local}`;
+      this.activeFuturesSubs.add(stream);
+      this.sendFuturesSubscription('subscribe', stream);
+      return;
+    }
     const local = this.toMexcSpotSymbol(symbol);
     const key = `orderbook:${symbol}`;
     if (this.subscriptions.has(key)) return;
@@ -308,7 +317,14 @@ export class MexcConnector extends BaseExchangeConnector {
   }
 
   unsubscribeOrderBook(symbol: string): void {
-    if (this.isFuturesSymbol(symbol)) return;
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toMexcFuturesSymbol(symbol);
+      this.futuresSubscriptions.delete(`orderbook:${symbol}`);
+      const stream = `depth|${local}`;
+      this.activeFuturesSubs.delete(stream);
+      this.sendFuturesSubscription('unsubscribe', stream);
+      return;
+    }
     const local = this.toMexcSpotSymbol(symbol);
     this.subscriptions.delete(`orderbook:${symbol}`);
     const stream = `spot@public.limit.depth.v3.api.pb@${local}@20`;
@@ -510,6 +526,24 @@ export class MexcConnector extends BaseExchangeConnector {
         isClosed: false,
         trades: 0,
       } as Candle);
+    } else if (channel === 'push.depth') {
+      const rawSymbol = (msg.symbol as string) || data.symbol;
+      if (!rawSymbol) return;
+      const symbol = this.fromMexcFuturesSymbol(rawSymbol);
+      this.emit('orderbook', {
+        symbol,
+        exchange: 'mexc',
+        marketType: 'futures',
+        bids: (data.bids || []).map(([p, q]: [number, number]) => ({
+          price: Number(p),
+          quantity: Number(q),
+        })),
+        asks: (data.asks || []).map(([p, q]: [number, number]) => ({
+          price: Number(p),
+          quantity: Number(q),
+        })),
+        timestamp: Date.now(),
+      } as OrderBook);
     }
   }
 
@@ -583,11 +617,20 @@ export class MexcConnector extends BaseExchangeConnector {
   }
 
   async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
-    const local = this.toMexcSpotSymbol(symbol);
-    const data = await this.fetchRaw<any>(`${MEXC_SPOT_REST}/api/v3/depth?symbol=${local}&limit=${limit}`);
+    const isFutures = this.isFuturesSymbol(symbol);
+    const local = isFutures ? this.toMexcFuturesSymbol(symbol) : this.toMexcSpotSymbol(symbol);
+    const data = await this.fetchRaw<any>(
+      isFutures
+        ? `${MEXC_FUTURES_REST}/api/v1/contract/depth/${local}?limit=${limit}`
+        : `${MEXC_SPOT_REST}/api/v3/depth?symbol=${local}&limit=${limit}`
+    );
     return {
-      symbol, exchange: 'mexc', bids: (data.bids || []).map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
-      asks: (data.asks || []).map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })), timestamp: Date.now(),
+      symbol,
+      exchange: 'mexc',
+      marketType: isFutures ? 'futures' : 'spot',
+      bids: (data.bids || []).map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
+      asks: (data.asks || []).map(([p, q]: any) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
+      timestamp: Date.now(),
     };
   }
 
