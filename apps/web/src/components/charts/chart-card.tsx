@@ -108,14 +108,34 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     if (marketType === 'spot' && symbol.includes(':USDT')) return symbol.replace(':USDT', '');
     return symbol;
   }, [symbol, marketType]);
+  const symbolLookupCandidates = useMemo(() => {
+    const candidates = new Set<string>([effectiveSymbol, symbol]);
+    if (marketType === 'futures') {
+      if (effectiveSymbol.endsWith(':USDT')) candidates.add(effectiveSymbol.replace(':USDT', ''));
+      if (!effectiveSymbol.includes(':')) candidates.add(`${effectiveSymbol}:USDT`);
+    }
+    return Array.from(candidates);
+  }, [effectiveSymbol, symbol, marketType]);
 
   // Must come AFTER exchange/timeframe/marketType/effectiveSymbol are declared
   // (Zustand selectors are invoked immediately during render)
-  const latestCandle = useMarketStore(state => state.getLatestCandle(exchange, marketType, effectiveSymbol, timeframe));
+  const latestCandle = useMarketStore(state => {
+    for (const candidate of symbolLookupCandidates) {
+      const candle = state.getLatestCandle(exchange, marketType, candidate, timeframe);
+      if (candle) return candle;
+    }
+    return undefined;
+  });
   const showHeatmap = useUIStore(state => state.showHeatmap);
   const heatmapSettings = useUIStore(state => state.heatmapSettings);
   const chartGridSize = useUIStore(state => state.chartGridSize);
-  const ticker = useMarketStore(state => state.getTicker(effectiveSymbol, exchange));
+  const ticker = useMarketStore(state => {
+    for (const candidate of symbolLookupCandidates) {
+      const nextTicker = state.getTicker(candidate, exchange);
+      if (nextTicker) return nextTicker;
+    }
+    return undefined;
+  });
 
   // Refs that always hold the latest values so async closures don't go stale
   const timeframeRef = useRef<TF>(timeframe);
@@ -160,9 +180,14 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   heatmapPriceRef.current = ticker?.lastPrice ?? currentPrice ?? 0;
 
   // ─── Heatmap: LiquidityEngine + canvas overlay ──────────────────
-  const orderbook = useOrderbookStore(state =>
-    showHeatmap ? state.getOrderbook(effectiveSymbol, exchange) : undefined
-  );
+  const orderbook = useOrderbookStore(state => {
+    if (!showHeatmap) return undefined;
+    for (const candidate of symbolLookupCandidates) {
+      const nextOrderbook = state.getOrderbook(candidate, exchange);
+      if (nextOrderbook) return nextOrderbook;
+    }
+    return undefined;
+  });
 
   // Feed orderbook updates into engine
   useEffect(() => {
@@ -473,7 +498,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     if (paused || !dataLoadedRef.current || !candleSeriesRef.current || !volumeSeriesRef.current || !ticker) return;
     
     // Ensure ticker is for this specific chart
-    if (ticker.symbol !== effectiveSymbol || ticker.exchange !== exchange) return;
+    if (!symbolLookupCandidates.includes(ticker.symbol) || ticker.exchange !== exchange) return;
 
     const lastCandle = allRawRef.current[allRawRef.current.length - 1];
     if (!lastCandle) return;
@@ -501,7 +526,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       // Update header price
       setCurrentPrice(price);
     } catch (err) { /* ignore */ }
-  }, [ticker, paused, exchange, effectiveSymbol]);
+  }, [ticker, paused, exchange, symbolLookupCandidates]);
 
   // ─── Chart Initialization ───────────────────────────────────
   useEffect(() => {
