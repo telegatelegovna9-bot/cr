@@ -163,10 +163,11 @@ export function PatternChartOverlay({
 
       if (focusedPatternRef.current !== pattern.id) {
         const span = Math.max(60_000, pattern.geometry.anchorTimeTo - pattern.geometry.anchorTimeFrom);
-        const padding = Math.max(60_000, Math.floor(span * 0.18));
+        const leftPadding = Math.max(5 * 60_000, Math.floor(span * 1.5));
+        const rightPadding = Math.max(3 * 60_000, Math.floor(span * 0.75));
         chart.timeScale().setVisibleRange({
-          from: Math.floor((pattern.geometry.anchorTimeFrom - padding) / 1000) as Time,
-          to: Math.floor((pattern.geometry.anchorTimeTo + padding) / 1000) as Time,
+          from: Math.floor((pattern.geometry.anchorTimeFrom - leftPadding) / 1000) as Time,
+          to: Math.floor((pattern.geometry.anchorTimeTo + rightPadding) / 1000) as Time,
         });
         focusedPatternRef.current = pattern.id;
       }
