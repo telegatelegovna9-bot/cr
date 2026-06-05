@@ -4,6 +4,16 @@ import { create } from 'zustand';
 import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle, OrderBook } from '@crypto-screener/shared';
 import type { HeatmapSettings } from '@/lib/liquidity-engine';
 import { DEFAULT_HEATMAP_SETTINGS } from '@/lib/liquidity-engine';
+import {
+  DEFAULT_PERSONAL_GRID_STATE,
+  type PersonalGridLayout,
+  type PersonalGridMarketType,
+  type PersonalGridState,
+} from '@/lib/personal-grid/models';
+import {
+  loadPersistedPersonalGrid,
+  savePersistedPersonalGrid,
+} from '@/lib/personal-grid/persistence';
 import type {
   AnyDrawing,
   DrawingOperationEvent,
@@ -151,6 +161,16 @@ const scheduleDrawingPersist = debounce((drawings: AnyDrawing[]) => {
 const drawingSyncOrigin = `drawings-${Math.random().toString(36).slice(2, 10)}`;
 const drawingSyncBus = typeof window === 'undefined' ? null : createDrawingSyncBus(drawingSyncOrigin);
 let drawingSyncUnsubscribe: (() => void) | null = null;
+
+function getInitialPersonalGridState(): PersonalGridState {
+  if (typeof window === 'undefined') return DEFAULT_PERSONAL_GRID_STATE;
+  return loadPersistedPersonalGrid(window.localStorage);
+}
+
+function persistPersonalGridState(personalGrid: PersonalGridState): PersonalGridState {
+  if (typeof window === 'undefined') return personalGrid;
+  return savePersistedPersonalGrid(window.localStorage, personalGrid);
+}
 
 interface DrawingStore {
   byId: Record<string, AnyDrawing>;
@@ -400,6 +420,7 @@ interface UIStore {
   unreadAlertCount: number;
   patterns: any[];
   heatmapSettings: HeatmapSettings;
+  personalGrid: PersonalGridState;
 
   setViewMode: (mode: ViewMode) => void;
   toggleSidebar: () => void;
@@ -416,6 +437,14 @@ interface UIStore {
   setPatterns: (patterns: any[]) => void;
   addPattern: (pattern: any) => void;
   setHeatmapSettings: (patch: Partial<HeatmapSettings>) => void;
+  setPersonalGridLayout: (layout: PersonalGridLayout) => void;
+  setPersonalGridSlot: (
+    slotId: string,
+    next: { symbol: string; exchange: string; marketType: PersonalGridMarketType }
+  ) => void;
+  clearPersonalGridSlot: (slotId: string) => void;
+  expandPersonalGridSlot: (slotId: string) => void;
+  collapsePersonalGridSlot: () => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -432,6 +461,7 @@ export const useUIStore = create<UIStore>((set) => ({
   unreadAlertCount: 0,
   patterns: [],
   heatmapSettings: DEFAULT_HEATMAP_SETTINGS,
+  personalGrid: getInitialPersonalGridState(),
 
   setViewMode: (mode) => set({ viewMode: mode }),
   toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
@@ -465,6 +495,48 @@ export const useUIStore = create<UIStore>((set) => ({
   addPattern: (pattern) => set(state => ({
     patterns: [pattern, ...state.patterns].slice(0, 200),
   })),
+  setPersonalGridLayout: (layout) =>
+    set(state => ({
+      personalGrid: persistPersonalGridState({
+        ...state.personalGrid,
+        layout,
+      }),
+    })),
+  setPersonalGridSlot: (slotId, next) =>
+    set(state => ({
+      personalGrid: persistPersonalGridState({
+        ...state.personalGrid,
+        slots: state.personalGrid.slots.map(slot =>
+          slot.id === slotId ? { ...slot, ...next } : slot
+        ),
+      }),
+    })),
+  clearPersonalGridSlot: (slotId) =>
+    set(state => ({
+      personalGrid: persistPersonalGridState({
+        ...state.personalGrid,
+        expandedSlotId: state.personalGrid.expandedSlotId === slotId ? null : state.personalGrid.expandedSlotId,
+        slots: state.personalGrid.slots.map(slot =>
+          slot.id === slotId
+            ? { ...slot, symbol: null, exchange: null, marketType: null }
+            : slot
+        ),
+      }),
+    })),
+  expandPersonalGridSlot: (slotId) =>
+    set(state => ({
+      personalGrid: persistPersonalGridState({
+        ...state.personalGrid,
+        expandedSlotId: slotId,
+      }),
+    })),
+  collapsePersonalGridSlot: () =>
+    set(state => ({
+      personalGrid: persistPersonalGridState({
+        ...state.personalGrid,
+        expandedSlotId: null,
+      }),
+    })),
 }));
 
 // ============================================================
