@@ -11,12 +11,14 @@ import {
   Settings2,
   Zap,
   Activity,
+  ScanSearch,
 } from 'lucide-react';
 
 const EXCHANGES: ExchangeId[] = ['binance', 'bybit', 'okx', 'bitget', 'mexc'];
 const VIEW_MODES: { id: ViewMode; label: string; icon: typeof BarChart3 }[] = [
   { id: 'terminal', label: 'Terminal', icon: Activity },
   { id: 'screener', label: 'Screener', icon: BarChart3 },
+  { id: 'patterns', label: 'Patterns', icon: ScanSearch },
   { id: 'grid', label: 'Grid', icon: LayoutGrid },
   { id: 'settings', label: 'Settings', icon: Settings2 },
 ];

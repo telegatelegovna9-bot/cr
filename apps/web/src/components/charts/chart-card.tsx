@@ -14,10 +14,12 @@ import { formatDisplaySymbol, formatMarketTypeLabel, getDisplayBaseSymbol } from
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
+import type { PatternDetail } from '@/lib/patterns/models';
 import { HeatmapControls } from './heatmap-controls';
 import { HeatmapSummary } from './heatmap-summary';
 import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingOverlay } from './drawing-overlay';
+import { PatternChartOverlay } from '@/components/patterns/pattern-chart-overlay';
 import {
   getInitialHistoryBackfillEndTime,
   mergeChartHistory,
@@ -38,6 +40,7 @@ interface ChartCardProps {
   onDataLoaded?: (symbol: string, data: any[], timeframe: string) => void;
   showHeaderPrice?: boolean;
   headerActions?: ReactNode;
+  patternOverlay?: PatternDetail | null;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
@@ -86,7 +89,7 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
-export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded, showHeaderPrice = true, headerActions }: ChartCardProps) {
+export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded, showHeaderPrice = true, headerActions, patternOverlay = null }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -955,6 +958,14 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
         {showHeatmap && <HeatmapSummary {...heatmapSummary} />}
+        {patternOverlay && (
+          <PatternChartOverlay
+            pattern={patternOverlay}
+            chartRef={chartRef}
+            candleSeriesRef={candleSeriesRef}
+            hostRef={containerRef}
+          />
+        )}
         
         <DrawingOverlay
           chart={chartRef.current}

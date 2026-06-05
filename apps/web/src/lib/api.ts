@@ -108,16 +108,45 @@ export const alertsApi = {
 
 // Patterns API
 export const patternsApi = {
-  getPatterns: (params?: { symbol?: string; type?: string; timeframe?: string }) => {
+  getPatterns: async (params?: {
+    search?: string;
+    kinds?: string;
+    timeframes?: string;
+    statuses?: string;
+    cursor?: number;
+    symbol?: string;
+    type?: string;
+    timeframe?: string;
+    status?: string;
+  }) => {
     const searchParams = new URLSearchParams();
-    if (params?.symbol) searchParams.set('symbol', params.symbol);
-    if (params?.type) searchParams.set('type', params.type);
-    if (params?.timeframe) searchParams.set('timeframe', params.timeframe);
-    return fetchApi<{ success: boolean; data: any[] }>(`/patterns?${searchParams}`);
+
+    const search = params?.search ?? params?.symbol;
+    const kinds = params?.kinds ?? params?.type;
+    const timeframes = params?.timeframes ?? params?.timeframe;
+    const statuses = params?.statuses ?? params?.status;
+
+    if (search) searchParams.set('search', search);
+    if (kinds) searchParams.set('kinds', kinds);
+    if (timeframes) searchParams.set('timeframes', timeframes);
+    if (statuses) searchParams.set('statuses', statuses);
+    if (params?.cursor !== undefined) searchParams.set('cursor', String(params.cursor));
+
+    const response = await fetchApi<{
+      success: boolean;
+      items: any[];
+      hasMore: boolean;
+      nextCursor: number | null;
+    }>(`/api/patterns?${searchParams}`);
+
+    return {
+      ...response,
+      data: response.items,
+    };
   },
 
-  getActive: () =>
-    fetchApi<{ success: boolean; data: any[] }>('/patterns/active'),
+  getPattern: (id: string) =>
+    fetchApi<{ success: boolean; data: any | null }>(`/api/patterns/${id}`),
 };
 
 // Auth API

@@ -9,6 +9,7 @@ import { PersonalGridView } from '@/components/grid/personal-grid-view';
 import { ScreenerView } from '@/components/screener/screener-view';
 import { HeatmapView } from '@/components/terminal/heatmap-view';
 import { SettingsView } from '@/components/terminal/settings-view';
+import { PatternsView } from '@/components/patterns/patterns-view';
 import { AlertToast, AlertModal } from '@/components/alerts/alert-toast';
 import { useUIStore, useMarketStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -59,6 +60,7 @@ export default function TerminalPage() {
         <TerminalView>
           {viewMode === 'terminal' && <ChartGrid />}
           {viewMode === 'screener' && <ScreenerView />}
+          {viewMode === 'patterns' && <PatternsView />}
           {viewMode === 'grid' && <PersonalGridView />}
           {viewMode === 'heatmap' && <HeatmapView />}
           {viewMode === 'settings' && <SettingsView />}

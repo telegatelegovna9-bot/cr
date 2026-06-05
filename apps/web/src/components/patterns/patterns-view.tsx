@@ -1,0 +1,160 @@
+'use client';
+
+import { useEffect, useMemo, useRef } from 'react';
+import { ArrowUpRight } from 'lucide-react';
+import { ChartCard } from '@/components/charts/chart-card';
+import { useAlertStore, useMarketStore, useUIStore } from '@/stores';
+import { PatternDetailsCard } from './pattern-details-card';
+import { PatternsSidebar } from './patterns-sidebar';
+import { usePatternDetail } from './use-pattern-detail';
+import { usePatternsQuery } from './use-patterns-query';
+
+export function PatternsView() {
+  const {
+    patternsUI,
+    personalGrid,
+    setPatternsSearch,
+    setPatternsFilters,
+    setSelectedPatternId,
+    setViewMode,
+    setPersonalGridSlot,
+    addAlert,
+  } = useUIStore();
+  const { selectedTimeframe } = useMarketStore();
+  const { addTriggeredAlert } = useAlertStore();
+  const query = usePatternsQuery(patternsUI.search, patternsUI.filters);
+  const confirmedSeededRef = useRef(false);
+  const seenConfirmedIdsRef = useRef<Set<string>>(new Set());
+
+  const selectedItem = useMemo(
+    () =>
+      query.items.find(item => item.id === patternsUI.selectedPatternId) ??
+      query.items[0] ??
+      null,
+    [patternsUI.selectedPatternId, query.items],
+  );
+  const detail = usePatternDetail(selectedItem?.id ?? null, query.refreshKey);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    if (patternsUI.selectedPatternId !== selectedItem.id) {
+      setSelectedPatternId(selectedItem.id);
+    }
+  }, [patternsUI.selectedPatternId, selectedItem, setSelectedPatternId]);
+
+  useEffect(() => {
+    if (query.loading) return;
+
+    const currentConfirmed = query.items.filter(item => item.status === 'confirmed');
+
+    if (!confirmedSeededRef.current) {
+      seenConfirmedIdsRef.current = new Set(currentConfirmed.map(item => item.id));
+      confirmedSeededRef.current = true;
+      return;
+    }
+
+    for (const item of currentConfirmed) {
+      if (seenConfirmedIdsRef.current.has(item.id)) continue;
+
+      seenConfirmedIdsRef.current.add(item.id);
+      addAlert({
+        id: `pattern-history-${item.id}`,
+        type: 'pattern_detected',
+        priority: 'medium',
+        symbol: item.symbol,
+        exchange: 'binance',
+        title: `${item.kind} confirmed`,
+        message: `${item.timeframe.toUpperCase()} · Quality ${item.quality}`,
+        data: {
+          patternId: item.id,
+          kind: item.kind,
+          timeframe: item.timeframe,
+          quality: item.quality,
+        },
+        read: false,
+        createdAt: Date.now(),
+      });
+      addTriggeredAlert({
+        id: `pattern-toast-${item.id}-${item.updatedAt}`,
+        alertId: item.id,
+        symbol: item.symbol,
+        alert: {
+          type: 'pattern_detected',
+          condition: item.kind,
+          value: item.quality,
+        },
+        currentPrice: item.quality,
+        triggeredAt: Date.now(),
+      });
+    }
+  }, [addAlert, addTriggeredAlert, query.items, query.loading]);
+
+  const handleOpenInTerminal = () => {
+    if (!selectedItem) return;
+
+    const targetSlot =
+      personalGrid.slots.find(slot => !slot.symbol)?.id ??
+      personalGrid.slots[0]?.id;
+
+    if (!targetSlot) return;
+
+    setPersonalGridSlot(targetSlot, {
+      symbol: selectedItem.symbol,
+      exchange: 'binance',
+      marketType: 'futures',
+      timeframe: selectedItem.timeframe ?? selectedTimeframe,
+    });
+    setViewMode('grid');
+  };
+
+  return (
+    <div className="h-full grid grid-cols-[360px_minmax(0,1fr)] gap-3 p-3 min-h-0">
+      <PatternsSidebar
+        search={patternsUI.search}
+        filters={patternsUI.filters}
+        items={query.items}
+        selectedPatternId={patternsUI.selectedPatternId}
+        hasMore={query.hasMore}
+        onSearchChange={setPatternsSearch}
+        onFiltersChange={setPatternsFilters}
+        onSelect={setSelectedPatternId}
+        onLoadMore={query.loadMore}
+        onRefresh={query.refresh}
+      />
+
+      <div className="min-h-0 flex flex-col gap-3">
+        <PatternDetailsCard
+          item={selectedItem}
+          loading={detail.loading}
+          onOpenInTerminal={selectedItem ? handleOpenInTerminal : undefined}
+        />
+        <div className="flex-1 min-h-0">
+          {selectedItem ? (
+            <ChartCard
+              key={`${selectedItem.id}:${selectedItem.updatedAt}`}
+              symbol={selectedItem.symbol}
+              exchange="binance"
+              index={0}
+              initialTimeframe={selectedItem.timeframe}
+              initialMarketType="futures"
+              patternOverlay={detail.item}
+              headerActions={
+                <button
+                  onClick={handleOpenInTerminal}
+                  className="px-2.5 py-1 text-[10px] rounded-lg border border-border text-text-muted hover:text-text-secondary flex items-center gap-1.5"
+                >
+                  <ArrowUpRight className="w-3 h-3" />
+                  Open
+                </button>
+              }
+            />
+          ) : (
+            <div className="h-full glass-card border border-border rounded-2xl flex items-center justify-center text-sm text-text-muted">
+              Select a pattern to inspect its live chart.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -8,11 +8,13 @@ import {
   Settings2,
   Activity,
   BarChart3,
+  ScanSearch,
 } from 'lucide-react';
 
 const VIEW_ICONS: Record<string, typeof Table2> = {
   terminal: Activity,
   screener: BarChart3,
+  patterns: ScanSearch,
   grid: Grid3x3,
   settings: Settings2,
 };
