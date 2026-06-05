@@ -115,7 +115,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const showHeatmap = useUIStore(state => state.showHeatmap);
   const heatmapSettings = useUIStore(state => state.heatmapSettings);
   const chartGridSize = useUIStore(state => state.chartGridSize);
-  const ticker = useMarketStore(state => state.getTicker(symbol, exchange));
+  const ticker = useMarketStore(state => state.getTicker(effectiveSymbol, exchange));
 
   // Refs that always hold the latest values so async closures don't go stale
   const timeframeRef = useRef<TF>(timeframe);
@@ -161,7 +161,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
   // ─── Heatmap: LiquidityEngine + canvas overlay ──────────────────
   const orderbook = useOrderbookStore(state =>
-    showHeatmap ? state.getOrderbook(symbol, exchange) : undefined
+    showHeatmap ? state.getOrderbook(effectiveSymbol, exchange) : undefined
   );
 
   // Feed orderbook updates into engine
