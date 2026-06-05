@@ -6,7 +6,7 @@ import { PATTERN_CANDLE_LIMIT, PATTERN_MIN_QUALITY } from './patterns.constants'
 import { type PatternTimeframe, PATTERN_SCAN_TIMEFRAMES } from './patterns.types';
 import { type PatternCandidate } from './detectors/detector.types';
 import { detectCascadePatterns } from './detectors/cascade.detector';
-import { patternsOverlapTooMuch } from './detectors/detector.utils';
+import { patternsOverlapTooMuch, scanDetectorAcrossWindows } from './detectors/detector.utils';
 import { detectTrendlinePatterns } from './detectors/trendline.detector';
 import { detectTrianglePatterns } from './detectors/triangle.detector';
 import { PatternsService } from './patterns.service';
@@ -50,9 +50,9 @@ export class PatternsScanner implements OnModuleInit {
           }
 
           const detected = [
-            ...detectCascadePatterns(symbol, timeframe, candles),
-            ...detectTrendlinePatterns(symbol, timeframe, candles),
-            ...detectTrianglePatterns(symbol, timeframe, candles),
+            ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectCascadePatterns),
+            ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectTrendlinePatterns),
+            ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectTrianglePatterns),
           ]
             .filter(candidate => candidate.quality >= PATTERN_MIN_QUALITY)
             .sort((a, b) => b.quality - a.quality);

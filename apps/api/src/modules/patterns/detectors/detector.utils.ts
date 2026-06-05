@@ -2,6 +2,7 @@ import type {
   DetectorCandle,
   DetectorPivotCandle,
   PatternCandidate,
+  PatternDetector,
 } from './detector.types';
 
 export interface SwingPivot {
@@ -77,4 +78,37 @@ export function patternsOverlapTooMuch(
   }
 
   return intersection / union >= 0.7;
+}
+
+export function scanDetectorAcrossWindows(
+  symbol: string,
+  timeframe: PatternCandidate['timeframe'],
+  candles: DetectorCandle[],
+  detector: PatternDetector,
+): PatternCandidate[] {
+  if (candles.length < 24) {
+    return detector(symbol, timeframe, candles);
+  }
+
+  const candidates: PatternCandidate[] = [];
+  const windowSizes = [24, 36, 48, 64, 80, 96].filter(size => size <= candles.length);
+
+  for (const size of windowSizes) {
+    const step = Math.max(4, Math.floor(size / 4));
+    for (let start = 0; start + size <= candles.length; start += step) {
+      const window = candles.slice(start, start + size);
+      const detected = detector(symbol, timeframe, window).sort((a, b) => b.quality - a.quality);
+
+      for (const candidate of detected) {
+        const duplicate = candidates.find(existing =>
+          patternsOverlapTooMuch(existing, candidate) && existing.quality >= candidate.quality,
+        );
+        if (!duplicate) {
+          candidates.push(candidate);
+        }
+      }
+    }
+  }
+
+  return candidates.sort((a, b) => b.quality - a.quality);
 }

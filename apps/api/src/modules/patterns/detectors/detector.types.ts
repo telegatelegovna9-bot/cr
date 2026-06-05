@@ -28,3 +28,9 @@ export interface PatternCandidate {
   from: number;
   to: number;
 }
+
+export type PatternDetector = (
+  symbol: string,
+  timeframe: PatternTimeframe,
+  candles: DetectorCandle[],
+) => PatternCandidate[];
