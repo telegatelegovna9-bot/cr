@@ -174,11 +174,19 @@ export class BybitConnector extends BaseExchangeConnector {
   }
 
   subscribeOrderBook(symbol: string): void {
-    const local = this.toLocalSymbol(symbol);
     const key = `orderbook:${symbol}`;
-    if (this.subscriptions.has(key)) return;
-    this.subscriptions.add(key);
-    this.send({ op: 'subscribe', args: [`orderbook.50.${local}`] });
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBybitSymbol(symbol);
+      if (this.subscriptions.has(key)) return;
+      this.subscriptions.add(key);
+      this.send({ op: 'subscribe', args: [`orderbook.50.${local}`] });
+      return;
+    }
+
+    const local = this.toLocalSymbol(symbol);
+    if (this.spotSubscriptions.has(key)) return;
+    this.spotSubscriptions.add(key);
+    this.sendSpot({ op: 'subscribe', args: [`orderbook.50.${local}`] });
   }
 
   subscribeTrades(symbol: string): void {
@@ -215,9 +223,16 @@ export class BybitConnector extends BaseExchangeConnector {
   }
 
   unsubscribeOrderBook(symbol: string): void {
+    if (this.isFuturesSymbol(symbol)) {
+      const local = this.toBybitSymbol(symbol);
+      this.subscriptions.delete(`orderbook:${symbol}`);
+      this.send({ op: 'unsubscribe', args: [`orderbook.50.${local}`] });
+      return;
+    }
+
     const local = this.toLocalSymbol(symbol);
-    this.subscriptions.delete(`orderbook:${symbol}`);
-    this.send({ op: 'unsubscribe', args: [`orderbook.50.${local}`] });
+    this.spotSubscriptions.delete(`orderbook:${symbol}`);
+    this.sendSpot({ op: 'unsubscribe', args: [`orderbook.50.${local}`] });
   }
 
   unsubscribeTrades(symbol: string): void {
@@ -410,14 +425,16 @@ export class BybitConnector extends BaseExchangeConnector {
   }
 
   async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
-    const local = this.toLocalSymbol(symbol);
+    const isFutures = this.isFuturesSymbol(symbol);
+    const local = this.toBybitSymbol(symbol);
     const data = await this.fetch<{ result: { b: [string, string][]; a: [string, string][] } }>(
-      `/v5/market/orderbook?category=linear&symbol=${local}&limit=${limit}`
+      `/v5/market/orderbook?category=${isFutures ? 'linear' : 'spot'}&symbol=${local}&limit=${limit}`
     );
 
     return {
       symbol,
       exchange: 'bybit',
+      marketType: isFutures ? 'futures' : 'spot',
       bids: data.result.b.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       asks: data.result.a.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       timestamp: Date.now(),
