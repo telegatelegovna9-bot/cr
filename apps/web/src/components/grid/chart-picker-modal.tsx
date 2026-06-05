@@ -28,12 +28,14 @@ export function ChartPickerModal({
   onConfirm,
   initialSelection,
 }: ChartPickerModalProps) {
-  const tickers = useMarketStore(state => state.getTickersArray());
+  const tickerMap = useMarketStore(state => state.tickers);
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const [query, setQuery] = useState('');
   const [exchange, setExchange] = useState(initialSelection?.exchange ?? selectedExchange);
   const [marketType, setMarketType] = useState<'spot' | 'futures'>(initialSelection?.marketType ?? 'spot');
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(initialSelection?.symbol ?? null);
+
+  const tickers = useMemo(() => Array.from(tickerMap.values()), [tickerMap]);
 
   useEffect(() => {
     if (!open) return;
