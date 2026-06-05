@@ -19,6 +19,11 @@ export interface LiquiditySignals {
   reactionZones: KeyLevel[];
   gaps: LiquidityGap[];
   bias: 'pull up' | 'pull down' | 'balanced';
+  barrier: KeyLevel | null;
+  upTarget: KeyLevel | null;
+  downTarget: KeyLevel | null;
+  upPath: 'clear' | 'mixed' | 'blocked';
+  downPath: 'clear' | 'mixed' | 'blocked';
 }
 
 function strongestLevel(
@@ -113,6 +118,46 @@ export function buildLiquiditySignals({
     .filter((level): level is KeyLevel => level !== null)
     .map(level => ({ ...level, label: 'Reaction Zone' as const }));
 
+  const barrierCandidates = bands
+    .filter(band => Math.abs(band.price - currentPrice) / currentPrice <= 0.0125)
+    .sort((a, b) => {
+      const aDistance = Math.max(Math.abs(a.price - currentPrice) / currentPrice, 0.00001);
+      const bDistance = Math.max(Math.abs(b.price - currentPrice) / currentPrice, 0.00001);
+      return (b.usd / bDistance) - (a.usd / aDistance);
+    });
+  const barrier = barrierCandidates[0]
+    ? {
+        price: barrierCandidates[0].price,
+        usd: barrierCandidates[0].usd,
+        side: barrierCandidates[0].side,
+        label: barrierCandidates[0].side === 'ask'
+          ? ('Liquidity Above' as const)
+          : ('Liquidity Below' as const),
+      }
+    : nearestMagnet;
+
+  const upTarget = topAbove && (!barrier || topAbove.price > barrier.price) ? topAbove : null;
+  const downTarget = topBelow && (!barrier || topBelow.price < barrier.price) ? topBelow : null;
+
+  const classifyPath = (fromPrice: number | null, toPrice: number | null) => {
+    if (fromPrice == null || toPrice == null) return 'blocked' as const;
+    const lo = Math.min(fromPrice, toPrice);
+    const hi = Math.max(fromPrice, toPrice);
+    const interior = bands.filter(band => band.price > lo && band.price < hi);
+    if (!interior.length) return 'clear' as const;
+
+    const avgInteriorUsd = interior.reduce((sum, band) => sum + band.usd, 0) / interior.length;
+    const endpointUsd = Math.max(
+      ...bands.filter(band => band.price === fromPrice || band.price === toPrice).map(band => band.usd),
+      1,
+    );
+    const ratio = avgInteriorUsd / endpointUsd;
+
+    if (ratio < 0.18) return 'clear' as const;
+    if (ratio < 0.45) return 'mixed' as const;
+    return 'blocked' as const;
+  };
+
   return {
     topAbove,
     topBelow,
@@ -122,5 +167,10 @@ export function buildLiquiditySignals({
     reactionZones,
     gaps: detectLiquidityGaps(bands),
     bias: summarizeLiquidityBias({ currentPrice, topAbove, topBelow }),
+    barrier,
+    upTarget,
+    downTarget,
+    upPath: classifyPath(barrier?.price ?? null, upTarget?.price ?? null),
+    downPath: classifyPath(barrier?.price ?? null, downTarget?.price ?? null),
   };
 }

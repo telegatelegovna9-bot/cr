@@ -49,10 +49,14 @@ export interface HeatmapRenderModel {
   backgroundBands: Array<LiquidityBand & { opacity: number }>;
   keyLevels: Array<{
     price: number;
-    side: 'bid' | 'ask';
-    kind: 'magnet' | 'reaction';
+    kind: 'barrier' | 'up-target' | 'down-target';
     usd: number;
-    label: string;
+  }>;
+  pathZones: Array<{
+    fromPrice: number;
+    toPrice: number;
+    direction: 'up' | 'down';
+    status: 'clear' | 'mixed' | 'blocked';
   }>;
   diagnostics: Array<{
     price: number;
@@ -61,9 +65,12 @@ export interface HeatmapRenderModel {
     confidence: number;
   }>;
   summary: {
+    barrier: { price: number; usd: number } | null;
     topAbove: { price: number; usd: number } | null;
     topBelow: { price: number; usd: number } | null;
     bias: 'pull up' | 'pull down' | 'balanced';
+    upPath: 'clear' | 'mixed' | 'blocked';
+    downPath: 'clear' | 'mixed' | 'blocked';
   };
 }
 
@@ -231,12 +238,16 @@ export class LiquidityEngine {
 
     return {
       backgroundBands,
-      keyLevels: this.buildKeyLevels(signals.nearestMagnet, signals.reactionZones),
+      keyLevels: this.buildKeyLevels(signals.barrier, signals.upTarget, signals.downTarget),
+      pathZones: this.buildPathZones(signals.barrier, signals.upTarget, signals.downTarget, signals.upPath, signals.downPath),
       diagnostics: settings.diagnosticsEnabled ? this.buildDiagnostics() : [],
       summary: {
+        barrier: signals.barrier ? { price: signals.barrier.price, usd: signals.barrier.usd } : null,
         topAbove: signals.topAbove ? { price: signals.topAbove.price, usd: signals.topAbove.usd } : null,
         topBelow: signals.topBelow ? { price: signals.topBelow.price, usd: signals.topBelow.usd } : null,
         bias: signals.bias,
+        upPath: signals.upPath,
+        downPath: signals.downPath,
       },
     };
   }
@@ -257,34 +268,61 @@ export class LiquidityEngine {
     return Math.min(opacity * intensity, 0.55);
   }
 
-  private buildKeyLevels(nearestMagnet: KeyLevel | null, reactionZones: KeyLevel[]) {
+  private buildKeyLevels(barrier: KeyLevel | null, upTarget: KeyLevel | null, downTarget: KeyLevel | null) {
     const levels: HeatmapRenderModel['keyLevels'] = [];
 
-    if (nearestMagnet) {
+    if (barrier) {
       levels.push({
-        price: nearestMagnet.price,
-        side: nearestMagnet.side,
-        kind: 'magnet',
-        usd: nearestMagnet.usd,
-        label: nearestMagnet.side === 'ask'
-          ? `Magnet Above · ${formatCompactUsd(nearestMagnet.usd)}`
-          : `Magnet Below · ${formatCompactUsd(nearestMagnet.usd)}`,
+        price: barrier.price,
+        kind: 'barrier',
+        usd: barrier.usd,
       });
     }
 
-    for (const zone of reactionZones.slice(0, 2)) {
+    if (upTarget) {
       levels.push({
-        price: zone.price,
-        side: zone.side,
-        kind: 'reaction',
-        usd: zone.usd,
-        label: zone.side === 'ask'
-          ? `Reaction Above · ${formatCompactUsd(zone.usd)}`
-          : `Reaction Below · ${formatCompactUsd(zone.usd)}`,
+        price: upTarget.price,
+        kind: 'up-target',
+        usd: upTarget.usd,
+      });
+    }
+
+    if (downTarget) {
+      levels.push({
+        price: downTarget.price,
+        kind: 'down-target',
+        usd: downTarget.usd,
       });
     }
 
     return levels;
+  }
+
+  private buildPathZones(
+    barrier: KeyLevel | null,
+    upTarget: KeyLevel | null,
+    downTarget: KeyLevel | null,
+    upPath: 'clear' | 'mixed' | 'blocked',
+    downPath: 'clear' | 'mixed' | 'blocked',
+  ) {
+    const zones: HeatmapRenderModel['pathZones'] = [];
+    if (barrier && upTarget) {
+      zones.push({
+        fromPrice: barrier.price,
+        toPrice: upTarget.price,
+        direction: 'up',
+        status: upPath,
+      });
+    }
+    if (barrier && downTarget) {
+      zones.push({
+        fromPrice: barrier.price,
+        toPrice: downTarget.price,
+        direction: 'down',
+        status: downPath,
+      });
+    }
+    return zones;
   }
 
   private buildDiagnostics(): HeatmapRenderModel['diagnostics'] {
@@ -355,10 +393,4 @@ export function heatColor(
   }
   const t = (intensity - 0.7) / 0.3;
   return `rgba(${Math.round(180 + t * 40)},${Math.round(55 + t * 40)},${Math.round(10 + t * 10)},${alpha})`;
-}
-
-function formatCompactUsd(usd: number) {
-  if (usd >= 1_000_000) return `${(usd / 1_000_000).toFixed(1)}M`;
-  if (usd >= 1_000) return `${Math.round(usd / 1_000)}K`;
-  return `${Math.round(usd)}`;
 }

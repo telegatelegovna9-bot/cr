@@ -131,19 +131,20 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const [priceChange, setPriceChange] = useState<number | null>(null);
   const [lastBarTime, setLastBarTime] = useState<number | null>(null);
   const [heatmapSummary, setHeatmapSummary] = useState<{
+    barrier: { price: number; usd: number } | null;
     topAbove: { price: number; usd: number } | null;
     topBelow: { price: number; usd: number } | null;
     bias: 'pull up' | 'pull down' | 'balanced';
+    upPath: 'clear' | 'mixed' | 'blocked';
+    downPath: 'clear' | 'mixed' | 'blocked';
   }>({
+    barrier: null,
     topAbove: null,
     topBelow: null,
     bias: 'balanced',
+    upPath: 'blocked',
+    downPath: 'blocked',
   });
-  const [heatmapOverlayLevels, setHeatmapOverlayLevels] = useState<Array<{
-    y: number;
-    kind: 'magnet' | 'reaction';
-    label: string;
-  }>>([]);
 
   const { subscribe, unsubscribe } = useWebSocket();
   const heatmapEngineRef = useRef<LiquidityEngine | null>(null);
@@ -253,18 +254,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       // Nothing to draw — clear and exit (don't leave stale bands)
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       setHeatmapSummary(model.summary);
-      const overlayLevels = model.keyLevels
-        .map(level => {
-          const y = series.priceToCoordinate(level.price);
-          if (y == null || y < 0 || y > canvas.height) return null;
-          return {
-            y: Number(y),
-            kind: level.kind,
-            label: level.label,
-          };
-        })
-        .filter((level): level is { y: number; kind: 'magnet' | 'reaction'; label: string } => level !== null);
-      setHeatmapOverlayLevels(overlayLevels);
       if (!model.backgroundBands.length && !model.keyLevels.length && !model.diagnostics.length) return;
 
       const W = canvas.width;
@@ -290,12 +279,44 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       }
 
       ctx.save();
+      for (const zone of model.pathZones) {
+        const y1 = series.priceToCoordinate(zone.fromPrice);
+        const y2 = series.priceToCoordinate(zone.toPrice);
+        if (y1 == null || y2 == null) continue;
+        const top = Math.min(y1, y2);
+        const height = Math.abs(y2 - y1);
+        const fill =
+          zone.direction === 'up'
+            ? zone.status === 'clear'
+              ? 'rgba(52, 211, 153, 0.10)'
+              : zone.status === 'mixed'
+                ? 'rgba(250, 204, 21, 0.08)'
+                : 'rgba(248, 113, 113, 0.06)'
+            : zone.status === 'clear'
+              ? 'rgba(96, 165, 250, 0.10)'
+              : zone.status === 'mixed'
+                ? 'rgba(250, 204, 21, 0.08)'
+                : 'rgba(248, 113, 113, 0.06)';
+        ctx.fillStyle = fill;
+        ctx.fillRect(0, top, W, height);
+      }
+
       for (const level of model.keyLevels) {
         const y = series.priceToCoordinate(level.price);
         if (y == null || y < 0 || y > H) continue;
-        ctx.strokeStyle = level.kind === 'magnet' ? 'rgba(255,255,255,0.42)' : 'rgba(255,255,255,0.24)';
-        ctx.lineWidth = level.kind === 'magnet' ? 1.2 : 1;
-        ctx.setLineDash(level.kind === 'magnet' ? [] : [4, 4]);
+        if (level.kind === 'barrier') {
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          ctx.lineWidth = 1.25;
+          ctx.setLineDash([]);
+        } else if (level.kind === 'up-target') {
+          ctx.strokeStyle = 'rgba(52,211,153,0.36)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([6, 4]);
+        } else {
+          ctx.strokeStyle = 'rgba(96,165,250,0.36)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([6, 4]);
+        }
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(W, y);
@@ -886,23 +907,6 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           }}
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
-        {showHeatmap && heatmapOverlayLevels.length > 0 && (
-          <div className="absolute inset-0 z-[3] pointer-events-none">
-            {heatmapOverlayLevels.map((level, index) => (
-              <div
-                key={`${level.kind}:${level.label}:${index}`}
-                className={`absolute right-16 -translate-y-1/2 rounded border px-2 py-0.5 text-[10px] font-mono whitespace-nowrap ${
-                  level.kind === 'magnet'
-                    ? 'border-white/30 bg-black/80 text-white/85'
-                    : 'border-white/15 bg-black/65 text-white/70'
-                }`}
-                style={{ top: `${level.y}px` }}
-              >
-                {level.label}
-              </div>
-            ))}
-          </div>
-        )}
         {showHeatmap && <HeatmapSummary {...heatmapSummary} />}
         
         <DrawingOverlay

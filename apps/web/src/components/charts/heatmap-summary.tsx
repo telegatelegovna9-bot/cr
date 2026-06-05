@@ -7,13 +7,19 @@ import { useState } from 'react';
 type SummaryLevel = { price: number; usd: number } | null;
 
 export function HeatmapSummary({
+  barrier,
   topAbove,
   topBelow,
   bias,
+  upPath,
+  downPath,
 }: {
+  barrier: SummaryLevel;
   topAbove: SummaryLevel;
   topBelow: SummaryLevel;
   bias: 'pull up' | 'pull down' | 'balanced';
+  upPath: 'clear' | 'mixed' | 'blocked';
+  downPath: 'clear' | 'mixed' | 'blocked';
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const fmtUsd = (value: number) => {
@@ -38,13 +44,19 @@ export function HeatmapSummary({
       {!collapsed && (
         <div className="mt-1 space-y-0.5 pointer-events-none">
           <div>
-            Above:{' '}
+            Barrier:{' '}
+            {barrier ? `${fmtUsd(barrier.usd)} @ ${formatPrice(barrier.price)}` : '—'}
+          </div>
+          <div>
+            Up target:{' '}
             {topAbove ? `${fmtUsd(topAbove.usd)} @ ${formatPrice(topAbove.price)}` : '—'}
           </div>
           <div>
-            Below:{' '}
+            Down target:{' '}
             {topBelow ? `${fmtUsd(topBelow.usd)} @ ${formatPrice(topBelow.price)}` : '—'}
           </div>
+          <div>Up path: {upPath}</div>
+          <div>Down path: {downPath}</div>
           <div>Bias: {bias}</div>
         </div>
       )}
