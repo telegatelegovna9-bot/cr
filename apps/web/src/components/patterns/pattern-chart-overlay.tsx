@@ -51,98 +51,30 @@ interface PatternChartOverlayProps {
   hostRef: MutableRefObject<HTMLDivElement | null>;
 }
 
-function projectTime(chart: IChartApi, timestampMs: number): number | null {
-  return chart.timeScale().timeToCoordinate(Math.floor(timestampMs / 1000) as Time);
+function toNum(v: number | null | undefined): number | null {
+  if (v == null) return null;
+  return Number(v);
 }
 
-// Clamp a line segment to the visible SVG area [0..width] x [0..height].
-// If both points are outside on the same side, returns null.
-// Uses Cohen-Sutherland line clipping algorithm.
-function clipLineToRect(
-  x1: number, y1: number,
-  x2: number, y2: number,
-  width: number, height: number,
-): [number, number, number, number] | null {
-  const INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
-
-  function code(x: number, y: number): number {
-    let c = INSIDE;
-    if (x < 0) c |= LEFT;
-    else if (x > width) c |= RIGHT;
-    if (y < 0) c |= TOP;
-    else if (y > height) c |= BOTTOM;
-    return c;
-  }
-
-  let c1 = code(x1, y1);
-  let c2 = code(x2, y2);
-
-  while (true) {
-    if (!(c1 | c2)) return [x1, y1, x2, y2]; // both inside
-    if (c1 & c2) return null; // both outside same region
-
-    const c = c1 || c2;
-    let x = 0, y = 0;
-    const dx = x2 - x1, dy = y2 - y1;
-
-    if (c & BOTTOM) { x = x1 + dx * (height - y1) / dy; y = height; }
-    else if (c & TOP) { x = x1 + dx * (0 - y1) / dy; y = 0; }
-    else if (c & RIGHT) { y = y1 + dy * (width - x1) / dx; x = width; }
-    else if (c & LEFT) { y = y1 + dy * (0 - x1) / dx; x = 0; }
-
-    if (c === c1) { x1 = x; y1 = y; c1 = code(x1, y1); }
-    else { x2 = x; y2 = y; c2 = code(x2, y2); }
-  }
+function projectTime(chart: IChartApi, timestampMs: number): number | null {
+  return toNum(chart.timeScale().timeToCoordinate(Math.floor(timestampMs / 1000) as Time));
 }
 
 function projectLine(
   chart: IChartApi,
   series: ISeriesApi<'Candlestick'>,
   line: PatternLine,
-  width: number,
-  height: number,
 ): ProjectedLine | null {
   const [from, to] = line.points;
-
-  // For rays, we try to get at least one coordinate and extrapolate
-  let x1 = projectTime(chart, from.time);
-  let x2 = projectTime(chart, to.time);
-  const y1Raw = series.priceToCoordinate(from.price);
-  const y2Raw = series.priceToCoordinate(to.price);
-
-  // If both x-coords are null, line is completely out of view
-  if (x1 == null && x2 == null) return null;
-  if (y1Raw == null && y2Raw == null) return null;
-
-  // Extrapolate missing x using the slope from what we have
-  if (x1 == null && x2 != null) {
-    const timeDelta = to.time - from.time;
-    const pxPerMs = timeDelta !== 0 ? (x2 - (x2)) / timeDelta : 0;
-    x1 = x2 - (to.time - from.time) * (timeDelta !== 0 ? 1 : 0);
-    // Simpler: place x1 far to the left
-    x1 = x2 - Math.abs(x2) - 100;
-  }
-  if (x2 == null && x1 != null) {
-    x2 = x1 + Math.abs(width - x1) + 100;
-  }
-
-  // Interpolate y values using price ratio if one is missing
-  let y1: number | null = y1Raw == null ? null : Number(y1Raw);
-  let y2: number | null = y2Raw == null ? null : Number(y2Raw);
-  if (y1 == null && y2 != null) y1 = y2 + (from.price - to.price) / Math.max(Math.abs(to.price), 1) * height;
-  if (y2 == null && y1 != null) y2 = y1 - (to.price - from.price) / Math.max(Math.abs(from.price), 1) * height;
-  if (y1 == null || y2 == null) return null;
-
-  const clipped = clipLineToRect(x1!, y1, x2!, y2, width, height);
-  if (!clipped) return null;
-  const [cx1, cy1, cx2, cy2] = clipped;
+  const x1 = projectTime(chart, from.time);
+  const x2 = projectTime(chart, to.time);
+  const y1 = toNum(series.priceToCoordinate(from.price));
+  const y2 = toNum(series.priceToCoordinate(to.price));
+  if (x1 == null || x2 == null || y1 == null || y2 == null) return null;
 
   return {
     key: `${line.kind}:${from.time}:${from.price}:${to.time}:${to.price}`,
-    x1: cx1,
-    y1: cy1,
-    x2: cx2,
-    y2: cy2,
+    x1, y1, x2, y2,
     isRay: line.kind === 'ray',
   };
 }
@@ -151,33 +83,21 @@ function projectZone(
   chart: IChartApi,
   series: ISeriesApi<'Candlestick'>,
   zone: PatternZone,
-  width: number,
-  height: number,
 ): ProjectedZone | null {
-  let x1 = projectTime(chart, zone.fromTime);
-  let x2 = projectTime(chart, zone.toTime);
-  const y1 = series.priceToCoordinate(zone.low);
-  const y2 = series.priceToCoordinate(zone.high);
+  const x1 = projectTime(chart, zone.fromTime);
+  const x2 = projectTime(chart, zone.toTime);
+  const y1 = toNum(series.priceToCoordinate(zone.low));
+  const y2 = toNum(series.priceToCoordinate(zone.high));
+  if (x1 == null || x2 == null || y1 == null || y2 == null) return null;
 
-  if (y1 == null || y2 == null) return null;
-
-  // Clamp x to visible area if out of range
-  if (x1 == null) x1 = 0;
-  if (x2 == null) x2 = width;
-
-  const left = Math.max(0, Math.min(x1, x2));
-  const right = Math.min(width, Math.max(x1, x2));
-  const top = Math.max(0, Math.min(y1, y2));
-  const bottom = Math.min(height, Math.max(y1, y2));
-
-  if (right <= left || bottom <= top) return null;
+  const left = Math.min(x1, x2);
+  const top = Math.min(y1, y2);
+  const w = Math.max(1, Math.abs(x2 - x1));
+  const h = Math.max(1, Math.abs(y2 - y1));
 
   return {
     key: `${zone.fromTime}:${zone.toTime}:${zone.low}:${zone.high}`,
-    x: left,
-    y: top,
-    width: right - left,
-    height: bottom - top,
+    x: left, y: top, width: w, height: h,
   };
 }
 
@@ -188,18 +108,33 @@ function projectPoint(
   price: number,
 ): ProjectedPoint | null {
   const x = projectTime(chart, time);
-  const y = series.priceToCoordinate(price);
+  const y = toNum(series.priceToCoordinate(price));
   if (x == null || y == null) return null;
-
-  return {
-    key: `${time}:${price}`,
-    x,
-    y,
-  };
+  return { key: `${time}:${price}`, x, y };
 }
 
-function serializeProjection(state: ProjectionState): string {
-  return JSON.stringify(state);
+function computeProjection(
+  chart: IChartApi,
+  series: ISeriesApi<'Candlestick'>,
+  host: HTMLDivElement,
+  pattern: PatternDetail,
+): ProjectionState {
+  const width = host.clientWidth;
+  const height = host.clientHeight;
+
+  const lines = pattern.geometry.lines
+    .map(line => projectLine(chart, series, line))
+    .filter((l): l is ProjectedLine => l !== null);
+
+  const zones = pattern.geometry.zones
+    .map(zone => projectZone(chart, series, zone))
+    .filter((z): z is ProjectedZone => z !== null);
+
+  const points = pattern.geometry.pivots
+    .map(p => projectPoint(chart, series, p.time, p.price))
+    .filter((p): p is ProjectedPoint => p !== null);
+
+  return { width, height, lines, zones, points };
 }
 
 export function PatternChartOverlay({
@@ -209,9 +144,9 @@ export function PatternChartOverlay({
   hostRef,
 }: PatternChartOverlayProps) {
   const [projection, setProjection] = useState<ProjectionState | null>(null);
-  const [hostMounted, setHostMounted] = useState(false);
-  const lastSerializedRef = useRef<string>('');
+  const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
   const focusedPatternRef = useRef<string | null>(null);
+
   const patternColor = useMemo(() => {
     if (!pattern) return null;
     return {
@@ -220,93 +155,103 @@ export function PatternChartOverlay({
     };
   }, [pattern]);
 
-  // Track when hostRef becomes available so portal can mount
+  // Resolve portal target once host is available
   useEffect(() => {
-    if (hostRef.current) {
-      setHostMounted(true);
-    }
+    const check = () => {
+      if (hostRef.current) {
+        setPortalTarget(hostRef.current);
+      } else {
+        requestAnimationFrame(check);
+      }
+    };
+    check();
   }, [hostRef]);
 
+  // Main projection effect — event-driven, not a continuous RAF loop
   useEffect(() => {
     if (!pattern) {
       setProjection(null);
-      lastSerializedRef.current = '';
       focusedPatternRef.current = null;
       return;
     }
 
-    let frameId: number | null = null;
-
-    const run = () => {
+    const redraw = () => {
       const chart = chartRef.current;
       const series = candleSeriesRef.current;
       const host = hostRef.current;
-      if (!chart || !series || !host) {
-        frameId = requestAnimationFrame(run);
-        return;
-      }
+      if (!chart || !series || !host) return;
 
-      const width = host.clientWidth;
-      const height = host.clientHeight;
-      if (!width || !height) {
-        frameId = requestAnimationFrame(run);
-        return;
-      }
-
-      if (focusedPatternRef.current !== pattern.id) {
-        const span = Math.max(60_000, pattern.geometry.anchorTimeTo - pattern.geometry.anchorTimeFrom);
-        const leftPadding = Math.max(5 * 60_000, Math.floor(span * 0.25));
-        const rightPadding = Math.max(5 * 60_000, Math.floor(span * 0.4));
-        const visibleFrom = pattern.geometry.anchorTimeFrom - leftPadding;
-        const visibleTo = Math.max(
-          pattern.geometry.anchorTimeTo + rightPadding,
-          pattern.updatedAt + rightPadding,
-        );
-        chart.timeScale().setVisibleRange({
-          from: Math.floor(visibleFrom / 1000) as Time,
-          to: Math.floor(visibleTo / 1000) as Time,
-        });
-        focusedPatternRef.current = pattern.id;
-      }
-
-      const lines = pattern.geometry.lines
-        .map(line => projectLine(chart, series, line, width, height))
-        .filter((line): line is ProjectedLine => line !== null);
-      const zones = pattern.geometry.zones
-        .map(zone => projectZone(chart, series, zone, width, height))
-        .filter((zone): zone is ProjectedZone => zone !== null);
-      const points = pattern.geometry.pivots
-        .map(point => projectPoint(chart, series, point.time, point.price))
-        .filter((point): point is ProjectedPoint => point !== null);
-
-      const nextState: ProjectionState = { width, height, lines, zones, points };
-      const serialized = serializeProjection(nextState);
-      if (serialized !== lastSerializedRef.current) {
-        lastSerializedRef.current = serialized;
-        setProjection(nextState);
-      }
-
-      frameId = requestAnimationFrame(run);
+      setProjection(computeProjection(chart, series, host, pattern));
     };
 
-    frameId = requestAnimationFrame(run);
+    // Focus chart on pattern once when pattern changes
+    const focusChart = () => {
+      const chart = chartRef.current;
+      if (!chart || focusedPatternRef.current === pattern.id) return;
+
+      const span = Math.max(60_000, pattern.geometry.anchorTimeTo - pattern.geometry.anchorTimeFrom);
+      const leftPadding = Math.max(5 * 60_000, Math.floor(span * 0.25));
+      const rightPadding = Math.max(5 * 60_000, Math.floor(span * 0.4));
+      const visibleFrom = pattern.geometry.anchorTimeFrom - leftPadding;
+      const visibleTo = Math.max(
+        pattern.geometry.anchorTimeTo + rightPadding,
+        pattern.updatedAt + rightPadding,
+      );
+      chart.timeScale().setVisibleRange({
+        from: Math.floor(visibleFrom / 1000) as Time,
+        to: Math.floor(visibleTo / 1000) as Time,
+      });
+      focusedPatternRef.current = pattern.id;
+    };
+
+    // Wait for chart to be ready, then focus + draw
+    let initFrameId: number | null = null;
+    const init = () => {
+      if (!chartRef.current || !candleSeriesRef.current || !hostRef.current) {
+        initFrameId = requestAnimationFrame(init);
+        return;
+      }
+      focusChart();
+      redraw();
+    };
+    initFrameId = requestAnimationFrame(init);
+
+    // Redraw on chart scroll/zoom events
+    const chart = chartRef.current;
+    if (chart) {
+      chart.timeScale().subscribeVisibleTimeRangeChange(redraw);
+      chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
+    }
+
+    // Redraw on resize
+    const resizeObserver = new ResizeObserver(redraw);
+    if (hostRef.current) resizeObserver.observe(hostRef.current);
+
     return () => {
-      if (frameId != null) cancelAnimationFrame(frameId);
+      if (initFrameId != null) cancelAnimationFrame(initFrameId);
+      chart?.timeScale().unsubscribeVisibleTimeRangeChange(redraw);
+      chart?.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
+      resizeObserver.disconnect();
+      setProjection(null);
     };
   }, [pattern, chartRef, candleSeriesRef, hostRef]);
 
-  const host = hostRef.current;
-  if (!pattern || !projection || !patternColor || !host || !hostMounted) {
+  if (!pattern || !projection || !patternColor || !portalTarget) {
     return null;
   }
 
   const svg = (
     <svg
-      className="absolute inset-0 pointer-events-none z-[4]"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 4,
+        overflow: 'visible',
+      }}
       width={projection.width}
       height={projection.height}
       viewBox={`0 0 ${projection.width} ${projection.height}`}
-      preserveAspectRatio="none"
     >
       {projection.zones.map(zone => (
         <rect
@@ -315,9 +260,9 @@ export function PatternChartOverlay({
           y={zone.y}
           width={zone.width}
           height={zone.height}
-          rx={4}
-          fill={`${patternColor.stroke}18`}
-          stroke={`${patternColor.stroke}40`}
+          rx={3}
+          fill={`${patternColor.stroke}15`}
+          stroke={`${patternColor.stroke}35`}
           strokeWidth={1}
         />
       ))}
@@ -333,7 +278,7 @@ export function PatternChartOverlay({
           strokeWidth={line.isRay ? 1.2 : 1.8}
           strokeDasharray={line.isRay ? '6 4' : undefined}
           strokeLinecap="round"
-          opacity={line.isRay ? 0.65 : 0.9}
+          opacity={line.isRay ? 0.6 : 0.92}
         />
       ))}
 
@@ -344,15 +289,12 @@ export function PatternChartOverlay({
           cy={point.y}
           r={3.5}
           fill={patternColor.stroke}
-          stroke="rgba(12, 14, 26, 0.9)"
+          stroke="rgba(10, 12, 22, 0.9)"
           strokeWidth={1.5}
         />
       ))}
     </svg>
   );
 
-  // Portal into the chart container so SVG shares the same coordinate origin
-  // as the lightweight-charts canvas. Without this, absolute positioning is
-  // relative to a parent div that includes the header, causing drift on scroll.
-  return createPortal(svg, host);
+  return createPortal(svg, portalTarget);
 }
