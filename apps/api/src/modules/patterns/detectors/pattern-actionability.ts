@@ -124,6 +124,11 @@ function scoreTrendlineActionability(
   }
 
   const structureRange = Math.max(candidate.geometry.priceMax - candidate.geometry.priceMin, currentCandle.close * 0.01);
+  const breakoutTolerance = structureRange * 0.06;
+  if (currentCandle.close > projectedPrice + breakoutTolerance) {
+    return { keep: false, quality: candidate.quality };
+  }
+
   const distance = Math.abs(currentCandle.close - projectedPrice);
   if (distance > structureRange * 0.18) {
     return { keep: false, quality: candidate.quality };

@@ -130,3 +130,15 @@ const staleTrendline: PatternCandidate = {
 
 assert.equal(refinePatternActionability(activeTrendline, trendlineCandles, '1h').keep, true);
 assert.equal(refinePatternActionability(staleTrendline, trendlineCandles, '1h').keep, false);
+
+const brokenTrendlineCandles = trendlineCandles.map((candle, index) =>
+  index === trendlineCandles.length - 1
+    ? {
+        ...candle,
+        close: 17.1,
+        high: 17.25,
+      }
+    : candle,
+);
+
+assert.equal(refinePatternActionability(activeTrendline, brokenTrendlineCandles, '1h').keep, false);
