@@ -153,3 +153,34 @@ export function scanDetectorAcrossWindows(
 
   return candidates.sort((a, b) => b.quality - a.quality);
 }
+
+export async function runWithConcurrencyLimit<T>(
+  tasks: Array<() => Promise<T>>,
+  concurrency: number,
+): Promise<T[]> {
+  if (tasks.length === 0) {
+    return [];
+  }
+
+  const limit = Math.max(1, concurrency);
+  const results = new Array<T>(tasks.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      if (currentIndex >= tasks.length) {
+        return;
+      }
+
+      results[currentIndex] = await tasks[currentIndex]!();
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, tasks.length) }, () => worker()),
+  );
+
+  return results;
+}
