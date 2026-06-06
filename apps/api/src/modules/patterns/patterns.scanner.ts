@@ -11,9 +11,11 @@ import { type PatternTimeframe, PATTERN_SCAN_TIMEFRAMES } from './patterns.types
 import { type PatternCandidate } from './detectors/detector.types';
 import {
   patternsOverlapTooMuch,
+  clampQuality,
   runWithConcurrencyLimit,
   scanDetectorAcrossWindows,
 } from './detectors/detector.utils';
+import { refinePatternActionability } from './detectors/pattern-actionability';
 import { detectTrendlinePatterns } from './detectors/trendline.detector';
 import { detectTrianglePatterns } from './detectors/triangle.detector';
 import { PatternsService } from './patterns.service';
@@ -107,7 +109,13 @@ export class PatternsScanner implements OnModuleInit {
       ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectTrendlinePatterns),
       ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectTrianglePatterns),
     ]
-      .filter(candidate => candidate.quality >= PATTERN_MIN_QUALITY)
+      .map(candidate => {
+        const actionability = refinePatternActionability(candidate, candles, timeframe);
+        return actionability.keep
+          ? { ...candidate, quality: clampQuality(actionability.quality) }
+          : null;
+      })
+      .filter((candidate): candidate is PatternCandidate => candidate !== null && candidate.quality >= PATTERN_MIN_QUALITY)
       .sort((a, b) => b.quality - a.quality);
   }
 
