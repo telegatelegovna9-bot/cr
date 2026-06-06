@@ -129,10 +129,10 @@ function createCandidate(
 
   return {
     id: randomUUID(),
-    exchange,
+    exchange: 'binance', // Currently only Binance is supported for patterns
     marketType: 'futures',
     symbol,
-    timeframe,
+    timeframe: timeframe as any,
     kind: kind as any,
     status: 'forming',
     quality: Math.round(quality),

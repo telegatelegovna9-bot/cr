@@ -1,4 +1,5 @@
 import type { Candle } from '@crypto-screener/shared';
+import type { DetectorCandle, DetectorPivotCandle, PatternCandidate, PatternDetector } from './detector.types';
 
 export interface SwingPivot {
   kind: 'high' | 'low';
@@ -7,10 +8,18 @@ export interface SwingPivot {
   candleIndex: number;
 }
 
+export function clampQuality(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+export function toPivotWindow(candles: DetectorCandle[]): DetectorPivotCandle[] {
+  return candles.map((candle, index) => ({ ...candle, index }));
+}
+
 /**
  * Calculates Average True Range (ATR) to normalize volatility.
  */
-export function computeATR(candles: Candle[], period = 14): number {
+export function computeATR(candles: Candle[] | DetectorCandle[], period = 14): number {
   if (candles.length < 2) return 0;
   let trSum = 0;
   const count = Math.min(period, candles.length - 1);
@@ -28,11 +37,18 @@ export function computeATR(candles: Candle[], period = 14): number {
 }
 
 /**
+ * Legacy alias for extractStructuralPivots
+ */
+export function extractSwingPivots(candles: Candle[] | DetectorCandle[], atrMultiplier = 1.5): SwingPivot[] {
+  return extractStructuralPivots(candles, atrMultiplier);
+}
+
+/**
  * Extracts structural swing points using a modified ZigZag algorithm based on ATR.
  * This filters out market noise and keeps only significant pivots.
  */
 export function extractStructuralPivots(
-  candles: Candle[],
+  candles: Candle[] | DetectorCandle[],
   atrMultiplier = 2.0, // Higher = more structural/less noise
 ): SwingPivot[] {
   if (candles.length < 10) return [];
@@ -87,6 +103,13 @@ export function extractStructuralPivots(
 }
 
 /**
+ * Legacy alias for calculateLinearRegression
+ */
+export function linearRegression(points: { x: number; y: number }[]) {
+  return calculateLinearRegression(points);
+}
+
+/**
  * Linear regression to find the best fit line for a set of points.
  * Returns slope, intercept, and R-Squared (correlation coefficient).
  */
@@ -125,6 +148,13 @@ export function calculateLinearRegression(points: { x: number; y: number }[]): {
 }
 
 /**
+ * Legacy alias for projectPriceAtTime
+ */
+export function projectLineAtX(x1: number, y1: number, x2: number, y2: number, targetX: number): number {
+  return projectPriceAtTime(x1, y1, x2, y2, targetX);
+}
+
+/**
  * Projects a price based on a line (x1,y1) -> (x2,y2) at a specific timestamp.
  */
 export function projectPriceAtTime(
@@ -135,4 +165,79 @@ export function projectPriceAtTime(
   const dx = x2 - x1;
   if (dx === 0) return y1;
   return y1 + (y2 - y1) * (targetX - x1) / dx;
+}
+
+export function patternsOverlapTooMuch(
+  a: Pick<PatternCandidate, 'kind' | 'timeframe' | 'symbol' | 'from' | 'to'>,
+  b: Pick<PatternCandidate, 'kind' | 'timeframe' | 'symbol' | 'from' | 'to'>,
+): boolean {
+  if (a.kind !== b.kind || a.timeframe !== b.timeframe || a.symbol !== b.symbol) {
+    return false;
+  }
+
+  const intersection = Math.max(0, Math.min(a.to, b.to) - Math.max(a.from, b.from));
+  const union = Math.max(a.to, b.to) - Math.min(a.from, b.from);
+
+  if (union <= 0) return false;
+
+  return intersection / union >= 0.7;
+}
+
+export function scanDetectorAcrossWindows(
+  symbol: string,
+  timeframe: PatternCandidate['timeframe'],
+  candles: DetectorCandle[],
+  detector: PatternDetector,
+): PatternCandidate[] {
+  if (candles.length < 72) {
+    return detector(symbol, timeframe, candles);
+  }
+
+  const candidates: PatternCandidate[] = [];
+  const windowSizes = [72, 96, 120, 144, 192, 240, 300].filter(size => size <= candles.length);
+
+  for (const size of windowSizes) {
+    const step = Math.max(12, Math.floor(size / 3));
+    for (let start = 0; start + size <= candles.length; start += step) {
+      const window = candles.slice(start, start + size);
+      const detected = detector(symbol, timeframe, window).sort((a, b) => b.quality - a.quality);
+
+      for (const candidate of detected) {
+        const duplicate = candidates.find(existing =>
+          patternsOverlapTooMuch(existing, candidate) && existing.quality >= candidate.quality,
+        );
+        if (!duplicate) {
+          candidates.push(candidate);
+        }
+      }
+    }
+  }
+
+  return candidates.sort((a, b) => b.quality - a.quality);
+}
+
+export async function runWithConcurrencyLimit<T>(
+  tasks: Array<() => Promise<T>>,
+  concurrency: number,
+): Promise<T[]> {
+  if (tasks.length === 0) return [];
+
+  const limit = Math.max(1, concurrency);
+  const results = new Array<T>(tasks.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      if (currentIndex >= tasks.length) return;
+      results[currentIndex] = await tasks[currentIndex]!();
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, tasks.length) }, () => worker()),
+  );
+
+  return results;
 }
