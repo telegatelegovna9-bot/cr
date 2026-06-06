@@ -17,8 +17,7 @@ import {
   scanDetectorAcrossWindows,
 } from './detectors/detector.utils';
 import { refinePatternActionability } from './detectors/pattern-actionability';
-import { detectTrendlinePatterns } from './detectors/trendline.detector';
-import { detectTrianglePatterns } from './detectors/triangle.detector';
+import { detectStructuralPatterns } from './detectors/structural.detector';
 import { PatternsService } from './patterns.service';
 import { selectSymbolsForScan } from './patterns.scanner.utils';
 
@@ -57,19 +56,24 @@ export class PatternsScanner implements OnModuleInit {
       this.logger.log(
         `Patterns scan started via ${source} for ${symbols.length}/${totalUniverse} symbols (batch ${activeBatch})`,
       );
+      
       const symbolTimeframeTasks = symbols.flatMap(symbol =>
         PATTERN_SCAN_TIMEFRAMES.map(timeframe => async () =>
-          this.scanSymbolTimeframe(symbol, timeframe),
+          this.scanSymbolTimeframe(symbol, timeframe as any),
         ),
       );
+      
       const taskResults = await runWithConcurrencyLimit(
         symbolTimeframeTasks,
         PATTERN_SCAN_CONCURRENCY,
       );
+      
       const candidates: PatternCandidate[] = [];
 
       for (const detected of taskResults) {
+        if (!detected) continue;
         for (const candidate of detected) {
+          // Strict overlap check
           const duplicate = candidates.find(existing =>
             patternsOverlapTooMuch(existing, candidate) && existing.quality >= candidate.quality,
           );
@@ -80,12 +84,15 @@ export class PatternsScanner implements OnModuleInit {
         }
       }
 
-      await this.patternsService.upsertScannerSnapshot(candidates);
+      // Filter for very high quality only to reduce noise
+      const highQualityCandidates = candidates.filter(c => c.quality > 80);
+
+      await this.patternsService.upsertScannerSnapshot(highQualityCandidates);
       await this.patternsService.expireStaleFinishedPatterns();
 
       const durationMs = Date.now() - startedAt;
       this.logger.log(
-        `Patterns scan stored ${candidates.length} candidates in ${durationMs}ms`,
+        `Patterns scan stored ${highQualityCandidates.length} high-quality candidates in ${durationMs}ms`,
       );
       this.batchIndex += 1;
     } catch (error) {
@@ -107,22 +114,12 @@ export class PatternsScanner implements OnModuleInit {
       PATTERN_CANDLE_LIMIT,
     );
 
-    if (candles.length < 24) {
+    if (candles.length < 50) {
       return [];
     }
 
-    return [
-      ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectTrendlinePatterns),
-      ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectTrianglePatterns),
-    ]
-      .map(candidate => {
-        const actionability = refinePatternActionability(candidate, candles, timeframe);
-        return actionability.keep
-          ? { ...candidate, quality: clampQuality(actionability.quality) }
-          : null;
-      })
-      .filter((candidate): candidate is PatternCandidate => candidate !== null && candidate.quality >= PATTERN_MIN_QUALITY)
-      .sort((a, b) => b.quality - a.quality);
+    // Use our new structural detector
+    return detectStructuralPatterns(symbol, 'binance', timeframe, candles);
   }
 
   private getBinanceFuturesSymbolsForCurrentBatch(): {

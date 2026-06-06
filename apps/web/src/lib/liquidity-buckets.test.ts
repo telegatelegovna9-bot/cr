@@ -5,6 +5,7 @@ import {
   createBucketWindow,
   mergeBookSideIntoBuckets,
 } from './liquidity-buckets';
+import { LiquidityEngine } from './liquidity-engine';
 
 test('createBucketWindow limits rendering to a bounded price distance from current price', () => {
   const window = createBucketWindow({ currentPrice: 100, depthPct: 0.05 });
@@ -45,4 +46,27 @@ test('buildLiquidityBuckets returns sorted background bands for visible price wi
     bands.map(b => b.price),
     [99.9, 100.2],
   );
+});
+
+test('LiquidityEngine exposes background bands and key levels separately', () => {
+  const engine = new LiquidityEngine();
+  engine.setPriceStep(0.1);
+  engine.addUpdate(
+    [{ price: 99.9, quantity: 8 }],
+    [{ price: 100.6, quantity: 12 }],
+    100,
+    1_000,
+  );
+
+  const model = engine.getRenderModel({
+    currentPrice: 100,
+    depthPct: 0.03,
+    minSizeUsd: 0,
+    intensity: 1,
+    diagnosticsEnabled: false,
+  });
+
+  assert.equal(model.backgroundBands.length > 0, true);
+  assert.equal(model.keyLevels.length > 0, true);
+  assert.equal(model.diagnostics.length, 0);
 });

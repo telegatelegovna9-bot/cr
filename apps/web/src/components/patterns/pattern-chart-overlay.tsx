@@ -10,7 +10,11 @@ import type { PatternDetail, PatternLine, PatternZone } from '@/lib/patterns/mod
 const PATTERN_STROKE_MAP = {
   cascade: '#fbbf24',
   trendline: '#7dd3fc',
-  triangle: '#6ee7b7',
+  triangle_symmetrical: '#6ee7b7',
+  triangle_ascending: '#10b981',
+  triangle_descending: '#ef4444',
+  channel_up: '#3b82f6',
+  channel_down: '#f97316',
 } as const;
 
 interface ProjectedLine {
@@ -149,9 +153,10 @@ export function PatternChartOverlay({
 
   const patternColor = useMemo(() => {
     if (!pattern) return null;
+    const kind = pattern.kind as keyof typeof PATTERN_STROKE_MAP;
     return {
-      ui: PATTERN_COLOR_MAP[pattern.kind],
-      stroke: PATTERN_STROKE_MAP[pattern.kind],
+      ui: PATTERN_COLOR_MAP[pattern.kind] || '#6366f1',
+      stroke: PATTERN_STROKE_MAP[kind] || '#6366f1',
     };
   }, [pattern]);
 
@@ -167,7 +172,7 @@ export function PatternChartOverlay({
     check();
   }, [hostRef]);
 
-  // Main projection effect — event-driven, not a continuous RAF loop
+  // Main projection effect
   useEffect(() => {
     if (!pattern) {
       setProjection(null);
@@ -203,7 +208,6 @@ export function PatternChartOverlay({
       focusedPatternRef.current = pattern.id;
     };
 
-    // Wait for chart to be available before subscribing to events
     const subscribe = () => {
       const chart = chartRef.current;
       if (!chart) {
@@ -247,46 +251,68 @@ export function PatternChartOverlay({
       height={projection.height}
       viewBox={`0 0 ${projection.width} ${projection.height}`}
     >
-      {projection.zones.map(zone => (
-        <rect
-          key={zone.key}
-          x={zone.x}
-          y={zone.y}
-          width={zone.width}
-          height={zone.height}
-          rx={3}
-          fill={`${patternColor.stroke}15`}
-          stroke={`${patternColor.stroke}35`}
-          strokeWidth={1}
-        />
-      ))}
-
+      {/* Structural Support/Resistance Lines (Rays) */}
       {projection.lines.map(line => (
-        <line
-          key={line.key}
-          x1={line.x1}
-          y1={line.y1}
-          x2={line.x2}
-          y2={line.y2}
-          stroke={patternColor.stroke}
-          strokeWidth={line.isRay ? 1.2 : 1.8}
-          strokeDasharray={line.isRay ? '6 4' : undefined}
-          strokeLinecap="round"
-          opacity={line.isRay ? 0.6 : 0.92}
-        />
+        <g key={line.key}>
+          <line
+            x1={line.x1}
+            y1={line.y1}
+            x2={line.x2}
+            y2={line.y2}
+            stroke="rgba(0,0,0,0.4)"
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
+          <line
+            x1={line.x1}
+            y1={line.y1}
+            x2={line.x2}
+            y2={line.y2}
+            stroke={patternColor.stroke}
+            strokeWidth={line.isRay ? 1.5 : 2}
+            strokeDasharray={line.isRay ? '4 4' : undefined}
+            strokeLinecap="round"
+            opacity={line.isRay ? 0.7 : 1}
+          />
+        </g>
       ))}
 
+      {/* Structural Pivot Points (ZigZag) */}
       {projection.points.map(point => (
-        <circle
-          key={point.key}
-          cx={point.x}
-          cy={point.y}
-          r={3.5}
-          fill={patternColor.stroke}
-          stroke="rgba(10, 12, 22, 0.9)"
-          strokeWidth={1.5}
-        />
+        <g key={point.key}>
+          <circle
+            cx={point.x}
+            cy={point.y}
+            r={4}
+            fill={patternColor.stroke}
+            opacity={0.3}
+          />
+          <circle
+            cx={point.x}
+            cy={point.y}
+            r={2}
+            fill={patternColor.stroke}
+            stroke="rgba(0,0,0,0.8)"
+            strokeWidth={1}
+          />
+        </g>
       ))}
+
+      {/* Label for quality */}
+      {projection.points.length > 0 && (
+        <text
+          x={projection.points[projection.points.length - 1].x}
+          y={projection.points[projection.points.length - 1].y - 15}
+          fill={patternColor.stroke}
+          fontSize="10px"
+          fontWeight="bold"
+          fontFamily="monospace"
+          textAnchor="middle"
+          style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.8))' }}
+        >
+          {pattern.kind.replace('_', ' ').toUpperCase()} ({pattern.quality}%)
+        </text>
+      )}
     </svg>
   );
 
