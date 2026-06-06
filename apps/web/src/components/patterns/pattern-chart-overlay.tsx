@@ -18,6 +18,7 @@ interface ProjectedLine {
   y1: number;
   x2: number;
   y2: number;
+  isRay: boolean;
 }
 
 interface ProjectedZone {
@@ -71,6 +72,7 @@ function projectLine(
     y1,
     x2,
     y2,
+    isRay: line.kind === 'ray',
   };
 }
 
@@ -240,10 +242,11 @@ export function PatternChartOverlay({
           x2={line.x2}
           y2={line.y2}
           stroke={patternColor.stroke}
-          strokeWidth={1.6}
+          strokeWidth={line.isRay ? 1.2 : 1.6}
+          strokeDasharray={line.isRay ? '5 4' : undefined}
           strokeLinecap="round"
           strokeLinejoin="round"
-          opacity={0.95}
+          opacity={line.isRay ? 0.7 : 0.95}
         />
       ))}
 

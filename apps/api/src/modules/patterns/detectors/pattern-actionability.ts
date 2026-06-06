@@ -162,5 +162,8 @@ export function refinePatternActionability(
     return scoreTrendlineActionability(candidate, candles, timeframe);
   }
 
+  // Cascade is intentionally disabled: detector produces too many false positives
+  // and the geometry rendering is not yet production-ready.
+  // Re-enable by implementing scoreCascadeActionability() here.
   return { keep: false, quality: candidate.quality };
 }

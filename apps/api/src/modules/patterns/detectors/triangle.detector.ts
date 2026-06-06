@@ -126,7 +126,7 @@ export function detectTrianglePatterns(
         probeTime,
       );
 
-      if (upperAtProbe == null || lowerAtProbe == null || upperAtProbe > lowerAtProbe) {
+      if (upperAtProbe == null || lowerAtProbe == null || upperAtProbe <= lowerAtProbe) {
         continue;
       }
 
@@ -137,6 +137,25 @@ export function detectTrianglePatterns(
           Math.min(14, Math.round((spanBars / candles.length) * 18)) +
           Math.min(10, Math.round(((widthStart - widthEnd) / widthStart) * 12)),
       );
+
+      // Apex zone: last 30% of the triangle span where breakout is expected
+      const apexStart = slice[0]!.time + Math.floor((slice[slice.length - 1]!.time - slice[0]!.time) * 0.7);
+      const apexEnd = slice[slice.length - 1]!.time;
+      const upperAtApexStart = projectLineValueAtTime(firstHigh.time, firstHigh.price, lastHigh.time, lastHigh.price, apexStart);
+      const lowerAtApexStart = projectLineValueAtTime(firstLow.time, firstLow.price, lastLow.time, lastLow.price, apexStart);
+      const upperAtApexEnd = projectLineValueAtTime(firstHigh.time, firstHigh.price, lastHigh.time, lastHigh.price, apexEnd);
+      const lowerAtApexEnd = projectLineValueAtTime(firstLow.time, firstLow.price, lastLow.time, lastLow.price, apexEnd);
+
+      const apexZones =
+        upperAtApexStart != null && lowerAtApexStart != null &&
+        upperAtApexEnd != null && lowerAtApexEnd != null
+          ? [{
+              fromTime: apexStart,
+              toTime: apexEnd,
+              low: Math.min(lowerAtApexStart, lowerAtApexEnd),
+              high: Math.max(upperAtApexStart, upperAtApexEnd),
+            }]
+          : [];
 
       const candidate: PatternCandidate = {
         id: randomUUID(),
@@ -171,7 +190,7 @@ export function detectTrianglePatterns(
               ],
             },
           ],
-          zones: [],
+          zones: apexZones,
         },
       };
 
