@@ -55,19 +55,17 @@ function findTrianglePivotSeries(pivots: SwingPivot[]): {
 } | null {
   if (pivots.length < 6) return null;
 
-  // Work backwards from the end to find the most recent triangle
-  // Look for runs of alternating pivots: H L H L H L ...
-  // The sequence must start with a high and end where we have enough
+  let bestSeries: { highs: SwingPivot[]; lows: SwingPivot[] } | null = null;
+  let bestPivotCount = 0;
+  let bestSpan = 0;
+
   for (let startIdx = pivots.length - 6; startIdx >= 0; startIdx--) {
     const slice = pivots.slice(startIdx);
 
-    // Need alternating sequence starting with high or low
-    // Try both starting kinds
     for (const startKind of ['high', 'low'] as const) {
       const firstPivot = slice[0];
       if (!firstPivot || firstPivot.kind !== startKind) continue;
 
-      // Collect alternating sequence
       const seq: SwingPivot[] = [firstPivot];
       for (let k = 1; k < slice.length; k++) {
         const prev = seq[seq.length - 1]!;
@@ -93,11 +91,26 @@ function findTrianglePivotSeries(pivots: SwingPivot[]): {
       const ascendingLows = seqLows.every((l, i) => i === 0 || l.price > seqLows[i - 1]!.price);
       if (!ascendingLows) continue;
 
-      return { highs: seqHighs, lows: seqLows };
+      const pivotCount = seqHighs.length + seqLows.length;
+      const firstTime = Math.min(seqHighs[0]!.time, seqLows[0]!.time);
+      const lastTime = Math.max(
+        seqHighs[seqHighs.length - 1]!.time,
+        seqLows[seqLows.length - 1]!.time,
+      );
+      const span = lastTime - firstTime;
+
+      if (
+        pivotCount > bestPivotCount ||
+        (pivotCount === bestPivotCount && span > bestSpan)
+      ) {
+        bestSeries = { highs: seqHighs, lows: seqLows };
+        bestPivotCount = pivotCount;
+        bestSpan = span;
+      }
     }
   }
 
-  return null;
+  return bestSeries;
 }
 
 export function detectTrianglePatterns(
@@ -105,7 +118,7 @@ export function detectTrianglePatterns(
   timeframe: PatternTimeframe,
   candles: DetectorCandle[],
 ): PatternCandidate[] {
-  if (candles.length < 30) return [];
+  if (candles.length < 24) return [];
 
   const atr = computeATR(candles);
   if (atr <= 0) return [];
@@ -131,7 +144,7 @@ export function detectTrianglePatterns(
 
   const overlapStartIdx = Math.max(h1.candleIndex, l1.candleIndex);
   const overlapEndIdx = Math.min(hN.candleIndex, lN.candleIndex);
-  if (overlapEndIdx - overlapStartIdx < 15) return [];
+  if (overlapEndIdx - overlapStartIdx < 12) return [];
 
   // Upper and lower line values at key points
   const upperAtStart = projectLineAtX(h1.time, h1.price, hN.time, hN.price, overlapStart);
@@ -166,18 +179,16 @@ export function detectTrianglePatterns(
   );
   if (!intact) return [];
 
-  // Current price must be relevant
   const currentCandle = candles[candles.length - 1]!;
   const upperNow = projectLineAtX(h1.time, h1.price, hN.time, hN.price, currentCandle.time);
   const lowerNow = projectLineAtX(l1.time, l1.price, lN.time, lN.price, currentCandle.time);
-  if (upperNow == null || lowerNow == null) return [];
-
-  const insideTriangle = currentCandle.close <= upperNow && currentCandle.close >= lowerNow;
   const justBrokeOut =
-    (currentCandle.close > upperNow && currentCandle.close - upperNow < atr * 2) ||
-    (currentCandle.close < lowerNow && lowerNow - currentCandle.close < atr * 2);
-
-  if (!insideTriangle && !justBrokeOut) return [];
+    upperNow != null && lowerNow != null
+      ? (
+          (currentCandle.close > upperNow && currentCandle.close - upperNow < atr * 2) ||
+          (currentCandle.close < lowerNow && lowerNow - currentCandle.close < atr * 2)
+        )
+      : false;
 
   // R² fit quality
   const { r2: upperR2 } = linearRegression(highs.map(h => ({ x: h.candleIndex, y: h.price })));

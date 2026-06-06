@@ -12,12 +12,11 @@ import { type PatternTimeframe, PATTERN_SCAN_TIMEFRAMES } from './patterns.types
 import { type PatternCandidate } from './detectors/detector.types';
 import {
   patternsOverlapTooMuch,
-  clampQuality,
   runWithConcurrencyLimit,
   scanDetectorAcrossWindows,
 } from './detectors/detector.utils';
 import { refinePatternActionability } from './detectors/pattern-actionability';
-import { detectStructuralPatterns } from './detectors/structural.detector';
+import { detectTrianglePatterns } from './detectors/triangle.detector';
 import { PatternsService } from './patterns.service';
 import { selectSymbolsForScan } from './patterns.scanner.utils';
 
@@ -84,14 +83,13 @@ export class PatternsScanner implements OnModuleInit {
         }
       }
 
-      // Filter for good quality only to ensure real signals appear
-      const highQualityCandidates = candidates.filter(c => c.quality > 70);    
-      await this.patternsService.upsertScannerSnapshot(highQualityCandidates);
+      const activeCandidates = candidates.filter(c => c.quality >= PATTERN_MIN_QUALITY);
+      await this.patternsService.upsertScannerSnapshot(activeCandidates);
       await this.patternsService.expireStaleFinishedPatterns();
 
       const durationMs = Date.now() - startedAt;
       this.logger.log(
-        `Patterns scan stored ${highQualityCandidates.length} high-quality candidates in ${durationMs}ms`,
+        `Patterns scan stored ${activeCandidates.length} triangle candidates in ${durationMs}ms`,
       );
       this.batchIndex += 1;
     } catch (error) {
@@ -117,8 +115,27 @@ export class PatternsScanner implements OnModuleInit {
       return [];
     }
 
-    // Use our new structural detector
-    return detectStructuralPatterns(symbol, 'binance', timeframe, candles);
+    const scannedCandidates = scanDetectorAcrossWindows(
+      symbol,
+      timeframe,
+      candles,
+      detectTrianglePatterns,
+    );
+
+    const actionableCandidates: PatternCandidate[] = [];
+    for (const candidate of scannedCandidates) {
+      const actionability = refinePatternActionability(candidate, candles, timeframe);
+      if (!actionability.keep) {
+        continue;
+      }
+
+      actionableCandidates.push({
+        ...candidate,
+        quality: actionability.quality,
+      });
+    }
+
+    return actionableCandidates.sort((a, b) => b.quality - a.quality);
   }
 
   private getBinanceFuturesSymbolsForCurrentBatch(): {
