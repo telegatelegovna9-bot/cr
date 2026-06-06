@@ -68,9 +68,11 @@ export class PatternsScanner implements OnModuleInit {
       );
       
       const candidates: PatternCandidate[] = [];
+      let rawCandidateCount = 0;
 
       for (const detected of taskResults) {
         if (!detected) continue;
+        rawCandidateCount += detected.length;
         for (const candidate of detected) {
           // Strict overlap check
           const duplicate = candidates.find(existing =>
@@ -89,7 +91,7 @@ export class PatternsScanner implements OnModuleInit {
 
       const durationMs = Date.now() - startedAt;
       this.logger.log(
-        `Patterns scan stored ${activeCandidates.length} triangle candidates in ${durationMs}ms`,
+        `Patterns scan stored ${activeCandidates.length} triangle candidates in ${durationMs}ms (raw ${rawCandidateCount}, deduped ${candidates.length})`,
       );
       this.batchIndex += 1;
     } catch (error) {
