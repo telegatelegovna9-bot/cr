@@ -1,105 +1,138 @@
 import { randomUUID } from 'node:crypto';
 import type { PatternTimeframe } from '../patterns.types';
 import type { DetectorCandle, PatternCandidate } from './detector.types';
-import { clampQuality, extractSwingPivots, type SwingPivot } from './detector.utils';
+import {
+  clampQuality,
+  extractSwingPivots,
+  linearRegression,
+  projectLineAtX,
+  type SwingPivot,
+} from './detector.utils';
 
-function projectLineValueAtTime(
-  fromTime: number,
-  fromPrice: number,
-  toTime: number,
-  toPrice: number,
-  targetTime: number,
-): number | null {
-  const deltaTime = toTime - fromTime;
-  if (deltaTime === 0) return null;
-  const slope = (toPrice - fromPrice) / deltaTime;
-  return fromPrice + slope * (targetTime - fromTime);
+// Checks that no candle body/wick between pivot[i] and pivot[i+1] violates the trendline.
+// For resistance lines: no close should be significantly above the line.
+// For support lines: no close should be significantly below the line.
+function isTrendlineIntact(
+  candles: DetectorCandle[],
+  pivots: SwingPivot[],
+  kind: 'resistance' | 'support',
+  lineX1: number, lineY1: number,
+  lineX2: number, lineY2: number,
+  violationTolerance: number,
+): boolean {
+  const firstPivotTime = pivots[0]!.time;
+  const lastPivotTime = pivots[pivots.length - 1]!.time;
+
+  for (const candle of candles) {
+    if (candle.time < firstPivotTime || candle.time > lastPivotTime) continue;
+
+    const lineValue = projectLineAtX(lineX1, lineY1, lineX2, lineY2, candle.time);
+    if (lineValue == null) continue;
+
+    if (kind === 'resistance' && candle.close > lineValue + violationTolerance) return false;
+    if (kind === 'support' && candle.close < lineValue - violationTolerance) return false;
+  }
+  return true;
 }
 
-function isAlternating(pivots: SwingPivot[]): boolean {
-  return pivots.every((pivot, index) => index === 0 || pivot.kind !== pivots[index - 1]?.kind);
+// Verify each pivot is actually a touch (price came close and reversed).
+// A touch means the pivot candle's high/low is within touchTolerance of the line
+// AND the candle reversed after the touch (next candle moved away from line).
+function countValidTouches(
+  candles: DetectorCandle[],
+  pivots: SwingPivot[],
+  kind: 'resistance' | 'support',
+  lineX1: number, lineY1: number,
+  lineX2: number, lineY2: number,
+  touchTolerance: number,
+): number {
+  let touches = 0;
+  for (const pivot of pivots) {
+    const lineValue = projectLineAtX(lineX1, lineY1, lineX2, lineY2, pivot.time);
+    if (lineValue == null) continue;
+
+    const priceAtPivot = kind === 'resistance' ? pivot.price : pivot.price;
+    const distance = Math.abs(priceAtPivot - lineValue);
+    if (distance <= touchTolerance) touches++;
+  }
+  return touches;
 }
 
-function buildRayEndpoint(
-  fromTime: number,
-  fromPrice: number,
-  toTime: number,
-  toPrice: number,
-  extendMs: number,
-): { time: number; price: number } {
-  const targetTime = toTime + extendMs;
-  const price = projectLineValueAtTime(fromTime, fromPrice, toTime, toPrice, targetTime);
-  return { time: targetTime, price: price ?? toPrice };
-}
-
-function detectDescendingResistance(
+function detectResistanceTrendline(
   symbol: string,
   timeframe: PatternTimeframe,
   candles: DetectorCandle[],
-  pivots: SwingPivot[],
-  totalRange: number,
-  minSpanBars: number,
+  atr: number,
 ): PatternCandidate | null {
+  const pivots = extractSwingPivots(candles, 1.5);
+  const highs = pivots.filter(p => p.kind === 'high');
+
+  if (highs.length < 3) return null;
+
   let best: PatternCandidate | null = null;
 
-  for (let start = 0; start <= pivots.length - 5; start += 1) {
-    for (let end = start + 4; end < Math.min(pivots.length, start + 12); end += 1) {
-      const slice = pivots.slice(start, end + 1);
-      if (!isAlternating(slice)) continue;
+  // Try all combinations of at least 3 swing highs as trendline points
+  for (let i = 0; i < highs.length - 2; i++) {
+    for (let j = highs.length - 1; j > i + 1; j--) {
+      const first = highs[i]!;
+      const last = highs[j]!;
 
-      const highs = slice.filter(pivot => pivot.kind === 'high');
-      const lows = slice.filter(pivot => pivot.kind === 'low');
-      if (highs.length < 3 || lows.length < 2) continue;
+      // Span must be at least 10 bars
+      if (last.candleIndex - first.candleIndex < 10) continue;
 
-      const spanBars = slice[slice.length - 1]!.candleIndex - slice[0]!.candleIndex;
-      if (spanBars < minSpanBars) continue;
+      // Line must be descending for resistance
+      if (last.price >= first.price) continue;
 
-      const descendingHighs = highs.every(
-        (pivot, index) => index === 0 || pivot.price < highs[index - 1]!.price,
-      );
-      if (!descendingHighs) continue;
+      // Slope sanity: drop must be at least 1 ATR total
+      const totalDrop = first.price - last.price;
+      if (totalDrop < atr) continue;
 
-      const supportDrift = Math.abs(lows[lows.length - 1]!.price - lows[0]!.price);
-      const resistanceDrop = highs[0]!.price - highs[highs.length - 1]!.price;
-      if (resistanceDrop < totalRange * 0.12 || supportDrift > totalRange * 0.22) continue;
+      const touchTolerance = atr * 0.5;
+      const violationTolerance = atr * 0.3;
 
-      const lineTolerance = totalRange * 0.12;
-      const firstHigh = highs[0]!;
-      const lastHigh = highs[highs.length - 1]!;
-      const highsRespectLine = highs.every(pivot => {
-        const expected = projectLineValueAtTime(
-          firstHigh.time, firstHigh.price,
-          lastHigh.time, lastHigh.price,
-          pivot.time,
-        );
-        return expected != null && Math.abs(expected - pivot.price) <= lineTolerance;
+      // Collect highs that touch this line
+      const touchingHighs = highs.filter(h => {
+        const lineVal = projectLineAtX(first.time, first.price, last.time, last.price, h.time);
+        if (lineVal == null) return false;
+        return Math.abs(h.price - lineVal) <= touchTolerance;
       });
-      if (!highsRespectLine) continue;
 
+      if (touchingHighs.length < 3) continue;
+
+      // Line must not be broken (no close above line between touches)
+      const intact = isTrendlineIntact(
+        candles, touchingHighs, 'resistance',
+        first.time, first.price, last.time, last.price,
+        violationTolerance,
+      );
+      if (!intact) continue;
+
+      // R² of the touching highs on this line
+      const regressionPoints = touchingHighs.map(h => ({ x: h.candleIndex, y: h.price }));
+      const { r2 } = linearRegression(regressionPoints);
+      if (r2 < 0.75) continue;
+
+      // Support lows — must be relatively flat or ascending (uptrend support)
+      const lows = pivots.filter(
+        p => p.kind === 'low' && p.candleIndex >= first.candleIndex && p.candleIndex <= last.candleIndex,
+      );
+
+      const spanBars = last.candleIndex - first.candleIndex;
       const quality = clampQuality(
-        58 +
-        highs.length * 6 +
-        lows.length * 4 +
-        Math.min(12, Math.round((spanBars / candles.length) * 16)) +
-        Math.min(10, Math.round((resistanceDrop / totalRange) * 12)),
+        55 +
+        Math.min(15, touchingHighs.length * 5) +
+        Math.min(10, Math.round(r2 * 10)) +
+        Math.min(10, Math.round(spanBars / candles.length * 14)) +
+        Math.min(10, Math.round((totalDrop / atr - 1) * 3)),
       );
 
-      const spanMs = lastHigh.time - firstHigh.time;
-      const rayEnd = buildRayEndpoint(
-        firstHigh.time, firstHigh.price,
-        lastHigh.time, lastHigh.price,
-        Math.max(spanMs * 0.4, 3 * 60_000),
-      );
+      // Extend line as ray into the future
+      const spanMs = last.time - first.time;
+      const extensionMs = Math.max(spanMs * 0.5, 5 * 60_000);
+      const rayEndTime = last.time + extensionMs;
+      const rayEndPrice = projectLineAtX(first.time, first.price, last.time, last.price, rayEndTime)!;
 
-      const firstLow = lows[0]!;
-      const lastLow = lows[lows.length - 1]!;
-
-      // Zone: buffer band around the trendline showing the reaction area
-      const zoneTolerance = totalRange * 0.035;
-      const zoneFromTime = firstHigh.time;
-      const zoneToTime = rayEnd.time;
-      const lineAtStart = firstHigh.price;
-      const lineAtEnd = rayEnd.price;
+      const allPivotPoints = [...touchingHighs, ...lows].sort((a, b) => a.candleIndex - b.candleIndex);
 
       const candidate: PatternCandidate = {
         id: randomUUID(),
@@ -110,114 +143,106 @@ function detectDescendingResistance(
         kind: 'trendline',
         status: 'forming',
         quality,
-        from: slice[0]!.time,
-        to: slice[slice.length - 1]!.time,
+        from: first.time,
+        to: last.time,
         geometry: {
-          anchorTimeFrom: slice[0]!.time,
-          anchorTimeTo: slice[slice.length - 1]!.time,
-          priceMin: Math.min(...slice.map(p => p.price), ...candles.map(c => c.low)),
-          priceMax: Math.max(...slice.map(p => p.price), ...candles.map(c => c.high)),
-          pivots: slice.map(pivot => ({ time: pivot.time, price: pivot.price })),
+          anchorTimeFrom: first.time,
+          anchorTimeTo: last.time,
+          priceMin: Math.min(...candles.map(c => c.low)),
+          priceMax: Math.max(...candles.map(c => c.high)),
+          pivots: allPivotPoints.map(p => ({ time: p.time, price: p.price })),
           lines: [
             {
               kind: 'ray',
               points: [
-                { time: firstHigh.time, price: firstHigh.price },
-                { time: rayEnd.time, price: rayEnd.price },
-              ],
-            },
-            {
-              kind: 'segment',
-              points: [
-                { time: firstLow.time, price: firstLow.price },
-                { time: lastLow.time, price: lastLow.price },
+                { time: first.time, price: first.price },
+                { time: rayEndTime, price: rayEndPrice },
               ],
             },
           ],
           zones: [{
-            fromTime: zoneFromTime,
-            toTime: zoneToTime,
-            low: Math.min(lineAtStart, lineAtEnd) - zoneTolerance,
-            high: Math.max(lineAtStart, lineAtEnd) + zoneTolerance,
+            fromTime: first.time,
+            toTime: rayEndTime,
+            low: Math.min(first.price, rayEndPrice) - touchTolerance,
+            high: Math.max(first.price, rayEndPrice) + touchTolerance * 0.3,
           }],
         },
       };
 
-      if (!best || candidate.quality > best.quality) {
-        best = candidate;
-      }
+      if (!best || quality > best.quality) best = candidate;
     }
   }
 
   return best;
 }
 
-function detectAscendingSupport(
+function detectSupportTrendline(
   symbol: string,
   timeframe: PatternTimeframe,
   candles: DetectorCandle[],
-  pivots: SwingPivot[],
-  totalRange: number,
-  minSpanBars: number,
+  atr: number,
 ): PatternCandidate | null {
+  const pivots = extractSwingPivots(candles, 1.5);
+  const lows = pivots.filter(p => p.kind === 'low');
+
+  if (lows.length < 3) return null;
+
   let best: PatternCandidate | null = null;
 
-  for (let start = 0; start <= pivots.length - 5; start += 1) {
-    for (let end = start + 4; end < Math.min(pivots.length, start + 12); end += 1) {
-      const slice = pivots.slice(start, end + 1);
-      if (!isAlternating(slice)) continue;
+  for (let i = 0; i < lows.length - 2; i++) {
+    for (let j = lows.length - 1; j > i + 1; j--) {
+      const first = lows[i]!;
+      const last = lows[j]!;
 
-      const highs = slice.filter(pivot => pivot.kind === 'high');
-      const lows = slice.filter(pivot => pivot.kind === 'low');
-      if (highs.length < 2 || lows.length < 3) continue;
+      if (last.candleIndex - first.candleIndex < 10) continue;
 
-      const spanBars = slice[slice.length - 1]!.candleIndex - slice[0]!.candleIndex;
-      if (spanBars < minSpanBars) continue;
+      // Line must be ascending for support
+      if (last.price <= first.price) continue;
 
-      const ascendingLows = lows.every(
-        (pivot, index) => index === 0 || pivot.price > lows[index - 1]!.price,
-      );
-      if (!ascendingLows) continue;
+      const totalRise = last.price - first.price;
+      if (totalRise < atr) continue;
 
-      const resistanceDrift = Math.abs(highs[highs.length - 1]!.price - highs[0]!.price);
-      const supportRise = lows[lows.length - 1]!.price - lows[0]!.price;
-      if (supportRise < totalRange * 0.12 || resistanceDrift > totalRange * 0.22) continue;
+      const touchTolerance = atr * 0.5;
+      const violationTolerance = atr * 0.3;
 
-      const lineTolerance = totalRange * 0.12;
-      const firstLow = lows[0]!;
-      const lastLow = lows[lows.length - 1]!;
-      const lowsRespectLine = lows.every(pivot => {
-        const expected = projectLineValueAtTime(
-          firstLow.time, firstLow.price,
-          lastLow.time, lastLow.price,
-          pivot.time,
-        );
-        return expected != null && Math.abs(expected - pivot.price) <= lineTolerance;
+      const touchingLows = lows.filter(l => {
+        const lineVal = projectLineAtX(first.time, first.price, last.time, last.price, l.time);
+        if (lineVal == null) return false;
+        return Math.abs(l.price - lineVal) <= touchTolerance;
       });
-      if (!lowsRespectLine) continue;
 
+      if (touchingLows.length < 3) continue;
+
+      const intact = isTrendlineIntact(
+        candles, touchingLows, 'support',
+        first.time, first.price, last.time, last.price,
+        violationTolerance,
+      );
+      if (!intact) continue;
+
+      const regressionPoints = touchingLows.map(l => ({ x: l.candleIndex, y: l.price }));
+      const { r2 } = linearRegression(regressionPoints);
+      if (r2 < 0.75) continue;
+
+      const highs = pivots.filter(
+        p => p.kind === 'high' && p.candleIndex >= first.candleIndex && p.candleIndex <= last.candleIndex,
+      );
+
+      const spanBars = last.candleIndex - first.candleIndex;
       const quality = clampQuality(
-        58 +
-        lows.length * 6 +
-        highs.length * 4 +
-        Math.min(12, Math.round((spanBars / candles.length) * 16)) +
-        Math.min(10, Math.round((supportRise / totalRange) * 12)),
+        55 +
+        Math.min(15, touchingLows.length * 5) +
+        Math.min(10, Math.round(r2 * 10)) +
+        Math.min(10, Math.round(spanBars / candles.length * 14)) +
+        Math.min(10, Math.round((totalRise / atr - 1) * 3)),
       );
 
-      const spanMs = lastLow.time - firstLow.time;
-      const rayEnd = buildRayEndpoint(
-        firstLow.time, firstLow.price,
-        lastLow.time, lastLow.price,
-        Math.max(spanMs * 0.4, 3 * 60_000),
-      );
+      const spanMs = last.time - first.time;
+      const extensionMs = Math.max(spanMs * 0.5, 5 * 60_000);
+      const rayEndTime = last.time + extensionMs;
+      const rayEndPrice = projectLineAtX(first.time, first.price, last.time, last.price, rayEndTime)!;
 
-      const firstHigh = highs[0]!;
-      const lastHigh = highs[highs.length - 1]!;
-
-      // Zone: buffer band around the ascending support line
-      const zoneTolerance = totalRange * 0.035;
-      const lineAtStart = firstLow.price;
-      const lineAtEnd = rayEnd.price;
+      const allPivotPoints = [...touchingLows, ...highs].sort((a, b) => a.candleIndex - b.candleIndex);
 
       const candidate: PatternCandidate = {
         id: randomUUID(),
@@ -228,46 +253,54 @@ function detectAscendingSupport(
         kind: 'trendline',
         status: 'forming',
         quality,
-        from: slice[0]!.time,
-        to: slice[slice.length - 1]!.time,
+        from: first.time,
+        to: last.time,
         geometry: {
-          anchorTimeFrom: slice[0]!.time,
-          anchorTimeTo: slice[slice.length - 1]!.time,
-          priceMin: Math.min(...slice.map(p => p.price), ...candles.map(c => c.low)),
-          priceMax: Math.max(...slice.map(p => p.price), ...candles.map(c => c.high)),
-          pivots: slice.map(pivot => ({ time: pivot.time, price: pivot.price })),
+          anchorTimeFrom: first.time,
+          anchorTimeTo: last.time,
+          priceMin: Math.min(...candles.map(c => c.low)),
+          priceMax: Math.max(...candles.map(c => c.high)),
+          pivots: allPivotPoints.map(p => ({ time: p.time, price: p.price })),
           lines: [
             {
               kind: 'ray',
               points: [
-                { time: firstLow.time, price: firstLow.price },
-                { time: rayEnd.time, price: rayEnd.price },
-              ],
-            },
-            {
-              kind: 'segment',
-              points: [
-                { time: firstHigh.time, price: firstHigh.price },
-                { time: lastHigh.time, price: lastHigh.price },
+                { time: first.time, price: first.price },
+                { time: rayEndTime, price: rayEndPrice },
               ],
             },
           ],
           zones: [{
-            fromTime: firstLow.time,
-            toTime: rayEnd.time,
-            low: Math.min(lineAtStart, lineAtEnd) - zoneTolerance,
-            high: Math.max(lineAtStart, lineAtEnd) + zoneTolerance,
+            fromTime: first.time,
+            toTime: rayEndTime,
+            low: Math.min(first.price, rayEndPrice) - touchTolerance * 0.3,
+            high: Math.max(first.price, rayEndPrice) + touchTolerance,
           }],
         },
       };
 
-      if (!best || candidate.quality > best.quality) {
-        best = candidate;
-      }
+      if (!best || quality > best.quality) best = candidate;
     }
   }
 
   return best;
+}
+
+// ATR helper — recomputed here so detector is self-contained
+function computeATR(candles: DetectorCandle[], period = 14): number {
+  if (candles.length < 2) return 0;
+  let sum = 0;
+  const count = Math.min(period, candles.length - 1);
+  for (let i = candles.length - count; i < candles.length; i++) {
+    const prev = candles[i - 1]!;
+    const curr = candles[i]!;
+    sum += Math.max(
+      curr.high - curr.low,
+      Math.abs(curr.high - prev.close),
+      Math.abs(curr.low - prev.close),
+    );
+  }
+  return sum / count;
 }
 
 export function detectTrendlinePatterns(
@@ -275,27 +308,18 @@ export function detectTrendlinePatterns(
   timeframe: PatternTimeframe,
   candles: DetectorCandle[],
 ): PatternCandidate[] {
-  if (candles.length < 24) {
-    return [];
-  }
+  if (candles.length < 30) return [];
 
-  const pivots = extractSwingPivots(candles);
-  if (pivots.length < 5) {
-    return [];
-  }
-
-  const priceMin = Math.min(...candles.map(candle => candle.low));
-  const priceMax = Math.max(...candles.map(candle => candle.high));
-  const totalRange = Math.max(priceMax - priceMin, 1e-10);
-  const minSpanBars = Math.max(12, Math.floor(candles.length * 0.35));
+  const atr = computeATR(candles);
+  if (atr <= 0) return [];
 
   const results: PatternCandidate[] = [];
 
-  const descending = detectDescendingResistance(symbol, timeframe, candles, pivots, totalRange, minSpanBars);
-  if (descending) results.push(descending);
+  const resistance = detectResistanceTrendline(symbol, timeframe, candles, atr);
+  if (resistance) results.push(resistance);
 
-  const ascending = detectAscendingSupport(symbol, timeframe, candles, pivots, totalRange, minSpanBars);
-  if (ascending) results.push(ascending);
+  const support = detectSupportTrendline(symbol, timeframe, candles, atr);
+  if (support) results.push(support);
 
   return results;
 }

@@ -20,87 +20,144 @@ export function toPivotWindow(candles: DetectorCandle[]): DetectorPivotCandle[] 
   return candles.map((candle, index) => ({ ...candle, index }));
 }
 
-export function extractSwingPivots(candles: DetectorCandle[]): SwingPivot[] {
-  if (candles.length < 5) {
-    return [];
+// ATR(14) — average true range over last 14 candles
+function computeATR(candles: DetectorCandle[], period = 14): number {
+  if (candles.length < 2) return 0;
+  let atrSum = 0;
+  const count = Math.min(period, candles.length - 1);
+  for (let i = candles.length - count; i < candles.length; i++) {
+    const prev = candles[i - 1]!;
+    const curr = candles[i]!;
+    const tr = Math.max(
+      curr.high - curr.low,
+      Math.abs(curr.high - prev.close),
+      Math.abs(curr.low - prev.close),
+    );
+    atrSum += tr;
   }
+  return atrSum / count;
+}
 
-  const rawPivots: SwingPivot[] = [];
-  const lookaround = candles.length < 16 ? 1 : 2;
+// ZigZag pivot extraction using ATR as minimum swing filter.
+// A pivot is only valid when price has moved at least atrMultiplier * ATR
+// from the previous pivot. This eliminates noise and keeps only structural points.
+export function extractSwingPivots(
+  candles: DetectorCandle[],
+  atrMultiplier = 1.5,
+): SwingPivot[] {
+  if (candles.length < 10) return [];
 
-  for (let index = lookaround; index < candles.length - lookaround; index += 1) {
-    const current = candles[index];
-    const neighbours = candles.slice(index - lookaround, index + lookaround + 1);
-    const neighbourHighs = neighbours.map(candle => candle.high);
-    const neighbourLows = neighbours.map(candle => candle.low);
-    const isSwingHigh =
-      current.high === Math.max(...neighbourHighs) &&
-      current.high > Math.max(...neighbourHighs.filter((_, neighbourIndex) => neighbourIndex !== lookaround));
-    const isSwingLow =
-      current.low === Math.min(...neighbourLows) &&
-      current.low < Math.min(...neighbourLows.filter((_, neighbourIndex) => neighbourIndex !== lookaround));
+  const atr = computeATR(candles);
+  if (atr <= 0) return [];
+  const minMove = atr * atrMultiplier;
 
-    if (isSwingHigh) {
-      rawPivots.push({
-        kind: 'high',
-        time: current.time,
-        price: current.high,
-        candleIndex: index,
-      });
-    }
+  const pivots: SwingPivot[] = [];
 
-    if (isSwingLow) {
-      rawPivots.push({
-        kind: 'low',
-        time: current.time,
-        price: current.low,
-        candleIndex: index,
-      });
-    }
-  }
+  // Seed direction from first two candles
+  let direction: 'up' | 'down' = candles[1]!.close >= candles[0]!.close ? 'up' : 'down';
+  let extremeIndex = 0;
+  let extremePrice = direction === 'up' ? candles[0]!.high : candles[0]!.low;
 
-  rawPivots.sort((a, b) => a.candleIndex - b.candleIndex);
+  for (let i = 1; i < candles.length; i++) {
+    const c = candles[i]!;
 
-  const compressed: SwingPivot[] = [];
-  for (const pivot of rawPivots) {
-    const previous = compressed[compressed.length - 1];
-    if (!previous) {
-      compressed.push(pivot);
-      continue;
-    }
-
-    if (previous.kind === pivot.kind) {
-      const shouldReplace =
-        pivot.kind === 'high' ? pivot.price > previous.price : pivot.price < previous.price;
-      if (shouldReplace) {
-        compressed[compressed.length - 1] = pivot;
+    if (direction === 'up') {
+      if (c.high >= extremePrice) {
+        extremePrice = c.high;
+        extremeIndex = i;
+      } else if (extremePrice - c.low >= minMove) {
+        // Confirmed swing high
+        pivots.push({
+          kind: 'high',
+          time: candles[extremeIndex]!.time,
+          price: extremePrice,
+          candleIndex: extremeIndex,
+        });
+        direction = 'down';
+        extremePrice = c.low;
+        extremeIndex = i;
       }
-      continue;
+    } else {
+      if (c.low <= extremePrice) {
+        extremePrice = c.low;
+        extremeIndex = i;
+      } else if (c.high - extremePrice >= minMove) {
+        // Confirmed swing low
+        pivots.push({
+          kind: 'low',
+          time: candles[extremeIndex]!.time,
+          price: extremePrice,
+          candleIndex: extremeIndex,
+        });
+        direction = 'up';
+        extremePrice = c.high;
+        extremeIndex = i;
+      }
     }
-
-    compressed.push(pivot);
   }
 
-  const priceMin = Math.min(...candles.map(candle => candle.low));
-  const priceMax = Math.max(...candles.map(candle => candle.high));
-  const minimumSwing = Math.max((priceMax - priceMin) * 0.04, 1e-10);
-  const filtered: SwingPivot[] = [];
-
-  for (const pivot of compressed) {
-    const previous = filtered[filtered.length - 1];
-    if (!previous) {
-      filtered.push(pivot);
-      continue;
+  // Push last unconfirmed extreme if meaningful
+  if (pivots.length > 0) {
+    const last = pivots[pivots.length - 1]!;
+    const lastMove = Math.abs(extremePrice - last.price);
+    if (lastMove >= minMove * 0.6) {
+      pivots.push({
+        kind: direction === 'up' ? 'high' : 'low',
+        time: candles[extremeIndex]!.time,
+        price: extremePrice,
+        candleIndex: extremeIndex,
+      });
     }
-
-    if (Math.abs(pivot.price - previous.price) < minimumSwing) {
-      continue;
-    }
-
-    filtered.push(pivot);
   }
 
-  return filtered;
+  return pivots;
+}
+
+// Linear regression over (x, y) points — returns slope, intercept, and R²
+export function linearRegression(points: Array<{ x: number; y: number }>): {
+  slope: number;
+  intercept: number;
+  r2: number;
+} {
+  const n = points.length;
+  if (n < 2) return { slope: 0, intercept: points[0]?.y ?? 0, r2: 0 };
+
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+  for (const p of points) {
+    sumX += p.x;
+    sumY += p.y;
+    sumXY += p.x * p.y;
+    sumX2 += p.x * p.x;
+    sumY2 += p.y * p.y;
+  }
+
+  const denom = n * sumX2 - sumX * sumX;
+  if (denom === 0) return { slope: 0, intercept: sumY / n, r2: 0 };
+
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+
+  // R² calculation
+  const meanY = sumY / n;
+  let ssTot = 0, ssRes = 0;
+  for (const p of points) {
+    ssTot += (p.y - meanY) ** 2;
+    ssRes += (p.y - (slope * p.x + intercept)) ** 2;
+  }
+  const r2 = ssTot === 0 ? 1 : Math.max(0, 1 - ssRes / ssTot);
+
+  return { slope, intercept, r2 };
+}
+
+// Project a line defined by two points to a target x (or time)
+export function projectLineAtX(
+  x1: number, y1: number,
+  x2: number, y2: number,
+  targetX: number,
+): number | null {
+  const dx = x2 - x1;
+  if (dx === 0) return null;
+  return y1 + (y2 - y1) * (targetX - x1) / dx;
 }
 
 export function patternsOverlapTooMuch(
@@ -114,9 +171,7 @@ export function patternsOverlapTooMuch(
   const intersection = Math.max(0, Math.min(a.to, b.to) - Math.max(a.from, b.from));
   const union = Math.max(a.to, b.to) - Math.min(a.from, b.from);
 
-  if (union <= 0) {
-    return false;
-  }
+  if (union <= 0) return false;
 
   return intersection / union >= 0.7;
 }
@@ -158,9 +213,7 @@ export async function runWithConcurrencyLimit<T>(
   tasks: Array<() => Promise<T>>,
   concurrency: number,
 ): Promise<T[]> {
-  if (tasks.length === 0) {
-    return [];
-  }
+  if (tasks.length === 0) return [];
 
   const limit = Math.max(1, concurrency);
   const results = new Array<T>(tasks.length);
@@ -170,10 +223,7 @@ export async function runWithConcurrencyLimit<T>(
     while (true) {
       const currentIndex = nextIndex;
       nextIndex += 1;
-      if (currentIndex >= tasks.length) {
-        return;
-      }
-
+      if (currentIndex >= tasks.length) return;
       results[currentIndex] = await tasks[currentIndex]!();
     }
   }

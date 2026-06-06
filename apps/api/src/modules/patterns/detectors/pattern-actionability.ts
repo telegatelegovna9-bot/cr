@@ -108,7 +108,7 @@ function scoreTrendlineActionability(
 
   const barsSinceCompletion =
     candles.length - 1 - findBarIndexByTime(candles, candidate.geometry.anchorTimeTo);
-  if (barsSinceCompletion > 8) {
+  if (barsSinceCompletion > 12) {
     return { keep: false, quality: candidate.quality };
   }
 
@@ -130,7 +130,7 @@ function scoreTrendlineActionability(
   }
 
   const distance = Math.abs(currentCandle.close - projectedPrice);
-  if (distance > structureRange * 0.18) {
+  if (distance > structureRange * 0.25) {
     return { keep: false, quality: candidate.quality };
   }
 
