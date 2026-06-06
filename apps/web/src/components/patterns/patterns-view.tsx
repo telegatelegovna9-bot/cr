@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { ChartCard } from '@/components/charts/chart-card';
 import { useAlertStore, useMarketStore, useUIStore } from '@/stores';
+import type { PatternDetail } from '@/lib/patterns/models';
 import { PatternDetailsCard } from './pattern-details-card';
 import { PatternsSidebar } from './patterns-sidebar';
 import { usePatternDetail } from './use-pattern-detail';
@@ -34,6 +35,26 @@ export function PatternsView() {
     [patternsUI.selectedPatternId, query.items],
   );
   const detail = usePatternDetail(selectedItem?.id ?? null, query.refreshKey);
+  const selectedPatternDetail = useMemo<PatternDetail | null>(() => {
+    if (detail.item) return detail.item;
+    if (!selectedItem?.geometry) return null;
+
+    return {
+      id: selectedItem.id,
+      symbol: selectedItem.symbol,
+      timeframe: selectedItem.timeframe,
+      kind: selectedItem.kind,
+      status: selectedItem.status,
+      quality: selectedItem.quality,
+      updatedAt: selectedItem.updatedAt,
+      exchange: selectedItem.exchange ?? 'binance',
+      marketType: selectedItem.marketType ?? 'futures',
+      geometry: selectedItem.geometry,
+      detectedAt: selectedItem.detectedAt ?? selectedItem.updatedAt,
+      finishedAt: selectedItem.finishedAt ?? null,
+      expiresAt: selectedItem.expiresAt ?? null,
+    };
+  }, [detail.item, selectedItem]);
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -125,7 +146,7 @@ export function PatternsView() {
       <div className="min-h-0 flex flex-col gap-3">
         <PatternDetailsCard
           item={selectedItem}
-          loading={detail.loading}
+          loading={detail.loading && !selectedPatternDetail}
           onOpenInTerminal={selectedItem ? handleOpenInTerminal : undefined}
         />
         <div className="flex-1 min-h-0">
@@ -137,7 +158,7 @@ export function PatternsView() {
               index={0}
               initialTimeframe={selectedItem.timeframe}
               initialMarketType="futures"
-              patternOverlay={detail.item}
+              patternOverlay={selectedPatternDetail}
               headerActions={
                 <button
                   onClick={handleOpenInTerminal}

@@ -46,6 +46,12 @@ export interface PatternListItem {
   status: PatternStatus;
   quality: number;
   updatedAt: number;
+  exchange?: 'binance';
+  marketType?: 'futures';
+  geometry?: PatternGeometry;
+  detectedAt?: number;
+  finishedAt?: number | null;
+  expiresAt?: number | null;
 }
 
 export interface PatternDetail extends PatternListItem {

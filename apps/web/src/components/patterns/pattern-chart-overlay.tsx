@@ -10,6 +10,7 @@ import type { PatternDetail, PatternLine, PatternZone } from '@/lib/patterns/mod
 const PATTERN_STROKE_MAP = {
   cascade: '#fbbf24',
   trendline: '#7dd3fc',
+  triangle: '#6ee7b7',
   triangle_symmetrical: '#6ee7b7',
   triangle_ascending: '#10b981',
   triangle_descending: '#ef4444',
