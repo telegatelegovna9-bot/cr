@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { MutableRefObject } from 'react';
 import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
 import { PATTERN_COLOR_MAP } from '@/lib/patterns/color-map';
@@ -208,6 +209,7 @@ export function PatternChartOverlay({
   hostRef,
 }: PatternChartOverlayProps) {
   const [projection, setProjection] = useState<ProjectionState | null>(null);
+  const [hostMounted, setHostMounted] = useState(false);
   const lastSerializedRef = useRef<string>('');
   const focusedPatternRef = useRef<string | null>(null);
   const patternColor = useMemo(() => {
@@ -217,6 +219,13 @@ export function PatternChartOverlay({
       stroke: PATTERN_STROKE_MAP[pattern.kind],
     };
   }, [pattern]);
+
+  // Track when hostRef becomes available so portal can mount
+  useEffect(() => {
+    if (hostRef.current) {
+      setHostMounted(true);
+    }
+  }, [hostRef]);
 
   useEffect(() => {
     if (!pattern) {
@@ -286,11 +295,12 @@ export function PatternChartOverlay({
     };
   }, [pattern, chartRef, candleSeriesRef, hostRef]);
 
-  if (!pattern || !projection || !patternColor) {
+  const host = hostRef.current;
+  if (!pattern || !projection || !patternColor || !host || !hostMounted) {
     return null;
   }
 
-  return (
+  const svg = (
     <svg
       className="absolute inset-0 pointer-events-none z-[4]"
       width={projection.width}
@@ -340,4 +350,9 @@ export function PatternChartOverlay({
       ))}
     </svg>
   );
+
+  // Portal into the chart container so SVG shares the same coordinate origin
+  // as the lightweight-charts canvas. Without this, absolute positioning is
+  // relative to a parent div that includes the header, causing drift on scroll.
+  return createPortal(svg, host);
 }
