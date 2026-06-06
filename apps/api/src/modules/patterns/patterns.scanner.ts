@@ -4,6 +4,7 @@ import type { Ticker } from '@crypto-screener/shared';
 import { MarketService } from '../market/market.service';
 import {
   PATTERN_CANDLE_LIMIT,
+  PATTERN_SCAN_BATCH_SIZE,
   PATTERN_MIN_QUALITY,
   PATTERN_SCAN_CONCURRENCY,
 } from './patterns.constants';
@@ -19,11 +20,13 @@ import { refinePatternActionability } from './detectors/pattern-actionability';
 import { detectTrendlinePatterns } from './detectors/trendline.detector';
 import { detectTrianglePatterns } from './detectors/triangle.detector';
 import { PatternsService } from './patterns.service';
+import { selectSymbolsForScan } from './patterns.scanner.utils';
 
 @Injectable()
 export class PatternsScanner implements OnModuleInit {
   private readonly logger = new Logger(PatternsScanner.name);
   private isScanRunning = false;
+  private batchIndex = 0;
 
   constructor(
     private readonly patternsService: PatternsService,
@@ -50,8 +53,10 @@ export class PatternsScanner implements OnModuleInit {
     const startedAt = Date.now();
 
     try {
-      const symbols = this.getBinanceFuturesSymbols();
-      this.logger.log(`Patterns scan started via ${source} for ${symbols.length} symbols`);
+      const { symbols, totalUniverse, activeBatch } = this.getBinanceFuturesSymbolsForCurrentBatch();
+      this.logger.log(
+        `Patterns scan started via ${source} for ${symbols.length}/${totalUniverse} symbols (batch ${activeBatch})`,
+      );
       const symbolTimeframeTasks = symbols.flatMap(symbol =>
         PATTERN_SCAN_TIMEFRAMES.map(timeframe => async () =>
           this.scanSymbolTimeframe(symbol, timeframe),
@@ -82,6 +87,7 @@ export class PatternsScanner implements OnModuleInit {
       this.logger.log(
         `Patterns scan stored ${candidates.length} candidates in ${durationMs}ms`,
       );
+      this.batchIndex += 1;
     } catch (error) {
       const message = error instanceof Error ? error.stack || error.message : String(error);
       this.logger.error(`Patterns scan failed via ${source}: ${message}`);
@@ -119,15 +125,26 @@ export class PatternsScanner implements OnModuleInit {
       .sort((a, b) => b.quality - a.quality);
   }
 
-  private getBinanceFuturesSymbols(): string[] {
+  private getBinanceFuturesSymbolsForCurrentBatch(): {
+    symbols: string[];
+    totalUniverse: number;
+    activeBatch: number;
+  } {
     const tickers = this.marketService.getTickers('binance');
-
-    return Array.from(
+    const universe = Array.from(
       new Set(
         tickers
           .filter((ticker: Ticker) => ticker.marketType === 'futures')
           .map((ticker: Ticker) => ticker.symbol),
       ),
     );
+    const totalBatches = Math.max(1, Math.ceil(universe.length / PATTERN_SCAN_BATCH_SIZE));
+    const activeBatch = this.batchIndex % totalBatches;
+
+    return {
+      symbols: selectSymbolsForScan(tickers, PATTERN_SCAN_BATCH_SIZE, this.batchIndex),
+      totalUniverse: universe.length,
+      activeBatch: activeBatch + 1,
+    };
   }
 }
