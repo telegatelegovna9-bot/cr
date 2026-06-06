@@ -20,14 +20,10 @@ export function detectStructuralPatterns(
   const atr = computeATR(candles);
   if (atr <= 0) return [];
 
-  // 1. Extract structural pivots (ZigZag)
-  // 1.5 ATR is a good balance between structural significance and sensitivity
   const pivots = extractStructuralPivots(candles, 1.5);
   if (pivots.length < 4) return [];
 
   const candidates: PatternCandidate[] = [];
-
-  // 2. Run specialized detectors
   candidates.push(...detectTrianglesAndWedges(symbol, exchange, timeframe, candles, pivots, atr));
   candidates.push(...detectTrendChannels(symbol, exchange, timeframe, candles, pivots, atr));
 
@@ -51,22 +47,28 @@ function detectTrianglesAndWedges(
   const highReg = calculateLinearRegression(highs.map(p => ({ x: p.candleIndex, y: p.price })));
   const lowReg = calculateLinearRegression(lows.map(p => ({ x: p.candleIndex, y: p.price })));
 
-  // Slope threshold: a line is "flat" if its total change is less than 0.5 ATR over the average pivot distance
-  const flatThreshold = (atr * 0.5) / 20; // roughly 0.5 ATR over 20 candles
+  // NORMALIZE: A line is "significant" if its total vertical move is at least 0.5 ATR
+  // Normalized slope = slope / atr
+  const normHighSlope = highReg.slope / atr;
+  const normLowSlope = lowReg.slope / atr;
+  
+  // A slope is considered "flat" if it moves less than 0.05 ATR per candle
+  const flatThreshold = 0.05;
 
-  const isConverging = highReg.slope < -0.00001 && lowReg.slope > 0.00001;
-  const isAscending = Math.abs(highReg.slope) < flatThreshold && lowReg.slope > 0.00001;
-  const isDescending = highReg.slope < -0.00001 && Math.abs(lowReg.slope) < flatThreshold;
+  const isConverging = normHighSlope < -flatThreshold && normLowSlope > flatThreshold;
+  const isAscending = Math.abs(normHighSlope) < flatThreshold && normLowSlope > flatThreshold;
+  const isDescending = normHighSlope < -flatThreshold && Math.abs(normLowSlope) < flatThreshold;
 
-  // Use a slightly lower R2 threshold but penalize 2-point lines
-  const minR2 = 0.75;
+  const minR2 = 0.70; // Slightly lower for crypto noise
   if ((isConverging || isAscending || isDescending) && highReg.r2 >= minR2 && lowReg.r2 >= minR2) {
     const kind = isConverging ? 'triangle_symmetrical' : isAscending ? 'triangle_ascending' : 'triangle_descending';
     
-    // Quality penalty for only 2 points (perfect R2 but low structural proof)
-    let quality = highReg.r2 * lowReg.r2 * 100;
-    if (highs.length === 2) quality *= 0.85;
-    if (lows.length === 2) quality *= 0.85;
+    let quality = ((highReg.r2 + lowReg.r2) / 2) * 100;
+    // Reward more touches
+    if (highs.length > 2) quality += 5;
+    if (lows.length > 2) quality += 5;
+    // Penalty for minimal points
+    if (highs.length === 2 && lows.length === 2) quality -= 10;
     
     results.push(createCandidate(
       symbol, exchange, timeframe, kind,
@@ -97,19 +99,19 @@ function detectTrendChannels(
   const highReg = calculateLinearRegression(highs.map(p => ({ x: p.candleIndex, y: p.price })));
   const lowReg = calculateLinearRegression(lows.map(p => ({ x: p.candleIndex, y: p.price })));
 
-  // Channels have similar slopes
-  const slopeDiff = Math.abs(highReg.slope - lowReg.slope);
-  const avgSlope = (Math.abs(highReg.slope) + Math.abs(lowReg.slope)) / 2;
+  const normHighSlope = highReg.slope / atr;
+  const normLowSlope = lowReg.slope / atr;
 
-  // Both lines must be trending in the same direction and be fairly parallel
-  const sameDirection = (highReg.slope > 0 && lowReg.slope > 0) || (highReg.slope < 0 && lowReg.slope < 0);
+  // Channels have similar slopes and must be trending
+  const slopeDiff = Math.abs(normHighSlope - normLowSlope);
+  const trending = Math.abs(normHighSlope) > 0.05 && Math.abs(normLowSlope) > 0.05;
+  const sameDirection = (normHighSlope > 0 && normLowSlope > 0) || (normHighSlope < 0 && normLowSlope < 0);
 
-  if (sameDirection && (slopeDiff / Math.abs(avgSlope) < 0.3) && highReg.r2 > 0.75 && lowReg.r2 > 0.75) {
+  if (trending && sameDirection && slopeDiff < 0.15 && highReg.r2 > 0.70 && lowReg.r2 > 0.70) {
     const kind = highReg.slope > 0 ? 'channel_up' : 'channel_down';
     
-    let quality = highReg.r2 * lowReg.r2 * 100;
-    if (highs.length === 2) quality *= 0.9;
-    if (lows.length === 2) quality *= 0.9;
+    let quality = ((highReg.r2 + lowReg.r2) / 2) * 100;
+    if (highs.length > 2 || lows.length > 2) quality += 10;
 
     results.push(createCandidate(
       symbol, exchange, timeframe, kind,
@@ -138,7 +140,6 @@ function createCandidate(
   const startTime = Math.min(h1.time, l1.time);
   const endTime = Math.max(h2.time, l2.time);
   
-  // Project lines into the future (ray)
   const rayTime = lastCandle.time + (endTime - startTime) * 0.4;
   const rayHighPrice = projectPriceAtTime(h1.time, h1.price, h2.time, h2.price, rayTime);
   const rayLowPrice = projectPriceAtTime(l1.time, l1.price, l2.time, l2.price, rayTime);

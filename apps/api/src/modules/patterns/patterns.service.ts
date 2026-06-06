@@ -15,64 +15,43 @@ export class PatternsService {
   constructor(private readonly db: DatabaseService) {}
 
   async upsertScannerSnapshot(candidates: PatternCandidate[], now = Date.now()): Promise<void> {
-    for (const candidate of candidates) {
-      const row = mapCandidateToPersistenceRow(candidate, now);
-      await this.db.query(
-        `INSERT INTO detected_patterns (
-          id,
-          symbol,
-          exchange,
-          market_type,
-          type,
-          kind,
-          timeframe,
-          confidence,
-          quality,
-          points,
-          geometry,
-          description,
-          direction,
-          status,
-          detected_at,
-          updated_at,
-          finished_at,
-          expires_at
-        )
-        VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16, $17, $18
-        )
-        ON CONFLICT (id) DO UPDATE SET
-          kind = EXCLUDED.kind,
-          timeframe = EXCLUDED.timeframe,
-          status = EXCLUDED.status,
-          quality = EXCLUDED.quality,
-          confidence = EXCLUDED.confidence,
-          points = EXCLUDED.points,
-          geometry = EXCLUDED.geometry,
-          updated_at = EXCLUDED.updated_at,
-          finished_at = EXCLUDED.finished_at,
-          expires_at = EXCLUDED.expires_at`,
-        [
-          row.id,
-          row.symbol,
-          row.exchange,
-          row.marketType,
-          row.kind,
-          row.kind,
-          row.timeframe,
-          row.quality / 100,
-          row.quality,
-          JSON.stringify(row.geometry.pivots),
-          JSON.stringify(row.geometry),
-          `${row.kind} pattern`,
-          null,
-          row.status,
-          row.detectedAt,
-          row.updatedAt,
-          row.finishedAt,
-          row.expiresAt,
-        ],
-      );
+    if (candidates.length === 0) return;
+
+    try {
+      for (const candidate of candidates) {
+        const row = mapCandidateToPersistenceRow(candidate, now);
+        await this.db.query(
+          `INSERT INTO detected_patterns (
+            id, symbol, exchange, market_type, type, kind, timeframe,
+            confidence, quality, points, geometry, description, direction,
+            status, detected_at, updated_at, finished_at, expires_at
+          )
+          VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13, $14, $15, $16, $17, $18
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            kind = EXCLUDED.kind,
+            timeframe = EXCLUDED.timeframe,
+            status = EXCLUDED.status,
+            quality = EXCLUDED.quality,
+            confidence = EXCLUDED.confidence,
+            points = EXCLUDED.points,
+            geometry = EXCLUDED.geometry,
+            updated_at = EXCLUDED.updated_at,
+            finished_at = EXCLUDED.finished_at,
+            expires_at = EXCLUDED.expires_at`,
+          [
+            row.id, row.symbol, row.exchange, row.marketType, row.kind, row.kind, row.timeframe,
+            row.quality / 100, row.quality,
+            JSON.stringify(row.geometry.pivots),
+            JSON.stringify(row.geometry),
+            `${row.kind} pattern`, null, row.status,
+            row.detectedAt, row.updatedAt, row.finishedAt, row.expiresAt,
+          ],
+        );
+      }
+    } catch (error) {
+      console.error('Failed to upsert scanner snapshot:', error);
     }
   }
 
