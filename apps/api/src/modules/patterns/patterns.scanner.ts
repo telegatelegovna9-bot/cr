@@ -84,9 +84,8 @@ export class PatternsScanner implements OnModuleInit {
         }
       }
 
-      // Filter for very high quality only to reduce noise
-      const highQualityCandidates = candidates.filter(c => c.quality > 80);
-
+      // Filter for good quality only to ensure real signals appear
+      const highQualityCandidates = candidates.filter(c => c.quality > 70);    
       await this.patternsService.upsertScannerSnapshot(highQualityCandidates);
       await this.patternsService.expireStaleFinishedPatterns();
 

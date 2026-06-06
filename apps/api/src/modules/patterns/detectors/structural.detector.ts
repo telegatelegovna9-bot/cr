@@ -21,7 +21,8 @@ export function detectStructuralPatterns(
   if (atr <= 0) return [];
 
   // 1. Extract structural pivots (ZigZag)
-  const pivots = extractStructuralPivots(candles, 2.0);
+  // 1.5 ATR is a good balance between structural significance and sensitivity
+  const pivots = extractStructuralPivots(candles, 1.5);
   if (pivots.length < 4) return [];
 
   const candidates: PatternCandidate[] = [];
@@ -47,23 +48,31 @@ function detectTrianglesAndWedges(
 
   if (highs.length < 2 || lows.length < 2) return [];
 
-  // Regression on recent highs and lows
   const highReg = calculateLinearRegression(highs.map(p => ({ x: p.candleIndex, y: p.price })));
   const lowReg = calculateLinearRegression(lows.map(p => ({ x: p.candleIndex, y: p.price })));
 
-  // We need clear convergence or specific slope properties
-  const isConverging = highReg.slope < 0 && lowReg.slope > 0;
-  const isAscending = Math.abs(highReg.slope) < 0.0001 && lowReg.slope > 0;
-  const isDescending = highReg.slope < 0 && Math.abs(lowReg.slope) < 0.0001;
+  // Slope threshold: a line is "flat" if its total change is less than 0.5 ATR over the average pivot distance
+  const flatThreshold = (atr * 0.5) / 20; // roughly 0.5 ATR over 20 candles
 
-  if ((isConverging || isAscending || isDescending) && highReg.r2 > 0.8 && lowReg.r2 > 0.8) {
+  const isConverging = highReg.slope < -0.00001 && lowReg.slope > 0.00001;
+  const isAscending = Math.abs(highReg.slope) < flatThreshold && lowReg.slope > 0.00001;
+  const isDescending = highReg.slope < -0.00001 && Math.abs(lowReg.slope) < flatThreshold;
+
+  // Use a slightly lower R2 threshold but penalize 2-point lines
+  const minR2 = 0.75;
+  if ((isConverging || isAscending || isDescending) && highReg.r2 >= minR2 && lowReg.r2 >= minR2) {
     const kind = isConverging ? 'triangle_symmetrical' : isAscending ? 'triangle_ascending' : 'triangle_descending';
+    
+    // Quality penalty for only 2 points (perfect R2 but low structural proof)
+    let quality = highReg.r2 * lowReg.r2 * 100;
+    if (highs.length === 2) quality *= 0.85;
+    if (lows.length === 2) quality *= 0.85;
     
     results.push(createCandidate(
       symbol, exchange, timeframe, kind,
       highs[0], highs[highs.length - 1],
       lows[0], lows[lows.length - 1],
-      pivots, highReg.r2 * lowReg.r2 * 100,
+      pivots, quality,
       candles
     ));
   }
@@ -92,14 +101,21 @@ function detectTrendChannels(
   const slopeDiff = Math.abs(highReg.slope - lowReg.slope);
   const avgSlope = (Math.abs(highReg.slope) + Math.abs(lowReg.slope)) / 2;
 
-  if (slopeDiff / avgSlope < 0.25 && highReg.r2 > 0.85 && lowReg.r2 > 0.85) {
+  // Both lines must be trending in the same direction and be fairly parallel
+  const sameDirection = (highReg.slope > 0 && lowReg.slope > 0) || (highReg.slope < 0 && lowReg.slope < 0);
+
+  if (sameDirection && (slopeDiff / Math.abs(avgSlope) < 0.3) && highReg.r2 > 0.75 && lowReg.r2 > 0.75) {
     const kind = highReg.slope > 0 ? 'channel_up' : 'channel_down';
     
+    let quality = highReg.r2 * lowReg.r2 * 100;
+    if (highs.length === 2) quality *= 0.9;
+    if (lows.length === 2) quality *= 0.9;
+
     results.push(createCandidate(
       symbol, exchange, timeframe, kind,
       highs[0], highs[highs.length - 1],
       lows[0], lows[lows.length - 1],
-      pivots, highReg.r2 * lowReg.r2 * 100,
+      pivots, quality,
       candles
     ));
   }
@@ -123,19 +139,19 @@ function createCandidate(
   const endTime = Math.max(h2.time, l2.time);
   
   // Project lines into the future (ray)
-  const rayTime = lastCandle.time + (endTime - startTime) * 0.5;
+  const rayTime = lastCandle.time + (endTime - startTime) * 0.4;
   const rayHighPrice = projectPriceAtTime(h1.time, h1.price, h2.time, h2.price, rayTime);
   const rayLowPrice = projectPriceAtTime(l1.time, l1.price, l2.time, l2.price, rayTime);
 
   return {
     id: randomUUID(),
-    exchange: 'binance', // Currently only Binance is supported for patterns
+    exchange: 'binance',
     marketType: 'futures',
     symbol,
     timeframe: timeframe as any,
     kind: kind as any,
     status: 'forming',
-    quality: Math.round(quality),
+    quality: Math.max(0, Math.min(100, Math.round(quality))),
     from: startTime,
     to: endTime,
     geometry: {
