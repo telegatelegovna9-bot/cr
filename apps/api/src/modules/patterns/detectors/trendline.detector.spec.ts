@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { detectTrendlinePatterns } from './trendline.detector';
 
-const validTrendlineCandles = [
+const shortLocalTrendlineCandles = [
   { time: 1, open: 10.2, high: 11.4, low: 10.0, close: 11.1, volume: 1 },
   { time: 2, open: 11.1, high: 11.0, low: 10.3, close: 10.55, volume: 1 },
   { time: 3, open: 10.55, high: 10.95, low: 10.45, close: 10.82, volume: 1 },
@@ -23,7 +23,78 @@ const noiseCandles = [
   { time: 8, open: 10.82, high: 11.1, low: 10.6, close: 10.95, volume: 1 },
 ];
 
-const results = detectTrendlinePatterns('ETH/USDT:USDT', '1h', validTrendlineCandles);
+const microTrendlineCandles = [
+  ...Array.from({ length: 20 }, (_, index) => ({
+    time: index + 1,
+    open: 15 + (index % 3) * 0.08,
+    high: 15.4 + (index % 4) * 0.06,
+    low: 14.7 - (index % 2) * 0.05,
+    close: 15 + ((index + 1) % 3) * 0.03,
+    volume: 1,
+  })),
+  { time: 21, open: 15.2, high: 16.5, low: 15.05, close: 16.2, volume: 1 },
+  { time: 22, open: 16.2, high: 16.18, low: 15.35, close: 15.52, volume: 1 },
+  { time: 23, open: 15.52, high: 15.96, low: 15.42, close: 15.84, volume: 1 },
+  { time: 24, open: 15.84, high: 15.86, low: 15.0, close: 15.12, volume: 1 },
+  { time: 25, open: 15.12, high: 15.6, low: 15.04, close: 15.45, volume: 1 },
+  { time: 26, open: 15.45, high: 15.47, low: 14.82, close: 14.95, volume: 1 },
+  { time: 27, open: 14.95, high: 15.2, low: 14.9, close: 15.08, volume: 1 },
+  { time: 28, open: 15.08, high: 15.1, low: 14.62, close: 14.75, volume: 1 },
+];
+
+const broadTrendlineCandles = Array.from({ length: 28 }, (_, index) => {
+  const phase = index % 4;
+  const resistanceBase = 18 - index * 0.12;
+  const supportBase = 14.4 + index * 0.025;
+  if (phase === 0) {
+    return {
+      time: index + 1,
+      open: supportBase + 0.5,
+      high: resistanceBase + 0.45,
+      low: supportBase + 0.15,
+      close: resistanceBase + 0.2,
+      volume: 1,
+    };
+  }
+
+  if (phase === 1) {
+    return {
+      time: index + 1,
+      open: resistanceBase + 0.15,
+      high: resistanceBase + 0.22,
+      low: supportBase + 0.18,
+      close: supportBase + 0.32,
+      volume: 1,
+    };
+  }
+
+  if (phase === 2) {
+    return {
+      time: index + 1,
+      open: supportBase + 0.35,
+      high: resistanceBase + 0.08,
+      low: supportBase + 0.22,
+      close: resistanceBase - 0.02,
+      volume: 1,
+    };
+  }
+
+  return {
+    time: index + 1,
+    open: resistanceBase,
+    high: resistanceBase + 0.06,
+    low: supportBase + 0.05,
+    close: supportBase + 0.2,
+    volume: 1,
+  };
+});
+
+assert.equal(
+  detectTrendlinePatterns('ETH/USDT:USDT', '1h', shortLocalTrendlineCandles).length,
+  0,
+);
+
+const results = detectTrendlinePatterns('ETH/USDT:USDT', '1h', broadTrendlineCandles);
 
 assert.ok(results.length > 0);
 assert.equal(results[0].kind, 'trendline');
@@ -33,4 +104,11 @@ assert.ok(results[0].geometry.pivots.length >= 3);
 assert.equal(
   detectTrendlinePatterns('ETH/USDT:USDT', '1h', noiseCandles).length,
   0,
+);
+assert.equal(
+  detectTrendlinePatterns('ETH/USDT:USDT', '1h', microTrendlineCandles).length,
+  0,
+);
+assert.ok(
+  detectTrendlinePatterns('ETH/USDT:USDT', '1h', broadTrendlineCandles).length > 0,
 );

@@ -21,45 +21,86 @@ export function toPivotWindow(candles: DetectorCandle[]): DetectorPivotCandle[] 
 }
 
 export function extractSwingPivots(candles: DetectorCandle[]): SwingPivot[] {
-  if (candles.length < 3) {
+  if (candles.length < 5) {
     return [];
   }
 
-  const pivots: SwingPivot[] = [];
-  let previousDirection: 'up' | 'down' | null = null;
+  const rawPivots: SwingPivot[] = [];
+  const lookaround = candles.length < 16 ? 1 : 2;
 
-  for (let index = 1; index < candles.length; index += 1) {
+  for (let index = lookaround; index < candles.length - lookaround; index += 1) {
     const current = candles[index];
-    const previous = candles[index - 1];
-    const direction: 'up' | 'down' =
-      current.close >= previous.close ? 'up' : 'down';
+    const neighbours = candles.slice(index - lookaround, index + lookaround + 1);
+    const neighbourHighs = neighbours.map(candle => candle.high);
+    const neighbourLows = neighbours.map(candle => candle.low);
+    const isSwingHigh =
+      current.high === Math.max(...neighbourHighs) &&
+      current.high > Math.max(...neighbourHighs.filter((_, neighbourIndex) => neighbourIndex !== lookaround));
+    const isSwingLow =
+      current.low === Math.min(...neighbourLows) &&
+      current.low < Math.min(...neighbourLows.filter((_, neighbourIndex) => neighbourIndex !== lookaround));
 
-    if (previousDirection && direction !== previousDirection) {
-      const pivotCandle = previous;
-      pivots.push({
-        kind: previousDirection === 'up' ? 'high' : 'low',
-        time: pivotCandle.time,
-        price: previousDirection === 'up' ? pivotCandle.high : pivotCandle.low,
-        candleIndex: index - 1,
+    if (isSwingHigh) {
+      rawPivots.push({
+        kind: 'high',
+        time: current.time,
+        price: current.high,
+        candleIndex: index,
       });
     }
 
-    previousDirection = direction;
+    if (isSwingLow) {
+      rawPivots.push({
+        kind: 'low',
+        time: current.time,
+        price: current.low,
+        candleIndex: index,
+      });
+    }
   }
 
-  const last = candles[candles.length - 1];
-  pivots.push({
-    kind: previousDirection === 'up' ? 'high' : 'low',
-    time: last.time,
-    price: previousDirection === 'up' ? last.high : last.low,
-    candleIndex: candles.length - 1,
-  });
+  rawPivots.sort((a, b) => a.candleIndex - b.candleIndex);
 
-  return pivots.filter((pivot, index, list) => {
-    if (index === 0) return true;
-    const prev = list[index - 1];
-    return prev.kind !== pivot.kind;
-  });
+  const compressed: SwingPivot[] = [];
+  for (const pivot of rawPivots) {
+    const previous = compressed[compressed.length - 1];
+    if (!previous) {
+      compressed.push(pivot);
+      continue;
+    }
+
+    if (previous.kind === pivot.kind) {
+      const shouldReplace =
+        pivot.kind === 'high' ? pivot.price > previous.price : pivot.price < previous.price;
+      if (shouldReplace) {
+        compressed[compressed.length - 1] = pivot;
+      }
+      continue;
+    }
+
+    compressed.push(pivot);
+  }
+
+  const priceMin = Math.min(...candles.map(candle => candle.low));
+  const priceMax = Math.max(...candles.map(candle => candle.high));
+  const minimumSwing = Math.max((priceMax - priceMin) * 0.04, 1e-10);
+  const filtered: SwingPivot[] = [];
+
+  for (const pivot of compressed) {
+    const previous = filtered[filtered.length - 1];
+    if (!previous) {
+      filtered.push(pivot);
+      continue;
+    }
+
+    if (Math.abs(pivot.price - previous.price) < minimumSwing) {
+      continue;
+    }
+
+    filtered.push(pivot);
+  }
+
+  return filtered;
 }
 
 export function patternsOverlapTooMuch(
@@ -86,15 +127,15 @@ export function scanDetectorAcrossWindows(
   candles: DetectorCandle[],
   detector: PatternDetector,
 ): PatternCandidate[] {
-  if (candles.length < 24) {
+  if (candles.length < 72) {
     return detector(symbol, timeframe, candles);
   }
 
   const candidates: PatternCandidate[] = [];
-  const windowSizes = [24, 36, 48, 64, 80, 96].filter(size => size <= candles.length);
+  const windowSizes = [72, 96, 120, 144, 192, 240, 300].filter(size => size <= candles.length);
 
   for (const size of windowSizes) {
-    const step = Math.max(4, Math.floor(size / 4));
+    const step = Math.max(12, Math.floor(size / 3));
     for (let start = 0; start + size <= candles.length; start += step) {
       const window = candles.slice(start, start + size);
       const detected = detector(symbol, timeframe, window).sort((a, b) => b.quality - a.quality);

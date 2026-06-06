@@ -5,7 +5,6 @@ import { MarketService } from '../market/market.service';
 import { PATTERN_CANDLE_LIMIT, PATTERN_MIN_QUALITY } from './patterns.constants';
 import { type PatternTimeframe, PATTERN_SCAN_TIMEFRAMES } from './patterns.types';
 import { type PatternCandidate } from './detectors/detector.types';
-import { detectCascadePatterns } from './detectors/cascade.detector';
 import { patternsOverlapTooMuch, scanDetectorAcrossWindows } from './detectors/detector.utils';
 import { detectTrendlinePatterns } from './detectors/trendline.detector';
 import { detectTrianglePatterns } from './detectors/triangle.detector';
@@ -50,7 +49,6 @@ export class PatternsScanner implements OnModuleInit {
           }
 
           const detected = [
-            ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectCascadePatterns),
             ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectTrendlinePatterns),
             ...scanDetectorAcrossWindows(symbol, timeframe, candles, detectTrianglePatterns),
           ]

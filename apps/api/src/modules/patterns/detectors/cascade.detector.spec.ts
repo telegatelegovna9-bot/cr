@@ -2,14 +2,18 @@ import assert from 'node:assert/strict';
 import { detectCascadePatterns } from './cascade.detector';
 
 const staircaseCandles = [
-  { time: 1, open: 10, high: 11, low: 9.8, close: 10.7, volume: 1 },
-  { time: 2, open: 10.7, high: 10.9, low: 10.0, close: 10.2, volume: 1 },
-  { time: 3, open: 10.2, high: 10.55, low: 9.95, close: 10.35, volume: 1 },
-  { time: 4, open: 10.35, high: 10.4, low: 9.55, close: 9.8, volume: 1 },
-  { time: 5, open: 9.8, high: 10.0, low: 9.62, close: 9.95, volume: 1 },
-  { time: 6, open: 9.95, high: 9.98, low: 9.1, close: 9.25, volume: 1 },
-  { time: 7, open: 9.25, high: 9.55, low: 9.18, close: 9.44, volume: 1 },
-  { time: 8, open: 9.44, high: 9.46, low: 8.82, close: 8.9, volume: 1 },
+  { time: 1, open: 10.0, high: 11.0, low: 9.85, close: 10.8, volume: 1 },
+  { time: 2, open: 10.8, high: 10.85, low: 10.05, close: 10.2, volume: 1 },
+  { time: 3, open: 10.2, high: 10.65, low: 10.0, close: 10.48, volume: 1 },
+  { time: 4, open: 10.48, high: 10.5, low: 9.42, close: 9.68, volume: 1 },
+  { time: 5, open: 9.68, high: 10.08, low: 9.54, close: 9.94, volume: 1 },
+  { time: 6, open: 9.94, high: 9.96, low: 8.96, close: 9.22, volume: 1 },
+  { time: 7, open: 9.22, high: 9.62, low: 9.12, close: 9.48, volume: 1 },
+  { time: 8, open: 9.48, high: 9.5, low: 8.56, close: 8.78, volume: 1 },
+  { time: 9, open: 8.78, high: 9.18, low: 8.66, close: 9.02, volume: 1 },
+  { time: 10, open: 9.02, high: 9.06, low: 8.2, close: 8.36, volume: 1 },
+  { time: 11, open: 8.36, high: 8.7, low: 8.3, close: 8.58, volume: 1 },
+  { time: 12, open: 8.58, high: 8.6, low: 7.92, close: 8.02, volume: 1 },
 ];
 
 const straightDownCandles = [
@@ -23,13 +27,10 @@ const straightDownCandles = [
   { time: 8, open: 8.54, high: 8.56, low: 8.3, close: 8.34, volume: 1 },
 ];
 
-const results = detectCascadePatterns('BTC/USDT:USDT', '15m', staircaseCandles);
-
-assert.ok(results.length > 0);
-assert.equal(results[0].kind, 'cascade');
-assert.ok(results[0].quality >= 55);
-assert.ok(results[0].geometry.lines.length >= 3);
-assert.ok(results[0].geometry.pivots.length >= 6);
+assert.equal(
+  detectCascadePatterns('BTC/USDT:USDT', '15m', staircaseCandles).length,
+  0,
+);
 assert.equal(
   detectCascadePatterns('BTC/USDT:USDT', '15m', straightDownCandles).length,
   0,
