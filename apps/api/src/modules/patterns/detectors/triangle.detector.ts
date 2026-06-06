@@ -25,48 +25,79 @@ function computeATR(candles: DetectorCandle[], period = 14): number {
   return sum / count;
 }
 
-// Verify no candle between first and last pivot closes outside the triangle
+// Verify triangle bounds using HIGH and LOW (not close) — proper candle containment
 function isTriangleIntact(
   candles: DetectorCandle[],
   fromTime: number,
   toTime: number,
   upperX1: number, upperY1: number, upperX2: number, upperY2: number,
   lowerX1: number, lowerY1: number, lowerX2: number, lowerY2: number,
-  violationTolerance: number,
+  tol: number,
 ): boolean {
   for (const candle of candles) {
     if (candle.time < fromTime || candle.time > toTime) continue;
-
     const upper = projectLineAtX(upperX1, upperY1, upperX2, upperY2, candle.time);
     const lower = projectLineAtX(lowerX1, lowerY1, lowerX2, lowerY2, candle.time);
     if (upper == null || lower == null) continue;
-
-    if (candle.close > upper + violationTolerance) return false;
-    if (candle.close < lower - violationTolerance) return false;
+    // Check high vs upper boundary, low vs lower boundary
+    if (candle.high > upper + tol) return false;
+    if (candle.low < lower - tol) return false;
   }
   return true;
 }
 
-// Check if current price is inside or just exited the triangle (within 1 ATR of boundary)
-function isPriceRelevant(
-  currentClose: number,
-  currentTime: number,
-  upperX1: number, upperY1: number, upperX2: number, upperY2: number,
-  lowerX1: number, lowerY1: number, lowerX2: number, lowerY2: number,
-  atr: number,
-): boolean {
-  const upper = projectLineAtX(upperX1, upperY1, upperX2, upperY2, currentTime);
-  const lower = projectLineAtX(lowerX1, lowerY1, lowerX2, lowerY2, currentTime);
-  if (upper == null || lower == null) return false;
+// Extract sequential alternating pivot series for triangle detection.
+// Returns the longest run of strictly decreasing highs interleaved with
+// strictly increasing lows, starting from the most recent pivots.
+function findTrianglePivotSeries(pivots: SwingPivot[]): {
+  highs: SwingPivot[];
+  lows: SwingPivot[];
+} | null {
+  if (pivots.length < 6) return null;
 
-  // Inside triangle
-  if (currentClose <= upper && currentClose >= lower) return true;
+  // Work backwards from the end to find the most recent triangle
+  // Look for runs of alternating pivots: H L H L H L ...
+  // The sequence must start with a high and end where we have enough
+  for (let startIdx = pivots.length - 6; startIdx >= 0; startIdx--) {
+    const slice = pivots.slice(startIdx);
 
-  // Just broke out (within 1.5 ATR)
-  if (currentClose > upper && currentClose - upper < atr * 1.5) return true;
-  if (currentClose < lower && lower - currentClose < atr * 1.5) return true;
+    // Need alternating sequence starting with high or low
+    // Try both starting kinds
+    for (const startKind of ['high', 'low'] as const) {
+      const firstPivot = slice[0];
+      if (!firstPivot || firstPivot.kind !== startKind) continue;
 
-  return false;
+      // Collect alternating sequence
+      const seq: SwingPivot[] = [firstPivot];
+      for (let k = 1; k < slice.length; k++) {
+        const prev = seq[seq.length - 1]!;
+        const curr = slice[k]!;
+        if (curr.kind !== prev.kind) {
+          seq.push(curr);
+        }
+      }
+
+      if (seq.length < 6) continue;
+
+      // Extract highs and lows from the sequence
+      const seqHighs = seq.filter(p => p.kind === 'high');
+      const seqLows = seq.filter(p => p.kind === 'low');
+
+      if (seqHighs.length < 3 || seqLows.length < 3) continue;
+
+      // Check that highs are strictly descending
+      const descendingHighs = seqHighs.every((h, i) => i === 0 || h.price < seqHighs[i - 1]!.price);
+      if (!descendingHighs) continue;
+
+      // Check that lows are strictly ascending
+      const ascendingLows = seqLows.every((l, i) => i === 0 || l.price > seqLows[i - 1]!.price);
+      if (!ascendingLows) continue;
+
+      return { highs: seqHighs, lows: seqLows };
+    }
+  }
+
+  return null;
 }
 
 export function detectTrianglePatterns(
@@ -79,181 +110,144 @@ export function detectTrianglePatterns(
   const atr = computeATR(candles);
   if (atr <= 0) return [];
 
+  // Use standard multiplier — triangles form on normal swings
   const pivots = extractSwingPivots(candles, 1.5);
-  const highs = pivots.filter(p => p.kind === 'high');
-  const lows = pivots.filter(p => p.kind === 'low');
+  if (pivots.length < 6) return [];
 
-  if (highs.length < 2 || lows.length < 2) return [];
+  const series = findTrianglePivotSeries(pivots);
+  if (!series) return [];
 
-  const currentCandle = candles[candles.length - 1]!;
-  const touchTolerance = atr * 0.5;
-  const violationTolerance = atr * 0.4;
+  const { highs, lows } = series;
 
-  let best: PatternCandidate | null = null;
+  const h1 = highs[0]!;
+  const hN = highs[highs.length - 1]!;
+  const l1 = lows[0]!;
+  const lN = lows[lows.length - 1]!;
 
-  // Try every pair of highs as the upper line and pair of lows as the lower line
-  for (let hi = 0; hi < highs.length - 1; hi++) {
-    for (let hj = hi + 1; hj < highs.length; hj++) {
-      const h1 = highs[hi]!;
-      const h2 = highs[hj]!;
+  // Overlap window: both lines must exist simultaneously
+  const overlapStart = Math.max(h1.time, l1.time);
+  const overlapEnd = Math.min(hN.time, lN.time);
+  if (overlapEnd <= overlapStart) return [];
 
-      // Upper line must descend
-      if (h2.price >= h1.price) continue;
-      if (h2.candleIndex - h1.candleIndex < 8) continue;
+  const overlapStartIdx = Math.max(h1.candleIndex, l1.candleIndex);
+  const overlapEndIdx = Math.min(hN.candleIndex, lN.candleIndex);
+  if (overlapEndIdx - overlapStartIdx < 15) return [];
 
-      for (let li = 0; li < lows.length - 1; li++) {
-        for (let lj = li + 1; lj < lows.length; lj++) {
-          const l1 = lows[li]!;
-          const l2 = lows[lj]!;
+  // Upper and lower line values at key points
+  const upperAtStart = projectLineAtX(h1.time, h1.price, hN.time, hN.price, overlapStart);
+  const lowerAtStart = projectLineAtX(l1.time, l1.price, lN.time, lN.price, overlapStart);
+  const upperAtEnd = projectLineAtX(h1.time, h1.price, hN.time, hN.price, overlapEnd);
+  const lowerAtEnd = projectLineAtX(l1.time, l1.price, lN.time, lN.price, overlapEnd);
 
-          // Lower line must ascend
-          if (l2.price <= l1.price) continue;
-          if (l2.candleIndex - l1.candleIndex < 8) continue;
-
-          // Overlap in time: both lines must coexist for a meaningful span
-          const overlapStart = Math.max(h1.time, l1.time);
-          const overlapEnd = Math.min(h2.time, l2.time);
-          if (overlapEnd <= overlapStart) continue;
-
-          const overlapStartIdx = Math.max(h1.candleIndex, l1.candleIndex);
-          const overlapEndIdx = Math.min(h2.candleIndex, l2.candleIndex);
-          if (overlapEndIdx - overlapStartIdx < 8) continue;
-
-          // At the overlap start, upper line must be above lower line
-          const upperAtStart = projectLineAtX(h1.time, h1.price, h2.time, h2.price, overlapStart);
-          const lowerAtStart = projectLineAtX(l1.time, l1.price, l2.time, l2.price, overlapStart);
-          if (upperAtStart == null || lowerAtStart == null) continue;
-          if (upperAtStart <= lowerAtStart) continue;
-
-          // Lines must converge (not diverge) — check at overlapEnd
-          const upperAtEnd = projectLineAtX(h1.time, h1.price, h2.time, h2.price, overlapEnd);
-          const lowerAtEnd = projectLineAtX(l1.time, l1.price, l2.time, l2.price, overlapEnd);
-          if (upperAtEnd == null || lowerAtEnd == null) continue;
-          if (upperAtEnd <= lowerAtEnd) continue;
-
-          const widthStart = upperAtStart - lowerAtStart;
-          const widthEnd = upperAtEnd - lowerAtEnd;
-
-          // Triangle must have converged by at least 30%
-          if (widthEnd >= widthStart * 0.7) continue;
-
-          // Width at start must be meaningful: at least 2 ATR
-          if (widthStart < atr * 2) continue;
-
-          // Count highs that actually touch the upper line
-          const touchingHighs = highs.filter(h => {
-            if (h.candleIndex < overlapStartIdx || h.candleIndex > overlapEndIdx) return false;
-            const lineVal = projectLineAtX(h1.time, h1.price, h2.time, h2.price, h.time);
-            if (lineVal == null) return false;
-            return Math.abs(h.price - lineVal) <= touchTolerance;
-          });
-
-          // Count lows that actually touch the lower line
-          const touchingLows = lows.filter(l => {
-            if (l.candleIndex < overlapStartIdx || l.candleIndex > overlapEndIdx) return false;
-            const lineVal = projectLineAtX(l1.time, l1.price, l2.time, l2.price, l.time);
-            if (lineVal == null) return false;
-            return Math.abs(l.price - lineVal) <= touchTolerance;
-          });
-
-          if (touchingHighs.length < 2 || touchingLows.length < 2) continue;
-
-          // Triangle must not be broken inside
-          const intact = isTriangleIntact(
-            candles,
-            overlapStart, overlapEnd,
-            h1.time, h1.price, h2.time, h2.price,
-            l1.time, l1.price, l2.time, l2.price,
-            violationTolerance,
-          );
-          if (!intact) continue;
-
-          // Current price must be relevant to the triangle
-          const relevant = isPriceRelevant(
-            currentCandle.close, currentCandle.time,
-            h1.time, h1.price, h2.time, h2.price,
-            l1.time, l1.price, l2.time, l2.price,
-            atr,
-          );
-          if (!relevant) continue;
-
-          // R² fit of both lines
-          const upperR2 = linearRegression(touchingHighs.map(h => ({ x: h.candleIndex, y: h.price }))).r2;
-          const lowerR2 = linearRegression(touchingLows.map(l => ({ x: l.candleIndex, y: l.price }))).r2;
-          if (upperR2 < 0.7 || lowerR2 < 0.7) continue;
-
-          const convergenceRatio = 1 - widthEnd / widthStart;
-          const spanBars = overlapEndIdx - overlapStartIdx;
-
-          const quality = clampQuality(
-            55 +
-            Math.min(12, touchingHighs.length * 4) +
-            Math.min(12, touchingLows.length * 4) +
-            Math.min(8, Math.round(convergenceRatio * 10)) +
-            Math.min(8, Math.round(spanBars / candles.length * 12)) +
-            Math.min(5, Math.round((upperR2 + lowerR2) * 2.5)),
-          );
-
-          // Apex zone: last 35% of the triangle
-          const apexStart = overlapStart + Math.floor((overlapEnd - overlapStart) * 0.65);
-          const upperAtApex = projectLineAtX(h1.time, h1.price, h2.time, h2.price, apexStart);
-          const lowerAtApex = projectLineAtX(l1.time, l1.price, l2.time, l2.price, apexStart);
-
-          const apexZones =
-            upperAtApex != null && lowerAtApex != null
-              ? [{
-                  fromTime: apexStart,
-                  toTime: overlapEnd,
-                  low: Math.min(lowerAtApex, lowerAtEnd),
-                  high: Math.max(upperAtApex, upperAtEnd),
-                }]
-              : [];
-
-          const allPivots = [...touchingHighs, ...touchingLows]
-            .sort((a, b) => a.candleIndex - b.candleIndex);
-
-          const candidate: PatternCandidate = {
-            id: randomUUID(),
-            exchange: 'binance',
-            marketType: 'futures',
-            symbol,
-            timeframe,
-            kind: 'triangle',
-            status: 'forming',
-            quality,
-            from: overlapStart,
-            to: overlapEnd,
-            geometry: {
-              anchorTimeFrom: overlapStart,
-              anchorTimeTo: overlapEnd,
-              priceMin: Math.min(...candles.map(c => c.low)),
-              priceMax: Math.max(...candles.map(c => c.high)),
-              pivots: allPivots.map(p => ({ time: p.time, price: p.price })),
-              lines: [
-                {
-                  kind: 'segment',
-                  points: [
-                    { time: h1.time, price: h1.price },
-                    { time: h2.time, price: h2.price },
-                  ],
-                },
-                {
-                  kind: 'segment',
-                  points: [
-                    { time: l1.time, price: l1.price },
-                    { time: l2.time, price: l2.price },
-                  ],
-                },
-              ],
-              zones: apexZones,
-            },
-          };
-
-          if (!best || quality > best.quality) best = candidate;
-        }
-      }
-    }
+  if (upperAtStart == null || lowerAtStart == null || upperAtEnd == null || lowerAtEnd == null) {
+    return [];
   }
 
-  return best ? [best] : [];
+  // Upper must be above lower throughout
+  if (upperAtStart <= lowerAtStart || upperAtEnd <= lowerAtEnd) return [];
+
+  const widthStart = upperAtStart - lowerAtStart;
+  const widthEnd = upperAtEnd - lowerAtEnd;
+
+  // Triangle must have converged by at least 25%
+  if (widthEnd >= widthStart * 0.75) return [];
+
+  // Width must be meaningful at start
+  if (widthStart < atr * 2) return [];
+
+  // All candle highs/lows inside the triangle must respect boundaries
+  const tol = atr * 0.5;
+  const intact = isTriangleIntact(
+    candles,
+    overlapStart, overlapEnd,
+    h1.time, h1.price, hN.time, hN.price,
+    l1.time, l1.price, lN.time, lN.price,
+    tol,
+  );
+  if (!intact) return [];
+
+  // Current price must be relevant
+  const currentCandle = candles[candles.length - 1]!;
+  const upperNow = projectLineAtX(h1.time, h1.price, hN.time, hN.price, currentCandle.time);
+  const lowerNow = projectLineAtX(l1.time, l1.price, lN.time, lN.price, currentCandle.time);
+  if (upperNow == null || lowerNow == null) return [];
+
+  const insideTriangle = currentCandle.close <= upperNow && currentCandle.close >= lowerNow;
+  const justBrokeOut =
+    (currentCandle.close > upperNow && currentCandle.close - upperNow < atr * 2) ||
+    (currentCandle.close < lowerNow && lowerNow - currentCandle.close < atr * 2);
+
+  if (!insideTriangle && !justBrokeOut) return [];
+
+  // R² fit quality
+  const { r2: upperR2 } = linearRegression(highs.map(h => ({ x: h.candleIndex, y: h.price })));
+  const { r2: lowerR2 } = linearRegression(lows.map(l => ({ x: l.candleIndex, y: l.price })));
+  if (upperR2 < 0.80 || lowerR2 < 0.80) return [];
+
+  const convergenceRatio = 1 - widthEnd / widthStart;
+  const spanBars = overlapEndIdx - overlapStartIdx;
+  const status = justBrokeOut ? 'confirmed' : 'forming';
+
+  const quality = clampQuality(
+    56 +
+    Math.min(12, highs.length * 4) +
+    Math.min(12, lows.length * 4) +
+    Math.min(8, Math.round(convergenceRatio * 10)) +
+    Math.min(8, Math.round(spanBars / candles.length * 12)) +
+    Math.min(4, Math.round((upperR2 + lowerR2 - 1.6) * 5)),
+  );
+
+  // Apex zone — last 30% of the triangle span
+  const apexStartTime = overlapStart + Math.floor((overlapEnd - overlapStart) * 0.70);
+  const upperAtApex = projectLineAtX(h1.time, h1.price, hN.time, hN.price, apexStartTime);
+  const lowerAtApex = projectLineAtX(l1.time, l1.price, lN.time, lN.price, apexStartTime);
+
+  const zones =
+    upperAtApex != null && lowerAtApex != null
+      ? [{
+          fromTime: apexStartTime,
+          toTime: overlapEnd,
+          low: Math.min(lowerAtApex, lowerAtEnd),
+          high: Math.max(upperAtApex, upperAtEnd),
+        }]
+      : [];
+
+  const allPivots = [...highs, ...lows].sort((a, b) => a.candleIndex - b.candleIndex);
+
+  return [{
+    id: randomUUID(),
+    exchange: 'binance',
+    marketType: 'futures',
+    symbol,
+    timeframe,
+    kind: 'triangle',
+    status,
+    quality,
+    from: overlapStart,
+    to: overlapEnd,
+    geometry: {
+      anchorTimeFrom: overlapStart,
+      anchorTimeTo: overlapEnd,
+      priceMin: Math.min(...candles.map(c => c.low)),
+      priceMax: Math.max(...candles.map(c => c.high)),
+      pivots: allPivots.map(p => ({ time: p.time, price: p.price })),
+      lines: [
+        {
+          kind: 'segment',
+          points: [
+            { time: h1.time, price: h1.price },
+            { time: hN.time, price: hN.price },
+          ],
+        },
+        {
+          kind: 'segment',
+          points: [
+            { time: l1.time, price: l1.price },
+            { time: lN.time, price: lN.price },
+          ],
+        },
+      ],
+      zones,
+    },
+  }];
 }

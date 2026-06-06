@@ -51,7 +51,7 @@ function scoreTriangleActionability(
 
   const barsSinceCompletion =
     candles.length - 1 - findBarIndexByTime(candles, candidate.geometry.anchorTimeTo);
-  if (barsSinceCompletion > 6) {
+  if (barsSinceCompletion > 15) {
     return { keep: false, quality: candidate.quality };
   }
 

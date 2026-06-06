@@ -175,20 +175,19 @@ export function PatternChartOverlay({
       return;
     }
 
+    let subscribedChart: IChartApi | null = null;
+    let frameId: number | null = null;
+
     const redraw = () => {
       const chart = chartRef.current;
       const series = candleSeriesRef.current;
       const host = hostRef.current;
       if (!chart || !series || !host) return;
-
       setProjection(computeProjection(chart, series, host, pattern));
     };
 
-    // Focus chart on pattern once when pattern changes
-    const focusChart = () => {
-      const chart = chartRef.current;
-      if (!chart || focusedPatternRef.current === pattern.id) return;
-
+    const focusChart = (chart: IChartApi) => {
+      if (focusedPatternRef.current === pattern.id) return;
       const span = Math.max(60_000, pattern.geometry.anchorTimeTo - pattern.geometry.anchorTimeFrom);
       const leftPadding = Math.max(5 * 60_000, Math.floor(span * 0.25));
       const rightPadding = Math.max(5 * 60_000, Math.floor(span * 0.4));
@@ -204,33 +203,28 @@ export function PatternChartOverlay({
       focusedPatternRef.current = pattern.id;
     };
 
-    // Wait for chart to be ready, then focus + draw
-    let initFrameId: number | null = null;
-    const init = () => {
-      if (!chartRef.current || !candleSeriesRef.current || !hostRef.current) {
-        initFrameId = requestAnimationFrame(init);
+    // Wait for chart to be available before subscribing to events
+    const subscribe = () => {
+      const chart = chartRef.current;
+      if (!chart) {
+        frameId = requestAnimationFrame(subscribe);
         return;
       }
-      focusChart();
+      subscribedChart = chart;
+      focusChart(chart);
       redraw();
-    };
-    initFrameId = requestAnimationFrame(init);
-
-    // Redraw on chart scroll/zoom events
-    const chart = chartRef.current;
-    if (chart) {
       chart.timeScale().subscribeVisibleTimeRangeChange(redraw);
       chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
-    }
+    };
+    frameId = requestAnimationFrame(subscribe);
 
-    // Redraw on resize
     const resizeObserver = new ResizeObserver(redraw);
     if (hostRef.current) resizeObserver.observe(hostRef.current);
 
     return () => {
-      if (initFrameId != null) cancelAnimationFrame(initFrameId);
-      chart?.timeScale().unsubscribeVisibleTimeRangeChange(redraw);
-      chart?.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
+      if (frameId != null) cancelAnimationFrame(frameId);
+      subscribedChart?.timeScale().unsubscribeVisibleTimeRangeChange(redraw);
+      subscribedChart?.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
       resizeObserver.disconnect();
       setProjection(null);
     };
