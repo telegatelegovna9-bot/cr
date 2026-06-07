@@ -58,12 +58,40 @@ export default function TerminalPage() {
         <CoinList />
         
         <TerminalView>
-          {viewMode === 'terminal' && <ChartGrid />}
-          {viewMode === 'screener' && <ScreenerView />}
-          {viewMode === 'patterns' && <PatternsView />}
-          {viewMode === 'grid' && <PersonalGridView />}
-          {viewMode === 'heatmap' && <HeatmapView />}
-          {viewMode === 'settings' && <SettingsView />}
+          <div className="relative h-full w-full">
+            <div
+              className={`absolute inset-0 ${viewMode === 'terminal' ? 'visible z-10' : 'invisible pointer-events-none z-0'}`}
+              aria-hidden={viewMode !== 'terminal'}
+            >
+              <ChartGrid />
+            </div>
+
+            {viewMode === 'screener' && (
+              <div className="absolute inset-0 z-10">
+                <ScreenerView />
+              </div>
+            )}
+            {viewMode === 'patterns' && (
+              <div className="absolute inset-0 z-10">
+                <PatternsView />
+              </div>
+            )}
+            {viewMode === 'grid' && (
+              <div className="absolute inset-0 z-10">
+                <PersonalGridView />
+              </div>
+            )}
+            {viewMode === 'heatmap' && (
+              <div className="absolute inset-0 z-10">
+                <HeatmapView />
+              </div>
+            )}
+            {viewMode === 'settings' && (
+              <div className="absolute inset-0 z-10">
+                <SettingsView />
+              </div>
+            )}
+          </div>
         </TerminalView>
       </div>
 
