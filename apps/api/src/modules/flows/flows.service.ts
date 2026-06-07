@@ -11,8 +11,11 @@ export class FlowsService {
   private readonly logger = new Logger(FlowsService.name);
   private lastFetchTime = 0;
   private cachedItems: HyperliquidFlowItem[] = [];
-  private readonly CACHE_TTL = 15000; // 15 seconds cache
-  private readonly INFO_URL = 'https://api.hyperliquid.xyz/info';
+  private cachedMeta: any = null;
+  private lastMetaFetchTime = 0;
+  private readonly CACHE_TTL = 30000; // 30 seconds for flows
+  private readonly META_CACHE_TTL = 1800000; // 30 minutes for coin list
+  private readonly INFO_URL = 'https://api-ui.hyperliquid.xyz/info';
 
   async listHyperliquidFlows(params: {
     kind?: HyperliquidFlowKind;
@@ -27,8 +30,9 @@ export class FlowsService {
         const items = await this.getRealFlows();
         return this.filterItems(items, params, provider);
       } catch (error: any) {
-        this.logger.error(`Failed to fetch real Hyperliquid flows: ${error.message}`);
-        return this.filterItems(HYPERLIQUID_FLOW_MOCK_ITEMS, params, 'mock');
+        const errorMessage = error.message || String(error);
+        this.logger.error(`Failed to fetch real Hyperliquid flows: ${errorMessage}`);
+        return this.filterItems(this.cachedItems.length > 0 ? this.cachedItems : HYPERLIQUID_FLOW_MOCK_ITEMS, params, 'mock');
       }
     }
 
@@ -41,48 +45,49 @@ export class FlowsService {
 
   private async getRealFlows(): Promise<HyperliquidFlowItem[]> {
     const now = Date.now();
+    
+    // Always respect cooldown, even if we had an error before
     if (now - this.lastFetchTime < this.CACHE_TTL && this.cachedItems.length > 0) {
       return this.cachedItems;
     }
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+    // Cooldown even on errors to prevent hammering
+    this.lastFetchTime = now;
 
-      // 1. Get all active coins to not limit to just BTC/ETH
-      const metaResponse = await fetch(this.INFO_URL, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': '*/*',
-          'Origin': 'https://app.hyperliquid.xyz',
-          'Referer': 'https://app.hyperliquid.xyz/',
-        },
-        body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!metaResponse.ok) {
-        const text = await metaResponse.text();
-        throw new Error(`HTTP ${metaResponse.status}: ${text.slice(0, 100)}`);
+    try {
+      // 1. Get Meta (with long cache)
+      if (!this.cachedMeta || now - this.lastMetaFetchTime > this.META_CACHE_TTL) {
+        const metaResponse = await fetch(this.INFO_URL, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+          body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
+          signal: AbortSignal.timeout(10000),
+        });
+        
+        if (!metaResponse.ok) {
+          const text = await metaResponse.text();
+          throw new Error(`HTTP ${metaResponse.status}: ${text.slice(0, 50)}`);
+        }
+        this.cachedMeta = await metaResponse.json();
+        this.lastMetaFetchTime = now;
       }
-      const [meta, assetCtxs] = await metaResponse.json() as [any, any[]];
+
+      const [meta, assetCtxs] = this.cachedMeta as [any, any[]];
       
-      // Get coins with highest volume/activity to poll trades
+      // Get top 20 coins (reduced from 40 to avoid 429)
       const activeCoins = meta.universe
         .map((asset: any, index: number) => ({
           name: asset.name,
           index,
           dayNtlVlm: parseFloat(assetCtxs[index]?.dayNtlVlm || '0'),
-          markPx: parseFloat(assetCtxs[index]?.markPx || '0'),
         }))
         .sort((a: any, b: any) => b.dayNtlVlm - a.dayNtlVlm)
-        .slice(0, 40); // Poll top 40 most active coins for "Flows"
+        .slice(0, 20);
 
-      // 2. Fetch recent trades for active coins
+      // 2. Fetch recent trades (with small delay between batches if needed)
       const tradePromises = activeCoins.map(async (coin: any) => {
         try {
           const res = await fetch(this.INFO_URL, {
@@ -90,14 +95,12 @@ export class FlowsService {
             headers: { 
               'Content-Type': 'application/json',
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': '*/*',
             },
             body: JSON.stringify({ type: 'recentTrades', coin: coin.name }),
             signal: AbortSignal.timeout(5000),
           });
           if (!res.ok) return [];
-          const trades = await res.json() as any[];
-          return trades.map(t => ({ ...t, coin: coin.name, markPx: coin.markPx }));
+          return (await res.json() as any[]).map(t => ({ ...t, coin: coin.name }));
         } catch {
           return [];
         }
@@ -106,42 +109,32 @@ export class FlowsService {
       const tradesResults = await Promise.all(tradePromises);
       const allTrades = tradesResults.flat();
 
-      // 3. Map to Flow Items
       const items: HyperliquidFlowItem[] = allTrades
         .map((t): HyperliquidFlowItem => {
           const usdValue = parseFloat(t.px) * parseFloat(t.sz);
-          const isWhale = usdValue > 500000;
-          
           return {
-            id: `hl-trade-${t.coin}-${t.time}-${t.hash || Math.random()}`,
-            kind: 'spot-transfer', // In HL, large trades represent the main "flow"
+            id: `hl-t-${t.coin}-${t.time}-${t.hash || Math.random()}`,
+            kind: 'spot-transfer',
             status: 'finished',
             side: t.side === 'B' ? 'buy' : 'sell',
             token: t.coin,
             tokenPair: `${t.coin}/USDC`,
-            wallet: t.hash ? `0x${t.hash.slice(0, 8)}...` : 'HL Whale',
+            wallet: t.hash ? `0x${t.hash.slice(0, 8)}...` : 'Whale',
             usdValue,
             amount: parseFloat(t.sz),
-            note: isWhale 
-              ? `Whale ${t.side === 'B' ? 'accumulation' : 'distribution'} detected in ${t.coin}`
-              : `Large ${t.coin} order executed`,
+            note: usdValue > 500000 ? `Whale movement in ${t.coin}` : `Significant ${t.coin} trade`,
             timestampLabel: this.formatTimeAgo(t.time),
-            trustLabel: 'verified flow',
+            trustLabel: 'verified',
             priceLabel: `$${parseFloat(t.px).toLocaleString()}`,
           };
         })
-        .filter(item => item.usdValue > 100000); // Only significant flows > $100k
+        .filter(item => item.usdValue > 100000);
 
-      // 4. Try to fetch global L1 activity for USDC transfers (Core Transfers)
-      // This is a simplified simulation since HL L1 transfers are usually polled via websocket or gRPC
-      // but we can add some real "Core" transfers if we find a global tx endpoint.
-      
       this.cachedItems = items.sort((a, b) => b.usdValue - a.usdValue);
-      this.lastFetchTime = now;
       return this.cachedItems;
     } catch (error: any) {
       this.logger.error(`Flow fetch error: ${error.message}`);
-      return HYPERLIQUID_FLOW_MOCK_ITEMS;
+      throw error;
     }
   }
 
