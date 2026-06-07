@@ -53,6 +53,16 @@ const LEFT_EDGE_LOAD_THRESHOLD = 30;
 const POST_BACKFILL_LEFT_BUFFER = LEFT_EDGE_LOAD_THRESHOLD + 2;
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
+const chartHistoryCache = new Map<string, any[]>();
+
+function getChartHistoryCacheKey(
+  exchange: string,
+  marketType: 'spot' | 'futures',
+  symbol: string,
+  timeframe: string,
+): string {
+  return `${exchange}:${marketType}:${symbol}:${timeframe}`;
+}
 
 function isValidCandle(k: any): boolean {
   const time = k.time || k.timestamp;
@@ -110,6 +120,12 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     timePointsRef.current = raw
       .map(candle => candle.time || candle.timestamp)
       .filter((time): time is number => typeof time === 'number' && Number.isFinite(time));
+  };
+  const syncHistoryCache = (raw: any[]) => {
+    chartHistoryCache.set(
+      getChartHistoryCacheKey(exchangeRef.current, marketTypeRef.current, effectiveSymbolRef.current, timeframeRef.current),
+      raw,
+    );
   };
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
@@ -458,6 +474,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       if (oldestTimeRef.current === null) oldestTimeRef.current = timeInSeconds;
     }
     syncOverlayTimePoints(allRawRef.current);
+    syncHistoryCache(allRawRef.current);
 
     const time = timeInSeconds as Time;
     try {
@@ -492,6 +509,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
             allRawRef.current = mergeChartHistory(older, allRawRef.current);
             syncOverlayTimePoints(allRawRef.current);
+            syncHistoryCache(allRawRef.current);
             const { candles, volumes } = buildCandles(allRawRef.current);
             if (!candles.length || !candleSeriesRef.current || !volumeSeriesRef.current) return;
 
@@ -633,11 +651,55 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       volumeSeriesRef.current = volumeSeries;
 
       try {
+        const applyRawToChart = (raw: any[]) => {
+          allRawRef.current = raw;
+          syncOverlayTimePoints(raw);
+          onDataLoaded?.(symbol, raw, timeframe);
+          const { candles, volumes } = buildCandles(raw);
+          if (candles.length === 0) return false;
+
+          candleSeries.setData(candles);
+          volumeSeries.setData(volumes);
+          const firstCandleTime = raw[0].time || raw[0].timestamp;
+          oldestTimeRef.current = firstCandleTime / 1000;
+          const lastCandleTime = raw[raw.length - 1].time || raw[raw.length - 1].timestamp;
+          setLastBarTime(Math.floor(lastCandleTime / 1000));
+
+          const w = container.clientWidth || container.offsetWidth;
+          const h = container.clientHeight || container.offsetHeight;
+          if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
+
+          const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
+          const to = candles.length + 3;
+          chart.timeScale().setVisibleLogicalRange({ from, to });
+          initialRangeSetRef.current = true;
+
+          const lastRaw = raw[raw.length - 1];
+          candleSeries.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
+          setCurrentPrice(lastRaw.close);
+          if (raw.length > 1) {
+            setPriceChange(((lastRaw.close - raw[0].open) / raw[0].open) * 100);
+          }
+          return true;
+        };
+
         let raw: any[] = [];
+        const cacheKey = getChartHistoryCacheKey(exchange, marketType, effectiveSymbol, timeframe);
         // Use initialData only if it matches the current timeframe
         if (initialData && initialData.length > 0 && (!initialTimeframe || initialTimeframe === timeframe)) {
           raw = initialData;
+          chartHistoryCache.set(cacheKey, raw);
         } else {
+          const cached = chartHistoryCache.get(cacheKey);
+          if (cached?.length) {
+            raw = cached;
+            if (!cancelled) {
+              applyRawToChart(raw);
+              setLoading(false);
+              dataLoadedRef.current = true;
+            }
+          }
+
           const fetchCandles = async (endTime?: number) => {
             const params = new URLSearchParams({
               exchange,
@@ -670,38 +732,13 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
                 if (!cancelled && older.length) raw = mergeChartHistory(older, raw);
               }
             }
+            if (!cancelled && raw.length) {
+              chartHistoryCache.set(cacheKey, raw);
+            }
           }
         }
         if (raw.length && !cancelled) {
-          allRawRef.current = raw;
-          syncOverlayTimePoints(raw);
-          onDataLoaded?.(symbol, raw, timeframe);
-          const { candles, volumes } = buildCandles(raw);
-          if (candles.length > 0) {
-            candleSeries.setData(candles);
-            volumeSeries.setData(volumes);
-            const firstCandleTime = raw[0].time || raw[0].timestamp;
-            oldestTimeRef.current = firstCandleTime / 1000;
-            const lastCandleTime = raw[raw.length - 1].time || raw[raw.length - 1].timestamp;
-            setLastBarTime(Math.floor(lastCandleTime / 1000));
-
-            // Force chart to know its real size before setting range
-            const w = container.clientWidth || container.offsetWidth;
-            const h = container.clientHeight || container.offsetHeight;
-            if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
-
-            const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
-            const to = candles.length + 3;
-            chart.timeScale().setVisibleLogicalRange({ from, to });
-            initialRangeSetRef.current = true;
-
-            const lastRaw = raw[raw.length - 1];
-            candleSeries.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
-            setCurrentPrice(lastRaw.close);
-            if (raw.length > 1) {
-              setPriceChange(((lastRaw.close - raw[0].open) / raw[0].open) * 100);
-            }
-          }
+          applyRawToChart(raw);
         }
       } catch (err) {
         console.error('[Chart] Failed to fetch candles:', err);
@@ -760,6 +797,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
           allRawRef.current = mergedHistory;
           syncOverlayTimePoints(allRawRef.current);
+          syncHistoryCache(allRawRef.current);
           const { candles, volumes } = buildCandles(allRawRef.current);
           if (candleSeriesRef.current && volumeSeriesRef.current && candles.length > 0) {
             candleSeriesRef.current.setData(candles);
