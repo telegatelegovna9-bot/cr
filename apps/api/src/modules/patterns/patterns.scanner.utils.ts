@@ -1,13 +1,23 @@
 import type { Ticker } from '@crypto-screener/shared';
+import { PATTERN_MIN_VOLUME_24H } from './patterns.constants';
+
+export function getEligibleBinanceFuturesTickers(tickers: Ticker[]): Ticker[] {
+  return tickers
+    .filter(
+      ticker =>
+        ticker.exchange === 'binance' &&
+        ticker.marketType === 'futures' &&
+        ticker.volume24h >= PATTERN_MIN_VOLUME_24H,
+    )
+    .sort((a, b) => b.volume24h - a.volume24h);
+}
 
 export function selectSymbolsForScan(
   tickers: Ticker[],
   batchSize: number,
   batchIndex: number,
 ): string[] {
-  const futuresSorted = tickers
-    .filter(ticker => ticker.exchange === 'binance' && ticker.marketType === 'futures')
-    .sort((a, b) => b.volume24h - a.volume24h);
+  const futuresSorted = getEligibleBinanceFuturesTickers(tickers);
 
   const uniqueSymbols = Array.from(new Set(futuresSorted.map(ticker => ticker.symbol)));
   if (uniqueSymbols.length === 0) {

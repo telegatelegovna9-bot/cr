@@ -20,7 +20,10 @@ import { detectRetestSetups } from './detectors/retest.detector';
 import { detectStructureBreakSetups } from './detectors/structure-break.detector';
 import { detectLiquiditySweepSetups } from './detectors/liquidity-sweep.detector';
 import { PatternsService } from './patterns.service';
-import { selectSymbolsForScan } from './patterns.scanner.utils';
+import {
+  getEligibleBinanceFuturesTickers,
+  selectSymbolsForScan,
+} from './patterns.scanner.utils';
 
 @Injectable()
 export class PatternsScanner implements OnModuleInit {
@@ -161,18 +164,15 @@ export class PatternsScanner implements OnModuleInit {
     activeBatch: number;
   } {
     const tickers = this.marketService.getTickers('binance');
+    const eligibleTickers = getEligibleBinanceFuturesTickers(tickers);
     const universe = Array.from(
-      new Set(
-        tickers
-          .filter((ticker: Ticker) => ticker.marketType === 'futures')
-          .map((ticker: Ticker) => ticker.symbol),
-      ),
+      new Set(eligibleTickers.map((ticker: Ticker) => ticker.symbol)),
     );
     const totalBatches = Math.max(1, Math.ceil(universe.length / PATTERN_SCAN_BATCH_SIZE));
     const activeBatch = this.batchIndex % totalBatches;
 
     return {
-      symbols: selectSymbolsForScan(tickers, PATTERN_SCAN_BATCH_SIZE, this.batchIndex),
+      symbols: selectSymbolsForScan(eligibleTickers, PATTERN_SCAN_BATCH_SIZE, this.batchIndex),
       totalUniverse: universe.length,
       activeBatch: activeBatch + 1,
     };
