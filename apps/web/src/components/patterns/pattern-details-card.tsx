@@ -2,7 +2,7 @@
 
 import { getDisplayBaseSymbol } from '@/lib/display-symbol';
 import { getTimeAgo } from '@/lib/format';
-import { PATTERN_COLOR_MAP } from '@/lib/patterns/color-map';
+import { getPatternLabel, getPatternUi } from '@/lib/patterns/color-map';
 import type { PatternListItem } from '@/lib/patterns/models';
 
 interface PatternDetailsCardProps {
@@ -17,16 +17,16 @@ export function PatternDetailsCard({
   loading = false,
 }: PatternDetailsCardProps) {
   if (!item) {
-    return (
-      <div className="glass-card border border-border rounded-2xl p-4">
-        <div className="text-sm text-text-muted">
-          Select a pattern to inspect its live chart.
+      return (
+        <div className="glass-card border border-border rounded-2xl p-4">
+          <div className="text-sm text-text-muted">
+          Select a setup to inspect its live chart.
+          </div>
         </div>
-      </div>
-    );
+      );
   }
 
-  const colors = PATTERN_COLOR_MAP[item.kind];
+  const colors = getPatternUi(item.kind);
 
   return (
     <div className="glass-card border border-border rounded-2xl p-4 flex items-start justify-between gap-4">
@@ -38,7 +38,7 @@ export function PatternDetailsCard({
           <span
             className={`px-2 py-0.5 text-[11px] rounded-md border uppercase tracking-wide ${colors.bg} ${colors.border} ${colors.text}`}
           >
-            {item.kind}
+            {getPatternLabel(item.kind)}
           </span>
           <span className="text-xs text-text-muted uppercase">
             {item.timeframe}

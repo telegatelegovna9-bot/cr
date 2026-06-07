@@ -1,5 +1,5 @@
 import type { Candle } from '@crypto-screener/shared';
-import type { DetectorCandle, DetectorPivotCandle, PatternCandidate, PatternDetector } from './detector.types';
+import type { DetectorCandle, DetectorPivotCandle, PatternCandidate } from './detector.types';
 
 export interface SwingPivot {
   kind: 'high' | 'low';
@@ -102,71 +102,6 @@ export function extractStructuralPivots(
   return pivots;
 }
 
-/**
- * Legacy alias for calculateLinearRegression
- */
-export function linearRegression(points: { x: number; y: number }[]) {
-  return calculateLinearRegression(points);
-}
-
-/**
- * Linear regression to find the best fit line for a set of points.
- * Returns slope, intercept, and R-Squared (correlation coefficient).
- */
-export function calculateLinearRegression(points: { x: number; y: number }[]): {
-  slope: number;
-  intercept: number;
-  r2: number;
-} {
-  const n = points.length;
-  if (n < 2) return { slope: 0, intercept: 0, r2: 0 };
-
-  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
-  for (const p of points) {
-    sumX += p.x;
-    sumY += p.y;
-    sumXY += p.x * p.y;
-    sumX2 += p.x * p.x;
-    sumY2 += p.y * p.y;
-  }
-
-  const denom = n * sumX2 - sumX * sumX;
-  if (denom === 0) return { slope: 0, intercept: sumY / n, r2: 0 };
-
-  const slope = (n * sumXY - sumX * sumY) / denom;
-  const intercept = (sumY - slope * sumX) / n;
-
-  const meanY = sumY / n;
-  let ssTot = 0, ssRes = 0;
-  for (const p of points) {
-    ssTot += Math.pow(p.y - meanY, 2);
-    ssRes += Math.pow(p.y - (slope * p.x + intercept), 2);
-  }
-  const r2 = ssTot === 0 ? 1 : Math.max(0, 1 - ssRes / ssTot);
-
-  return { slope, intercept, r2 };
-}
-
-/**
- * Legacy alias for projectPriceAtTime
- */
-export function projectLineAtX(x1: number, y1: number, x2: number, y2: number, targetX: number): number {
-  return projectPriceAtTime(x1, y1, x2, y2, targetX);
-}
-
-/**
- * Projects a price based on a line (x1,y1) -> (x2,y2) at a specific timestamp.
- */
-export function projectPriceAtTime(
-  x1: number, y1: number,
-  x2: number, y2: number,
-  targetX: number,
-): number {
-  const dx = x2 - x1;
-  if (dx === 0) return y1;
-  return y1 + (y2 - y1) * (targetX - x1) / dx;
-}
-
 export function patternsOverlapTooMuch(
   a: Pick<PatternCandidate, 'kind' | 'timeframe' | 'symbol' | 'from' | 'to'>,
   b: Pick<PatternCandidate, 'kind' | 'timeframe' | 'symbol' | 'from' | 'to'>,
@@ -181,39 +116,6 @@ export function patternsOverlapTooMuch(
   if (union <= 0) return false;
 
   return intersection / union >= 0.7;
-}
-
-export function scanDetectorAcrossWindows(
-  symbol: string,
-  timeframe: PatternCandidate['timeframe'],
-  candles: DetectorCandle[],
-  detector: PatternDetector,
-): PatternCandidate[] {
-  if (candles.length < 72) {
-    return detector(symbol, timeframe, candles);
-  }
-
-  const candidates: PatternCandidate[] = [];
-  const windowSizes = [72, 96, 120, 144, 192, 240, 300].filter(size => size <= candles.length);
-
-  for (const size of windowSizes) {
-    const step = Math.max(12, Math.floor(size / 3));
-    for (let start = 0; start + size <= candles.length; start += step) {
-      const window = candles.slice(start, start + size);
-      const detected = detector(symbol, timeframe, window).sort((a, b) => b.quality - a.quality);
-
-      for (const candidate of detected) {
-        const duplicate = candidates.find(existing =>
-          patternsOverlapTooMuch(existing, candidate) && existing.quality >= candidate.quality,
-        );
-        if (!duplicate) {
-          candidates.push(candidate);
-        }
-      }
-    }
-  }
-
-  return candidates.sort((a, b) => b.quality - a.quality);
 }
 
 export async function runWithConcurrencyLimit<T>(

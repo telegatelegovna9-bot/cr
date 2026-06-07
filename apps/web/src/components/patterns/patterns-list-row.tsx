@@ -2,7 +2,7 @@
 
 import { getDisplayBaseSymbol } from '@/lib/display-symbol';
 import { getTimeAgo } from '@/lib/format';
-import { PATTERN_COLOR_MAP } from '@/lib/patterns/color-map';
+import { getPatternLabel, getPatternUi } from '@/lib/patterns/color-map';
 import type { PatternListItem } from '@/lib/patterns/models';
 
 interface PatternsListRowProps {
@@ -16,7 +16,7 @@ export function PatternsListRow({
   selected,
   onClick,
 }: PatternsListRowProps) {
-  const colors = PATTERN_COLOR_MAP[item.kind];
+  const colors = getPatternUi(item.kind);
 
   return (
     <button
@@ -36,7 +36,7 @@ export function PatternsListRow({
             <span
               className={`px-2 py-0.5 text-[11px] rounded-md border uppercase tracking-wide ${colors.bg} ${colors.border} ${colors.text}`}
             >
-              {item.kind}
+              {getPatternLabel(item.kind)}
             </span>
             <span className="text-[11px] text-text-muted uppercase">
               {item.timeframe}

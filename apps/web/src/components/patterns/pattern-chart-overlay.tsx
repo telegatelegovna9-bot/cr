@@ -4,18 +4,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MutableRefObject } from 'react';
 import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts';
-import { PATTERN_COLOR_MAP } from '@/lib/patterns/color-map';
+import { getPatternLabel, getPatternUi } from '@/lib/patterns/color-map';
 import type { PatternDetail, PatternLine, PatternZone } from '@/lib/patterns/models';
 
 const PATTERN_STROKE_MAP = {
-  cascade: '#fbbf24',
-  trendline: '#7dd3fc',
-  triangle: '#6ee7b7',
-  triangle_symmetrical: '#6ee7b7',
-  triangle_ascending: '#10b981',
-  triangle_descending: '#ef4444',
-  channel_up: '#3b82f6',
-  channel_down: '#f97316',
+  breakout: '#34d399',
+  retest: '#38bdf8',
+  structure_break: '#e879f9',
+  liquidity_sweep: '#fbbf24',
 } as const;
 
 interface ProjectedLine {
@@ -156,7 +152,7 @@ export function PatternChartOverlay({
     if (!pattern) return null;
     const kind = pattern.kind as keyof typeof PATTERN_STROKE_MAP;
     return {
-      ui: PATTERN_COLOR_MAP[pattern.kind] || '#6366f1',
+      ui: getPatternUi(pattern.kind),
       stroke: PATTERN_STROKE_MAP[kind] || '#6366f1',
     };
   }, [pattern]);
@@ -253,6 +249,19 @@ export function PatternChartOverlay({
       viewBox={`0 0 ${projection.width} ${projection.height}`}
     >
       {/* Structural Support/Resistance Lines (Rays) */}
+      {projection.zones.map(zone => (
+        <rect
+          key={zone.key}
+          x={zone.x}
+          y={zone.y}
+          width={zone.width}
+          height={zone.height}
+          fill={patternColor.stroke}
+          opacity={pattern.status === 'finished' ? 0.08 : 0.14}
+          rx={4}
+        />
+      ))}
+
       {projection.lines.map(line => (
         <g key={line.key}>
           <line
@@ -311,7 +320,7 @@ export function PatternChartOverlay({
           textAnchor="middle"
           style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.8))' }}
         >
-          {pattern.kind.replace('_', ' ').toUpperCase()} ({pattern.quality}%)
+          {getPatternLabel(pattern.kind).toUpperCase()} ({pattern.quality}%)
         </text>
       )}
     </svg>

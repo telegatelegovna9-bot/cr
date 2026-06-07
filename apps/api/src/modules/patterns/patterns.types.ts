@@ -1,12 +1,8 @@
-export type PatternKind = 
-  | 'cascade' 
-  | 'trendline' 
-  | 'triangle' 
-  | 'triangle_symmetrical' 
-  | 'triangle_ascending' 
-  | 'triangle_descending'
-  | 'channel_up'
-  | 'channel_down';
+export type PatternKind =
+  | 'breakout'
+  | 'retest'
+  | 'structure_break'
+  | 'liquidity_sweep';
 export type PatternStatus = 'forming' | 'confirmed' | 'finished';
 export type PatternTimeframe = '5m' | '15m' | '1h';
 

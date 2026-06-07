@@ -13,10 +13,12 @@ import { type PatternCandidate } from './detectors/detector.types';
 import {
   patternsOverlapTooMuch,
   runWithConcurrencyLimit,
-  scanDetectorAcrossWindows,
 } from './detectors/detector.utils';
 import { refinePatternActionability } from './detectors/pattern-actionability';
-import { detectTrianglePatterns } from './detectors/triangle.detector';
+import { detectBreakoutSetups } from './detectors/breakout.detector';
+import { detectRetestSetups } from './detectors/retest.detector';
+import { detectStructureBreakSetups } from './detectors/structure-break.detector';
+import { detectLiquiditySweepSetups } from './detectors/liquidity-sweep.detector';
 import { PatternsService } from './patterns.service';
 import { selectSymbolsForScan } from './patterns.scanner.utils';
 
@@ -85,13 +87,21 @@ export class PatternsScanner implements OnModuleInit {
         }
       }
 
-      const activeCandidates = candidates.filter(c => c.quality >= PATTERN_MIN_QUALITY);
-      await this.patternsService.upsertScannerSnapshot(activeCandidates);
+      const activeCandidates = candidates
+        .filter(c => c.quality >= PATTERN_MIN_QUALITY)
+        .sort((a, b) => b.quality - a.quality);
+      const scanNow = Date.now();
+      await this.patternsService.upsertScannerSnapshot(activeCandidates, scanNow);
+      await this.patternsService.reconcileScannerSnapshot(
+        symbols,
+        activeCandidates.map(candidate => candidate.id),
+        scanNow,
+      );
       await this.patternsService.expireStaleFinishedPatterns();
 
       const durationMs = Date.now() - startedAt;
       this.logger.log(
-        `Patterns scan stored ${activeCandidates.length} triangle candidates in ${durationMs}ms (raw ${rawCandidateCount}, deduped ${candidates.length})`,
+        `Patterns scan stored ${activeCandidates.length} setup candidates in ${durationMs}ms (raw ${rawCandidateCount}, deduped ${candidates.length})`,
       );
       this.batchIndex += 1;
     } catch (error) {
@@ -113,16 +123,16 @@ export class PatternsScanner implements OnModuleInit {
       PATTERN_CANDLE_LIMIT,
     );
 
-    if (candles.length < 50) {
+    if (candles.length < 60) {
       return [];
     }
 
-    const scannedCandidates = scanDetectorAcrossWindows(
-      symbol,
-      timeframe,
-      candles,
-      detectTrianglePatterns,
-    );
+    const scannedCandidates = [
+      ...detectBreakoutSetups(symbol, timeframe, candles),
+      ...detectRetestSetups(symbol, timeframe, candles),
+      ...detectStructureBreakSetups(symbol, timeframe, candles),
+      ...detectLiquiditySweepSetups(symbol, timeframe, candles),
+    ];
 
     const actionableCandidates: PatternCandidate[] = [];
     for (const candidate of scannedCandidates) {

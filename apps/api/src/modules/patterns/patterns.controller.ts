@@ -1,7 +1,6 @@
 import { Controller, Get, Query, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { PatternsService } from './patterns.service';
-import type { PatternType, ExchangeId, Timeframe } from '@crypto-screener/shared';
 
 @ApiTags('Patterns')
 @Controller('patterns')

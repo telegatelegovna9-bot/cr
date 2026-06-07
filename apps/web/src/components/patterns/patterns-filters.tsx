@@ -1,5 +1,6 @@
 'use client';
 
+import { PATTERN_LABEL_MAP } from '@/lib/patterns/color-map';
 import type { PatternFilters } from '@/lib/patterns/models';
 
 interface PatternsFiltersProps {
@@ -31,7 +32,7 @@ export function PatternsFilters({
       />
 
       <div className="flex flex-wrap gap-2">
-        {(['cascade', 'trendline', 'triangle'] as const).map(kind => (
+        {(['breakout', 'retest', 'structure_break', 'liquidity_sweep'] as const).map(kind => (
           <button
             key={kind}
             onClick={() =>
@@ -46,7 +47,7 @@ export function PatternsFilters({
                 : 'border-border text-text-muted'
             }`}
           >
-            {kind}
+            {PATTERN_LABEL_MAP[kind]}
           </button>
         ))}
       </div>

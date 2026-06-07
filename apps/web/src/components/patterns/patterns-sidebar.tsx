@@ -35,7 +35,7 @@ export function PatternsSidebar({
         <div className="flex items-center justify-between">
           <div>
             <div className="text-sm font-semibold text-text-primary">
-              Patterns
+              Setups
             </div>
             <div className="text-xs text-text-muted">{items.length} results</div>
           </div>

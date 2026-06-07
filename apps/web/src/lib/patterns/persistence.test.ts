@@ -46,7 +46,7 @@ test('savePersistedPatternsUIState stores filters, search, and selected pattern 
     search: 'BTC',
     selectedPatternId: 'p-1',
     filters: {
-      kinds: ['triangle'],
+      kinds: ['breakout'],
       timeframes: ['15m'],
       statuses: ['confirmed'],
     },

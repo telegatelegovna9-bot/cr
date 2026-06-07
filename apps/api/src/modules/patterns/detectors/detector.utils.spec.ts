@@ -21,16 +21,16 @@ assert.equal(pivots[1].index, 1);
 
 assert.equal(
   patternsOverlapTooMuch(
-    { kind: 'triangle', timeframe: '15m', symbol: 'BTC/USDT:USDT', from: 100, to: 200 },
-    { kind: 'triangle', timeframe: '15m', symbol: 'BTC/USDT:USDT', from: 120, to: 205 },
+    { kind: 'breakout', timeframe: '15m', symbol: 'BTC/USDT:USDT', from: 100, to: 200 },
+    { kind: 'breakout', timeframe: '15m', symbol: 'BTC/USDT:USDT', from: 120, to: 205 },
   ),
   true,
 );
 
 assert.equal(
   patternsOverlapTooMuch(
-    { kind: 'triangle', timeframe: '15m', symbol: 'BTC/USDT:USDT', from: 100, to: 200 },
-    { kind: 'cascade', timeframe: '15m', symbol: 'BTC/USDT:USDT', from: 120, to: 205 },
+    { kind: 'breakout', timeframe: '15m', symbol: 'BTC/USDT:USDT', from: 100, to: 200 },
+    { kind: 'retest', timeframe: '15m', symbol: 'BTC/USDT:USDT', from: 120, to: 205 },
   ),
   false,
 );

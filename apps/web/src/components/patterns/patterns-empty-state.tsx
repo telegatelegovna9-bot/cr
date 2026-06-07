@@ -7,8 +7,8 @@ export function PatternsEmptyState() {
         Scanning market...
       </div>
       <div className="mt-2 text-sm text-text-muted max-w-sm">
-        The backend scanner is checking Binance futures for active structures.
-        New forming and confirmed patterns will appear here automatically.
+        The backend scanner is checking Binance futures for live setups.
+        Fresh breakouts, retests, structure breaks, and liquidity sweeps will appear here automatically.
       </div>
     </div>
   );

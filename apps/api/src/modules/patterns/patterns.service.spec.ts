@@ -13,10 +13,10 @@ import {
 assert.deepEqual(PATTERN_SCAN_TIMEFRAMES, ['5m', '15m', '1h']);
 assert.equal(PATTERN_FINISHED_RETENTION_MINUTES, 15);
 
-const kinds: PatternKind[] = ['cascade', 'trendline', 'triangle'];
+const kinds: PatternKind[] = ['breakout', 'retest', 'structure_break', 'liquidity_sweep'];
 const statuses: PatternStatus[] = ['forming', 'confirmed', 'finished'];
 
-assert.equal(kinds.length, 3);
+assert.equal(kinds.length, 4);
 assert.equal(statuses.length, 3);
 
 const mapped = mapCandidateToPersistenceRow(
@@ -26,7 +26,7 @@ const mapped = mapCandidateToPersistenceRow(
     marketType: 'futures',
     symbol: 'BTC/USDT:USDT',
     timeframe: '15m',
-    kind: 'triangle',
+    kind: 'breakout',
     status: 'confirmed',
     quality: 81,
     from: 1,
