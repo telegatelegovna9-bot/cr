@@ -26,24 +26,24 @@ export function getSetupTimeframeConfig(timeframe: PatternTimeframe): SetupTimef
   switch (timeframe) {
     case '5m':
       return {
-        pivotMultiplier: 2.2,
-        minTouches: 5,
-        minLevelAgeBars: 18,
-        levelLookbackPivots: 18,
-        compressionBars: 10,
-        maxCompressionAtr: 2.2,
-        minVolumeFactor: 1.18,
-        breakoutTravelAtr: 1.6,
+        pivotMultiplier: 1.9,
+        minTouches: 4,
+        minLevelAgeBars: 12,
+        levelLookbackPivots: 16,
+        compressionBars: 8,
+        maxCompressionAtr: 2.6,
+        minVolumeFactor: 1.08,
+        breakoutTravelAtr: 1.9,
       };
     case '15m':
       return {
-        pivotMultiplier: 1.75,
+        pivotMultiplier: 1.65,
         minTouches: 4,
-        minLevelAgeBars: 12,
+        minLevelAgeBars: 10,
         levelLookbackPivots: 14,
         compressionBars: 8,
         maxCompressionAtr: 2.8,
-        minVolumeFactor: 1.05,
+        minVolumeFactor: 1.02,
         breakoutTravelAtr: 2.1,
       };
     case '1h':
