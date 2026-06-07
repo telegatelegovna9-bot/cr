@@ -63,7 +63,7 @@ export default function TerminalPage() {
               className={`absolute inset-0 ${viewMode === 'terminal' ? 'visible z-10' : 'invisible pointer-events-none z-0'}`}
               aria-hidden={viewMode !== 'terminal'}
             >
-              <ChartGrid />
+              <ChartGrid isViewActive={viewMode === 'terminal'} />
             </div>
 
             {viewMode === 'screener' && (

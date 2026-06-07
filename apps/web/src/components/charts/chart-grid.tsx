@@ -39,7 +39,7 @@ const SORT_OPTIONS: { id: SortMode; label: string; icon: typeof TrendingUp }[] =
   { id: 'trades',  label: 'Trades',  icon: Zap },
 ];
 
-export function ChartGrid() {
+export function ChartGrid({ isViewActive = true }: { isViewActive?: boolean }) {
   const { chartGridSize, setChartGridSize } = useUIStore();
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const tickers = useMarketStore(state => state.tickers);
@@ -184,6 +184,7 @@ export function ChartGrid() {
             paused={expandedSymbol === symbol}
             onDataLoaded={handleDataLoaded}
             initialMarketType={marketType}
+            isViewActive={isViewActive}
           />
         ))}
       </div>
@@ -214,6 +215,7 @@ export function ChartGrid() {
                 initialData={chartDataCache.current.get(expandedSymbol)?.data}
                 initialTimeframe={chartDataCache.current.get(expandedSymbol)?.timeframe}
                 initialMarketType={marketType}
+                isViewActive={isViewActive}
               />
             </motion.div>
           </motion.div>

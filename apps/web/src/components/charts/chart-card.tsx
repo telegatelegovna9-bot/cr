@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
@@ -41,6 +41,7 @@ interface ChartCardProps {
   showHeaderPrice?: boolean;
   headerActions?: ReactNode;
   patternOverlay?: PatternDetail | null;
+  isViewActive?: boolean;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
@@ -99,7 +100,20 @@ function buildCandles(raw: any[]): { candles: CandlestickData[]; volumes: Histog
   return { candles, volumes };
 }
 
-export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded, showHeaderPrice = true, headerActions, patternOverlay = null }: ChartCardProps) {
+function getTimeframeDurationMs(timeframe: TF): number {
+  switch (timeframe) {
+    case '1m': return 60_000;
+    case '5m': return 5 * 60_000;
+    case '15m': return 15 * 60_000;
+    case '1h': return 60 * 60_000;
+    case '4h': return 4 * 60 * 60_000;
+    case '1d': return 24 * 60 * 60_000;
+    case '1w': return 7 * 24 * 60 * 60_000;
+    default: return 60_000;
+  }
+}
+
+export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded, showHeaderPrice = true, headerActions, patternOverlay = null, isViewActive = true }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -115,6 +129,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const initialRangeSetRef = useRef(false);
   const dataLoadedRef = useRef(false);
   const initialHistoryBackfillTriedRef = useRef(false);
+  const historyRefreshInFlightRef = useRef(false);
 
   const syncOverlayTimePoints = (raw: any[]) => {
     timePointsRef.current = raw
@@ -203,6 +218,70 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const heatmapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const heatmapRafRef = useRef<number | null>(null);
   const heatmapDirtyRef = useRef(false);
+
+  const refreshLatestHistory = useCallback(async () => {
+    if (historyRefreshInFlightRef.current) return;
+    if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+
+    historyRefreshInFlightRef.current = true;
+    try {
+      const fetchCandles = async (endTime?: number) => {
+        const params = new URLSearchParams({
+          exchange: exchangeRef.current,
+          marketType: marketTypeRef.current,
+          symbol: effectiveSymbolRef.current,
+          timeframe: timeframeRef.current,
+          limit: String(INITIAL_HISTORY_LIMIT),
+        });
+        if (endTime != null) params.set('endTime', String(endTime));
+
+        const resp = await fetch(`${API_BASE}/api/history?${params.toString()}`);
+        if (!resp.ok) return [];
+        const data = await resp.json();
+        return data.data || [];
+      };
+
+      let latest = await fetchCandles();
+      if (!latest.length) return;
+
+      if (shouldBackfillInitialHistory(latest, INITIAL_HISTORY_LIMIT)) {
+        const endTime = getInitialHistoryBackfillEndTime(latest);
+        if (endTime != null) {
+          const older = await fetchCandles(endTime);
+          if (older.length) latest = mergeChartHistory(older, latest);
+        }
+      }
+
+      const merged = mergeChartHistory(allRawRef.current, latest).slice(-MAX_CHART_CANDLES);
+      allRawRef.current = merged;
+      syncOverlayTimePoints(merged);
+      syncHistoryCache(merged);
+      onDataLoaded?.(symbol, merged, timeframeRef.current);
+
+      const { candles, volumes } = buildCandles(merged);
+      if (!candles.length || !candleSeriesRef.current || !volumeSeriesRef.current) return;
+
+      candleSeriesRef.current.setData(candles);
+      volumeSeriesRef.current.setData(volumes);
+
+      const firstTime = merged[0]?.time || merged[0]?.timestamp;
+      if (firstTime) oldestTimeRef.current = firstTime / 1000;
+      const lastRaw = merged[merged.length - 1];
+      const lastTime = lastRaw?.time || lastRaw?.timestamp;
+      if (lastTime) setLastBarTime(Math.floor(lastTime / 1000));
+      if (lastRaw?.close != null) {
+        candleSeriesRef.current.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
+        setCurrentPrice(lastRaw.close);
+      }
+      if (merged.length > 1) {
+        setPriceChange(((lastRaw.close - merged[0].open) / merged[0].open) * 100);
+      }
+    } catch (err) {
+      console.error('[Chart] Failed to refresh latest history:', err);
+    } finally {
+      historyRefreshInFlightRef.current = false;
+    }
+  }, [onDataLoaded, symbol]);
 
   // Stable refs — RAF loop reads these instead of closure values
   // (prevents loop restart on every price tick)
@@ -536,13 +615,25 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
   // ─── Real-time Tick Update (Inside Candle) ─────────────────
   useEffect(() => {
-    if (paused || !dataLoadedRef.current || !candleSeriesRef.current || !volumeSeriesRef.current || !ticker) return;
+    if (paused || !isViewActive || !dataLoadedRef.current || !candleSeriesRef.current || !volumeSeriesRef.current || !ticker) return;
     
     // Ensure ticker is for this specific chart
     if (!symbolLookupCandidates.includes(ticker.symbol) || ticker.exchange !== exchange) return;
 
     const lastCandle = allRawRef.current[allRawRef.current.length - 1];
     if (!lastCandle) return;
+
+    const bucketMs = getTimeframeDurationMs(timeframeRef.current);
+    const lastCandleTimestamp = lastCandle.time || lastCandle.timestamp;
+    if (!lastCandleTimestamp) return;
+
+    const lastBucketStart = Math.floor(lastCandleTimestamp / bucketMs) * bucketMs;
+    const tickerBucketStart = Math.floor(ticker.timestamp / bucketMs) * bucketMs;
+
+    if (tickerBucketStart !== lastBucketStart) {
+      void refreshLatestHistory();
+      return;
+    }
 
     const time = (Math.floor((lastCandle.time || lastCandle.timestamp) / 1000)) as Time;
     const price = ticker.lastPrice;
@@ -567,7 +658,25 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       // Update header price
       setCurrentPrice(price);
     } catch (err) { /* ignore */ }
-  }, [ticker, paused, exchange, symbolLookupCandidates]);
+  }, [ticker, paused, exchange, isViewActive, refreshLatestHistory, symbolLookupCandidates]);
+
+  useEffect(() => {
+    if (!isViewActive || paused || !dataLoadedRef.current) return;
+
+    const lastCandle = allRawRef.current[allRawRef.current.length - 1];
+    if (!lastCandle) return;
+
+    const bucketMs = getTimeframeDurationMs(timeframeRef.current);
+    const lastCandleTimestamp = lastCandle.time || lastCandle.timestamp;
+    if (!lastCandleTimestamp) return;
+
+    const nowBucketStart = Math.floor(Date.now() / bucketMs) * bucketMs;
+    const lastBucketStart = Math.floor(lastCandleTimestamp / bucketMs) * bucketMs;
+
+    if (nowBucketStart - lastBucketStart >= bucketMs) {
+      void refreshLatestHistory();
+    }
+  }, [isViewActive, paused, refreshLatestHistory]);
 
   // ─── Chart Initialization ───────────────────────────────────
   useEffect(() => {
