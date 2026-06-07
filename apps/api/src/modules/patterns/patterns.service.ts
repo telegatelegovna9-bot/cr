@@ -190,7 +190,15 @@ export class PatternsService {
         expires_at
       FROM detected_patterns
       WHERE ${conditions.join(' AND ')}
-      ORDER BY updated_at DESC, quality DESC, id DESC
+      ORDER BY
+        updated_at DESC,
+        CASE status
+          WHEN 'forming' THEN 0
+          WHEN 'confirmed' THEN 1
+          ELSE 2
+        END,
+        quality DESC,
+        id DESC
       LIMIT $${values.length}`,
       values,
     );

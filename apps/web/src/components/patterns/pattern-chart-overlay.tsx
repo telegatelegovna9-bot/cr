@@ -179,6 +179,7 @@ export function PatternChartOverlay({
 
     let subscribedChart: IChartApi | null = null;
     let frameId: number | null = null;
+    let redrawInterval: ReturnType<typeof setInterval> | null = null;
 
     const redraw = () => {
       const chart = chartRef.current;
@@ -216,6 +217,7 @@ export function PatternChartOverlay({
       redraw();
       chart.timeScale().subscribeVisibleTimeRangeChange(redraw);
       chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
+      redrawInterval = setInterval(redraw, 150);
     };
     frameId = requestAnimationFrame(subscribe);
 
@@ -224,6 +226,7 @@ export function PatternChartOverlay({
 
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
+      if (redrawInterval != null) clearInterval(redrawInterval);
       subscribedChart?.timeScale().unsubscribeVisibleTimeRangeChange(redraw);
       subscribedChart?.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
       resizeObserver.disconnect();

@@ -147,7 +147,12 @@ export class PatternsScanner implements OnModuleInit {
       });
     }
 
-    return actionableCandidates.sort((a, b) => b.quality - a.quality);
+    return actionableCandidates
+      .sort((a, b) => {
+        if (a.status !== b.status) return a.status === 'forming' ? -1 : 1;
+        return b.quality - a.quality;
+      })
+      .slice(0, 1);
   }
 
   private getBinanceFuturesSymbolsForCurrentBatch(): {

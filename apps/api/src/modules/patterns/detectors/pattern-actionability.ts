@@ -47,15 +47,19 @@ export function refinePatternActionability(
 
   const freshnessLimit =
     candidate.kind === 'liquidity_sweep'
-      ? 4
+      ? 1
       : candidate.kind === 'retest'
-        ? 6
-        : 5;
+        ? 2
+        : candidate.kind === 'structure_break'
+          ? 1
+          : candidate.status === 'forming'
+            ? 2
+            : 1;
   if (barsSinceEvent > freshnessLimit) {
     return { keep: false, quality: candidate.quality };
   }
 
-  if (distance > structureRange * 1.8) {
+  if (distance > structureRange * (candidate.status === 'forming' ? 1.1 : 0.9)) {
     return { keep: false, quality: candidate.quality };
   }
 
@@ -85,16 +89,17 @@ export function refinePatternActionability(
     }
   }
 
-  const agePenalty = Math.min(12, barsSinceEvent * 2);
-  const proximityBonus = Math.max(0, Math.round(((structureRange * 1.4 - distance) / (structureRange * 1.4)) * 12));
+  const agePenalty = Math.min(18, barsSinceEvent * 4);
+  const proximityBonus = Math.max(0, Math.round(((structureRange - distance) / structureRange) * 18));
   const spanBars = Math.max(
     1,
     Math.round((candidate.geometry.anchorTimeTo - candidate.geometry.anchorTimeFrom) / TIMEFRAME_TO_MS[timeframe]),
   );
-  const spanBonus = Math.min(8, Math.round(spanBars / 3));
+  const spanBonus = Math.min(6, Math.round(spanBars / 4));
+  const statusBonus = candidate.status === 'forming' ? 6 : 0;
 
   return {
     keep: true,
-    quality: clampQuality(candidate.quality - agePenalty + proximityBonus + spanBonus),
+    quality: clampQuality(candidate.quality - agePenalty + proximityBonus + spanBonus + statusBonus),
   };
 }
