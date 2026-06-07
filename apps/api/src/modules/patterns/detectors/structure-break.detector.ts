@@ -6,6 +6,7 @@ import {
   buildSetupId,
   getAtrAndPivots,
   getCurrentVolumeFactor,
+  getSetupTimeframeConfig,
 } from './setup-helpers';
 
 export function detectStructureBreakSetups(
@@ -15,7 +16,8 @@ export function detectStructureBreakSetups(
 ): PatternCandidate[] {
   if (candles.length < 60) return [];
 
-  const structure = getAtrAndPivots(candles, 1.45);
+  const config = getSetupTimeframeConfig(timeframe);
+  const structure = getAtrAndPivots(candles, config.pivotMultiplier);
   if (!structure) return [];
   const { atr, pivots } = structure;
 
@@ -28,7 +30,14 @@ export function detectStructureBreakSetups(
   const lastHigh = [...pivots].reverse().find(pivot => pivot.kind === 'high');
   const lastLow = [...pivots].reverse().find(pivot => pivot.kind === 'low');
 
-  if (lastHigh && previous.close <= lastHigh.price + tolerance && current.close > lastHigh.price + tolerance) {
+  if (
+    lastHigh &&
+    candles.length - 1 - lastHigh.candleIndex >= config.minLevelAgeBars &&
+    volumeFactor >= config.minVolumeFactor &&
+    previous.close <= lastHigh.price + tolerance &&
+    current.close > lastHigh.price + tolerance &&
+    current.close - lastHigh.price <= atr * config.breakoutTravelAtr
+  ) {
     const quality = clampQuality(
       64 +
         Math.min(12, Math.round(volumeFactor * 4)) +
@@ -60,7 +69,14 @@ export function detectStructureBreakSetups(
     });
   }
 
-  if (lastLow && previous.close >= lastLow.price - tolerance && current.close < lastLow.price - tolerance) {
+  if (
+    lastLow &&
+    candles.length - 1 - lastLow.candleIndex >= config.minLevelAgeBars &&
+    volumeFactor >= config.minVolumeFactor &&
+    previous.close >= lastLow.price - tolerance &&
+    current.close < lastLow.price - tolerance &&
+    lastLow.price - current.close <= atr * config.breakoutTravelAtr
+  ) {
     const quality = clampQuality(
       64 +
         Math.min(12, Math.round(volumeFactor * 4)) +

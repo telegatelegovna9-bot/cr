@@ -7,6 +7,7 @@ import {
   getAtrAndPivots,
   getCurrentVolumeFactor,
   getRecentLevelCandidates,
+  getSetupTimeframeConfig,
 } from './setup-helpers';
 
 export function detectRetestSetups(
@@ -16,18 +17,22 @@ export function detectRetestSetups(
 ): PatternCandidate[] {
   if (candles.length < 70) return [];
 
-  const structure = getAtrAndPivots(candles, 1.35);
+  const config = getSetupTimeframeConfig(timeframe);
+  const structure = getAtrAndPivots(candles, config.pivotMultiplier);
   if (!structure) return [];
   const { atr, pivots } = structure;
 
   const current = candles[candles.length - 1]!;
-  const recent = candles.slice(-8);
+  const recent = candles.slice(-Math.max(8, config.compressionBars + 2));
   const tolerance = atr * 0.18;
   const levelTolerance = atr * 0.35;
   const volumeFactor = getCurrentVolumeFactor(candles);
   const candidates: PatternCandidate[] = [];
 
-  for (const level of getRecentLevelCandidates(pivots, 'high', levelTolerance, 3)) {
+  for (const level of getRecentLevelCandidates(pivots, 'high', levelTolerance, 3, config.levelLookbackPivots)) {
+    const levelAgeBars = candles.length - 1 - level.pivot.candleIndex;
+    if (level.touches < config.minTouches || levelAgeBars < config.minLevelAgeBars) continue;
+
     const breakoutCandle = recent.find(candle => candle.close > level.level + tolerance);
     if (!breakoutCandle) continue;
 
@@ -39,6 +44,8 @@ export function detectRetestSetups(
     );
     if (!retestCandle) continue;
     if (current.close < level.level - tolerance) continue;
+    if (current.close - level.level > atr * config.breakoutTravelAtr) continue;
+    if (volumeFactor < config.minVolumeFactor) continue;
 
     const quality = clampQuality(
       62 +
@@ -72,7 +79,10 @@ export function detectRetestSetups(
     });
   }
 
-  for (const level of getRecentLevelCandidates(pivots, 'low', levelTolerance, 3)) {
+  for (const level of getRecentLevelCandidates(pivots, 'low', levelTolerance, 3, config.levelLookbackPivots)) {
+    const levelAgeBars = candles.length - 1 - level.pivot.candleIndex;
+    if (level.touches < config.minTouches || levelAgeBars < config.minLevelAgeBars) continue;
+
     const breakoutCandle = recent.find(candle => candle.close < level.level - tolerance);
     if (!breakoutCandle) continue;
 
@@ -84,6 +94,8 @@ export function detectRetestSetups(
     );
     if (!retestCandle) continue;
     if (current.close > level.level + tolerance) continue;
+    if (level.level - current.close > atr * config.breakoutTravelAtr) continue;
+    if (volumeFactor < config.minVolumeFactor) continue;
 
     const quality = clampQuality(
       62 +

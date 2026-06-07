@@ -7,6 +7,7 @@ import {
   getAtrAndPivots,
   getCurrentVolumeFactor,
   getRecentLevelCandidates,
+  getSetupTimeframeConfig,
 } from './setup-helpers';
 
 export function detectLiquiditySweepSetups(
@@ -16,7 +17,8 @@ export function detectLiquiditySweepSetups(
 ): PatternCandidate[] {
   if (candles.length < 60) return [];
 
-  const structure = getAtrAndPivots(candles, 1.4);
+  const config = getSetupTimeframeConfig(timeframe);
+  const structure = getAtrAndPivots(candles, config.pivotMultiplier);
   if (!structure) return [];
   const { atr, pivots } = structure;
 
@@ -26,9 +28,12 @@ export function detectLiquiditySweepSetups(
   const volumeFactor = getCurrentVolumeFactor(candles);
   const candidates: PatternCandidate[] = [];
 
-  for (const level of getRecentLevelCandidates(pivots, 'high', levelTolerance, 2)) {
+  for (const level of getRecentLevelCandidates(pivots, 'high', levelTolerance, 2, config.levelLookbackPivots)) {
+    const levelAgeBars = candles.length - 1 - level.pivot.candleIndex;
+    if (level.touches < config.minTouches || levelAgeBars < config.minLevelAgeBars) continue;
     if (current.high <= level.level + sweepTolerance) continue;
     if (current.close >= level.level) continue;
+    if (volumeFactor < config.minVolumeFactor) continue;
 
     const quality = clampQuality(
       66 +
@@ -62,9 +67,12 @@ export function detectLiquiditySweepSetups(
     });
   }
 
-  for (const level of getRecentLevelCandidates(pivots, 'low', levelTolerance, 2)) {
+  for (const level of getRecentLevelCandidates(pivots, 'low', levelTolerance, 2, config.levelLookbackPivots)) {
+    const levelAgeBars = candles.length - 1 - level.pivot.candleIndex;
+    if (level.touches < config.minTouches || levelAgeBars < config.minLevelAgeBars) continue;
     if (current.low >= level.level - sweepTolerance) continue;
     if (current.close <= level.level) continue;
+    if (volumeFactor < config.minVolumeFactor) continue;
 
     const quality = clampQuality(
       66 +

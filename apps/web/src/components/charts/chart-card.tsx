@@ -96,6 +96,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const oldestTimeRef = useRef<number | null>(null);
   const allRawRef = useRef<any[]>([]);
+  const timePointsRef = useRef<number[]>([]);
   const loadingMoreRef = useRef(false);
   const suppressNextRangeChangeRef = useRef(false);
   const readyRef = useRef(false);
@@ -104,6 +105,12 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const initialRangeSetRef = useRef(false);
   const dataLoadedRef = useRef(false);
   const initialHistoryBackfillTriedRef = useRef(false);
+
+  const syncOverlayTimePoints = (raw: any[]) => {
+    timePointsRef.current = raw
+      .map(candle => candle.time || candle.timestamp)
+      .filter((time): time is number => typeof time === 'number' && Number.isFinite(time));
+  };
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
@@ -450,6 +457,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       // If REST load returned empty, seed oldestTime so scroll-to-history works
       if (oldestTimeRef.current === null) oldestTimeRef.current = timeInSeconds;
     }
+    syncOverlayTimePoints(allRawRef.current);
 
     const time = timeInSeconds as Time;
     try {
@@ -483,6 +491,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             if (!older.length || !candleSeriesRef.current || !volumeSeriesRef.current) return;
 
             allRawRef.current = mergeChartHistory(older, allRawRef.current);
+            syncOverlayTimePoints(allRawRef.current);
             const { candles, volumes } = buildCandles(allRawRef.current);
             if (!candles.length || !candleSeriesRef.current || !volumeSeriesRef.current) return;
 
@@ -665,6 +674,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
         }
         if (raw.length && !cancelled) {
           allRawRef.current = raw;
+          syncOverlayTimePoints(raw);
           onDataLoaded?.(symbol, raw, timeframe);
           const { candles, volumes } = buildCandles(raw);
           if (candles.length > 0) {
@@ -749,6 +759,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
           if (totalFetched <= 0) { loadingMoreRef.current = false; setLoadingHistory(false); return; }
 
           allRawRef.current = mergedHistory;
+          syncOverlayTimePoints(allRawRef.current);
           const { candles, volumes } = buildCandles(allRawRef.current);
           if (candleSeriesRef.current && volumeSeriesRef.current && candles.length > 0) {
             candleSeriesRef.current.setData(candles);
@@ -964,6 +975,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             chartRef={chartRef}
             candleSeriesRef={candleSeriesRef}
             hostRef={containerRef}
+            timePointsRef={timePointsRef}
             overlayVersion={`${effectiveSymbol}:${marketType}:${timeframe}`}
           />
         )}

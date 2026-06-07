@@ -10,7 +10,7 @@ import {
 export const PATTERNS_UI_STORAGE_KEY = 'aionui.patterns-ui.v2';
 
 const VALID_KINDS: PatternKind[] = ['breakout', 'retest', 'structure_break', 'liquidity_sweep'];
-const VALID_TIMEFRAMES: PatternTimeframe[] = ['15m', '1h'];
+const VALID_TIMEFRAMES: PatternTimeframe[] = ['5m', '15m', '1h'];
 const VALID_STATUSES: PatternStatus[] = ['forming', 'confirmed', 'finished'];
 
 function isStringArray(value: unknown): value is string[] {

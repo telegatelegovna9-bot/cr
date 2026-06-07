@@ -50,6 +50,7 @@ interface PatternChartOverlayProps {
   chartRef: MutableRefObject<IChartApi | null>;
   candleSeriesRef: MutableRefObject<ISeriesApi<'Candlestick'> | null>;
   hostRef: MutableRefObject<HTMLDivElement | null>;
+  timePointsRef: MutableRefObject<number[]>;
   overlayVersion: string;
 }
 
@@ -58,18 +59,62 @@ function toNum(v: number | null | undefined): number | null {
   return Number(v);
 }
 
-function projectTime(chart: IChartApi, timestampMs: number): number | null {
-  return toNum(chart.timeScale().timeToCoordinate(Math.floor(timestampMs / 1000) as Time));
+function getNearestTimePoint(timestampMs: number, timePoints: number[]): number | null {
+  if (timePoints.length === 0) return null;
+  if (timePoints.length === 1) return timePoints[0] ?? null;
+
+  let left = 0;
+  let right = timePoints.length - 1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    const time = timePoints[mid]!;
+    if (time === timestampMs) return time;
+    if (time < timestampMs) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  const nominalStep = Math.max(1, timePoints[1]! - timePoints[0]!);
+  const before = right >= 0 ? timePoints[right]! : null;
+  const after = left < timePoints.length ? timePoints[left]! : null;
+  const nearest =
+    before == null
+      ? after
+      : after == null
+        ? before
+        : Math.abs(before - timestampMs) <= Math.abs(after - timestampMs)
+          ? before
+          : after;
+
+  if (nearest == null) return null;
+  if (timestampMs < timePoints[0]! - nominalStep || timestampMs > timePoints[timePoints.length - 1]! + nominalStep) {
+    return null;
+  }
+
+  return nearest;
+}
+
+function projectTime(chart: IChartApi, timestampMs: number, timePoints: number[]): number | null {
+  const exact = toNum(chart.timeScale().timeToCoordinate(Math.floor(timestampMs / 1000) as Time));
+  if (exact != null) return exact;
+
+  const nearest = getNearestTimePoint(timestampMs, timePoints);
+  if (nearest == null) return null;
+  return toNum(chart.timeScale().timeToCoordinate(Math.floor(nearest / 1000) as Time));
 }
 
 function projectLine(
   chart: IChartApi,
   series: ISeriesApi<'Candlestick'>,
   line: PatternLine,
+  timePoints: number[],
 ): ProjectedLine | null {
   const [from, to] = line.points;
-  const x1 = projectTime(chart, from.time);
-  const x2 = projectTime(chart, to.time);
+  const x1 = projectTime(chart, from.time, timePoints);
+  const x2 = projectTime(chart, to.time, timePoints);
   const y1 = toNum(series.priceToCoordinate(from.price));
   const y2 = toNum(series.priceToCoordinate(to.price));
   if (x1 == null || x2 == null || y1 == null || y2 == null) return null;
@@ -85,9 +130,10 @@ function projectZone(
   chart: IChartApi,
   series: ISeriesApi<'Candlestick'>,
   zone: PatternZone,
+  timePoints: number[],
 ): ProjectedZone | null {
-  const x1 = projectTime(chart, zone.fromTime);
-  const x2 = projectTime(chart, zone.toTime);
+  const x1 = projectTime(chart, zone.fromTime, timePoints);
+  const x2 = projectTime(chart, zone.toTime, timePoints);
   const y1 = toNum(series.priceToCoordinate(zone.low));
   const y2 = toNum(series.priceToCoordinate(zone.high));
   if (x1 == null || x2 == null || y1 == null || y2 == null) return null;
@@ -108,8 +154,9 @@ function projectPoint(
   series: ISeriesApi<'Candlestick'>,
   time: number,
   price: number,
+  timePoints: number[],
 ): ProjectedPoint | null {
-  const x = projectTime(chart, time);
+  const x = projectTime(chart, time, timePoints);
   const y = toNum(series.priceToCoordinate(price));
   if (x == null || y == null) return null;
   return { key: `${time}:${price}`, x, y };
@@ -120,20 +167,21 @@ function computeProjection(
   series: ISeriesApi<'Candlestick'>,
   host: HTMLDivElement,
   pattern: PatternDetail,
+  timePoints: number[],
 ): ProjectionState {
   const width = host.clientWidth;
   const height = host.clientHeight;
 
   const lines = pattern.geometry.lines
-    .map(line => projectLine(chart, series, line))
+    .map(line => projectLine(chart, series, line, timePoints))
     .filter((l): l is ProjectedLine => l !== null);
 
   const zones = pattern.geometry.zones
-    .map(zone => projectZone(chart, series, zone))
+    .map(zone => projectZone(chart, series, zone, timePoints))
     .filter((z): z is ProjectedZone => z !== null);
 
   const points = pattern.geometry.pivots
-    .map(p => projectPoint(chart, series, p.time, p.price))
+    .map(p => projectPoint(chart, series, p.time, p.price, timePoints))
     .filter((p): p is ProjectedPoint => p !== null);
 
   return { width, height, lines, zones, points };
@@ -144,6 +192,7 @@ export function PatternChartOverlay({
   chartRef,
   candleSeriesRef,
   hostRef,
+  timePointsRef,
   overlayVersion,
 }: PatternChartOverlayProps) {
   const [projection, setProjection] = useState<ProjectionState | null>(null);
@@ -179,21 +228,12 @@ export function PatternChartOverlay({
       return;
     }
 
-    let subscribedChart: IChartApi | null = null;
     let frameId: number | null = null;
-    let redrawInterval: ReturnType<typeof setInterval> | null = null;
+    let focusRetries = 0;
 
-    const redraw = () => {
-      const chart = chartRef.current;
-      const series = candleSeriesRef.current;
-      const host = hostRef.current;
-      if (!chart || !series || !host) return;
-      setProjection(computeProjection(chart, series, host, pattern));
-    };
-
-    const focusChart = (chart: IChartApi) => {
+    const focusChart = (chart: IChartApi, force = false) => {
       const focusKey = `${pattern.id}:${overlayVersion}`;
-      if (focusedPatternRef.current === focusKey) return;
+      if (!force && focusedPatternRef.current === focusKey) return;
       const span = Math.max(60_000, pattern.geometry.anchorTimeTo - pattern.geometry.anchorTimeFrom);
       const leftPadding = Math.max(5 * 60_000, Math.floor(span * 0.25));
       const rightPadding = Math.max(5 * 60_000, Math.floor(span * 0.4));
@@ -209,33 +249,55 @@ export function PatternChartOverlay({
       focusedPatternRef.current = focusKey;
     };
 
-    const subscribe = () => {
+    const redraw = () => {
       const chart = chartRef.current;
-      if (!chart) {
-        frameId = requestAnimationFrame(subscribe);
-        return;
+      const series = candleSeriesRef.current;
+      const host = hostRef.current;
+      const timePoints = timePointsRef.current;
+      if (!chart || !series || !host) return;
+
+      const nextProjection = computeProjection(chart, series, host, pattern, timePoints);
+      if (
+        focusRetries < 12 &&
+        (nextProjection.lines.length > 0 || nextProjection.zones.length > 0 || nextProjection.points.length > 0)
+      ) {
+        focusChart(chart, true);
+        focusRetries = 12;
+      } else if (focusRetries < 12) {
+        focusChart(chart, true);
+        focusRetries += 1;
       }
-      subscribedChart = chart;
-      focusChart(chart);
-      redraw();
-      chart.timeScale().subscribeVisibleTimeRangeChange(redraw);
-      chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
-      redrawInterval = setInterval(redraw, 150);
+
+      setProjection(current => {
+        if (
+          current &&
+          current.width === nextProjection.width &&
+          current.height === nextProjection.height &&
+          JSON.stringify(current.lines) === JSON.stringify(nextProjection.lines) &&
+          JSON.stringify(current.zones) === JSON.stringify(nextProjection.zones) &&
+          JSON.stringify(current.points) === JSON.stringify(nextProjection.points)
+        ) {
+          return current;
+        }
+        return nextProjection;
+      });
     };
-    frameId = requestAnimationFrame(subscribe);
+
+    const loop = () => {
+      redraw();
+      frameId = requestAnimationFrame(loop);
+    };
+    frameId = requestAnimationFrame(loop);
 
     const resizeObserver = new ResizeObserver(redraw);
     if (hostRef.current) resizeObserver.observe(hostRef.current);
 
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
-      if (redrawInterval != null) clearInterval(redrawInterval);
-      subscribedChart?.timeScale().unsubscribeVisibleTimeRangeChange(redraw);
-      subscribedChart?.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
       resizeObserver.disconnect();
       setProjection(null);
     };
-  }, [pattern, chartRef, candleSeriesRef, hostRef, overlayVersion]);
+  }, [pattern, chartRef, candleSeriesRef, hostRef, overlayVersion, timePointsRef]);
 
   if (!pattern || !projection || !patternColor || !portalTarget) {
     return null;

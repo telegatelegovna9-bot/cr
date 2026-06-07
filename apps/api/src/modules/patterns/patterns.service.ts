@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import {
   PATTERNS_PAGE_SIZE,
+  PATTERN_ACTIVE_MAX_AGE_MS,
   PATTERN_FINISHED_RETENTION_MS,
 } from './patterns.constants';
 import { mapCandidateToPersistenceRow, mapPatternRow } from './patterns.mapper';
@@ -139,10 +140,11 @@ export class PatternsService {
     hasMore: boolean;
     nextCursor: number | null;
   }> {
-    const values: unknown[] = [Date.now(), ACTIVE_SETUP_KINDS];
+    const now = Date.now();
+    const values: unknown[] = [now, PATTERN_ACTIVE_MAX_AGE_MS, ACTIVE_SETUP_KINDS];
     const conditions = [
-      `(status != 'finished' OR (expires_at IS NOT NULL AND expires_at > $1))`,
-      `kind = ANY($2)`,
+      `((status != 'finished' AND updated_at >= ($1 - $2)) OR (status = 'finished' AND expires_at IS NOT NULL AND expires_at > $1))`,
+      `kind = ANY($3)`,
     ];
 
     if (params.search) {

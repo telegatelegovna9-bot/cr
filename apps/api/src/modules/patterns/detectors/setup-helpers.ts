@@ -11,6 +11,56 @@ export interface LevelCandidate {
   touches: number;
 }
 
+export interface SetupTimeframeConfig {
+  pivotMultiplier: number;
+  minTouches: number;
+  minLevelAgeBars: number;
+  levelLookbackPivots: number;
+  compressionBars: number;
+  maxCompressionAtr: number;
+  minVolumeFactor: number;
+  breakoutTravelAtr: number;
+}
+
+export function getSetupTimeframeConfig(timeframe: PatternTimeframe): SetupTimeframeConfig {
+  switch (timeframe) {
+    case '5m':
+      return {
+        pivotMultiplier: 2.2,
+        minTouches: 5,
+        minLevelAgeBars: 18,
+        levelLookbackPivots: 18,
+        compressionBars: 10,
+        maxCompressionAtr: 2.2,
+        minVolumeFactor: 1.18,
+        breakoutTravelAtr: 1.6,
+      };
+    case '15m':
+      return {
+        pivotMultiplier: 1.75,
+        minTouches: 4,
+        minLevelAgeBars: 12,
+        levelLookbackPivots: 14,
+        compressionBars: 8,
+        maxCompressionAtr: 2.8,
+        minVolumeFactor: 1.05,
+        breakoutTravelAtr: 2.1,
+      };
+    case '1h':
+    default:
+      return {
+        pivotMultiplier: 1.45,
+        minTouches: 3,
+        minLevelAgeBars: 8,
+        levelLookbackPivots: 12,
+        compressionBars: 6,
+        maxCompressionAtr: 3.2,
+        minVolumeFactor: 1,
+        breakoutTravelAtr: 2.6,
+      };
+  }
+}
+
 export function buildSetupId(
   symbol: string,
   timeframe: PatternTimeframe,
@@ -101,8 +151,9 @@ export function getRecentLevelCandidates(
   kind: SwingPivot['kind'],
   tolerance: number,
   limit = 4,
+  lookback = 10,
 ): LevelCandidate[] {
-  const source = pivots.filter(pivot => pivot.kind === kind).slice(-10);
+  const source = pivots.filter(pivot => pivot.kind === kind).slice(-lookback);
   const levels: LevelCandidate[] = [];
 
   for (let index = source.length - 1; index >= 0; index -= 1) {
@@ -117,7 +168,12 @@ export function getRecentLevelCandidates(
     });
   }
 
-  return levels.slice(0, limit);
+  return levels
+    .sort((a, b) => {
+      if (a.touches !== b.touches) return b.touches - a.touches;
+      return b.pivot.time - a.pivot.time;
+    })
+    .slice(0, limit);
 }
 
 export function getBarsSince(candles: DetectorCandle[], time: number): number {

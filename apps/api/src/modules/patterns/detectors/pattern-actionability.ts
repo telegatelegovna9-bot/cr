@@ -3,6 +3,7 @@ import type { DetectorCandle, PatternCandidate } from './detector.types';
 import { clampQuality } from './detector.utils';
 
 const TIMEFRAME_TO_MS: Record<PatternTimeframe, number> = {
+  '5m': 5 * 60_000,
   '15m': 15 * 60_000,
   '1h': 60 * 60_000,
 };
@@ -29,6 +30,12 @@ function getPrimaryLevel(candidate: PatternCandidate): number | null {
   return line.points[0]?.price ?? null;
 }
 
+function getZoneSpan(candidate: PatternCandidate, fallback: number): number {
+  const zone = candidate.geometry.zones[0];
+  if (!zone) return fallback;
+  return Math.max(Math.abs(zone.high - zone.low), fallback);
+}
+
 export function refinePatternActionability(
   candidate: PatternCandidate,
   candles: DetectorCandle[],
@@ -41,7 +48,9 @@ export function refinePatternActionability(
   }
 
   const barsSinceEvent = candles.length - 1 - findBarIndexByTime(candles, candidate.geometry.anchorTimeTo);
-  const structureRange = Math.max(candidate.geometry.priceMax - candidate.geometry.priceMin, level * 0.006);
+  const localRange = Math.max(candidate.geometry.priceMax - candidate.geometry.priceMin, level * 0.0025);
+  const zoneSpan = getZoneSpan(candidate, localRange * 0.35);
+  const structureRange = Math.max(zoneSpan, Math.min(localRange * 0.45, level * 0.0045));
   const distance = Math.abs(current.close - level);
 
   const freshnessLimit =
@@ -58,7 +67,7 @@ export function refinePatternActionability(
     return { keep: false, quality: candidate.quality };
   }
 
-  if (distance > structureRange * (candidate.status === 'forming' ? 1.1 : 0.9)) {
+  if (distance > structureRange * (candidate.status === 'forming' ? 0.95 : 0.7)) {
     return { keep: false, quality: candidate.quality };
   }
 

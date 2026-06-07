@@ -7,6 +7,7 @@ import {
   getAtrAndPivots,
   getCurrentVolumeFactor,
   getRecentLevelCandidates,
+  getSetupTimeframeConfig,
 } from './setup-helpers';
 
 export function detectBreakoutSetups(
@@ -16,7 +17,8 @@ export function detectBreakoutSetups(
 ): PatternCandidate[] {
   if (candles.length < 60) return [];
 
-  const structure = getAtrAndPivots(candles, 1.35);
+  const config = getSetupTimeframeConfig(timeframe);
+  const structure = getAtrAndPivots(candles, config.pivotMultiplier);
   if (!structure) return [];
   const { atr, pivots } = structure;
 
@@ -25,14 +27,22 @@ export function detectBreakoutSetups(
   const tolerance = atr * 0.18;
   const levelTolerance = atr * 0.35;
   const volumeFactor = getCurrentVolumeFactor(candles);
-  const recent = candles.slice(-6);
+  const recent = candles.slice(-config.compressionBars);
   const recentRange = Math.max(...recent.map(candle => candle.high)) - Math.min(...recent.map(candle => candle.low));
   const candidates: PatternCandidate[] = [];
 
-  for (const level of getRecentLevelCandidates(pivots, 'high', levelTolerance, 3)) {
+  for (const level of getRecentLevelCandidates(pivots, 'high', levelTolerance, 3, config.levelLookbackPivots)) {
+    const levelAgeBars = candles.length - 1 - level.pivot.candleIndex;
+    if (level.touches < config.minTouches || levelAgeBars < config.minLevelAgeBars) continue;
+
     const nearResistance = current.close <= level.level + tolerance && current.close >= level.level - atr * 0.35;
-    const compressed = recentRange <= atr * 3.2;
-    if (level.touches >= 4 && nearResistance && compressed && current.close <= level.level + tolerance) {
+    const compressed = recentRange <= atr * config.maxCompressionAtr;
+    if (
+      nearResistance &&
+      compressed &&
+      current.close <= level.level + tolerance &&
+      volumeFactor >= config.minVolumeFactor
+    ) {
       candidates.push({
         id: buildSetupId(symbol, timeframe, 'breakout', level.pivot.time, current.time, level.level + 0.00000001),
         exchange: 'binance',
@@ -65,7 +75,8 @@ export function detectBreakoutSetups(
 
     if (previous.close > level.level + tolerance) continue;
     if (current.close <= level.level + tolerance) continue;
-    if (current.close - level.level > atr * 2.8) continue;
+    if (current.close - level.level > atr * config.breakoutTravelAtr) continue;
+    if (volumeFactor < config.minVolumeFactor) continue;
 
     const fromTime = level.pivot.time;
     const toTime = current.time;
@@ -101,10 +112,18 @@ export function detectBreakoutSetups(
     });
   }
 
-  for (const level of getRecentLevelCandidates(pivots, 'low', levelTolerance, 3)) {
+  for (const level of getRecentLevelCandidates(pivots, 'low', levelTolerance, 3, config.levelLookbackPivots)) {
+    const levelAgeBars = candles.length - 1 - level.pivot.candleIndex;
+    if (level.touches < config.minTouches || levelAgeBars < config.minLevelAgeBars) continue;
+
     const nearSupport = current.close >= level.level - tolerance && current.close <= level.level + atr * 0.35;
-    const compressed = recentRange <= atr * 3.2;
-    if (level.touches >= 4 && nearSupport && compressed && current.close >= level.level - tolerance) {
+    const compressed = recentRange <= atr * config.maxCompressionAtr;
+    if (
+      nearSupport &&
+      compressed &&
+      current.close >= level.level - tolerance &&
+      volumeFactor >= config.minVolumeFactor
+    ) {
       candidates.push({
         id: buildSetupId(symbol, timeframe, 'breakout', level.pivot.time, current.time, level.level - 0.00000001),
         exchange: 'binance',
@@ -137,7 +156,8 @@ export function detectBreakoutSetups(
 
     if (previous.close < level.level - tolerance) continue;
     if (current.close >= level.level - tolerance) continue;
-    if (level.level - current.close > atr * 2.8) continue;
+    if (level.level - current.close > atr * config.breakoutTravelAtr) continue;
+    if (volumeFactor < config.minVolumeFactor) continue;
 
     const fromTime = level.pivot.time;
     const toTime = current.time;
