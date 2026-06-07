@@ -1,23 +1,25 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
   CheckCircle2,
   Clock3,
   ExternalLink,
+  Loader2,
   Search,
   Zap,
 } from 'lucide-react';
+import { fetchHyperliquidFlows } from '@/lib/flows/api';
 import {
   formatFlowAmount,
   formatFlowUsd,
-  HYPERLIQUID_FLOW_EVENTS,
   shortenAddress,
   type HyperliquidFlowEvent,
   type HyperliquidFlowKind,
-} from '@/lib/flows/hyperliquid-flows';
+  type HyperliquidFlowProvider,
+} from '@/lib/flows/models';
 
 type KindFilter = 'all' | HyperliquidFlowKind;
 type SizeFilter = 'all' | '100k' | '500k' | '1m';
@@ -42,30 +44,56 @@ export function ScreenerView() {
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [sizeFilter, setSizeFilter] = useState<SizeFilter>('500k');
   const [search, setSearch] = useState('');
-  const [selectedId, setSelectedId] = useState(HYPERLIQUID_FLOW_EVENTS[0]?.id ?? '');
+  const [selectedId, setSelectedId] = useState('');
+  const [events, setEvents] = useState<HyperliquidFlowEvent[]>([]);
+  const [provider, setProvider] = useState<HyperliquidFlowProvider>('mock');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredEvents = useMemo(() => {
-    return HYPERLIQUID_FLOW_EVENTS.filter((event) => {
-      if (kindFilter !== 'all' && event.kind !== kindFilter) return false;
-      if (event.usdValue < SIZE_THRESHOLDS[sizeFilter]) return false;
-      if (!search) return true;
+  useEffect(() => {
+    let cancelled = false;
 
-      const haystack = [
-        event.token,
-        event.tokenPair,
-        event.wallet,
-        event.fromAddress,
-        event.toAddress,
-        event.note,
-        event.kind,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
+    const load = async (isInitial = false) => {
+      try {
+        if (!cancelled) {
+          setError(null);
+          if (isInitial) setLoading(true);
+        }
 
-      return haystack.includes(search.toLowerCase());
-    });
+        const response = await fetchHyperliquidFlows({
+          kind: kindFilter,
+          search,
+          minUsd: SIZE_THRESHOLDS[sizeFilter],
+          limit: 50,
+        });
+
+        if (cancelled) return;
+        setEvents(response.items);
+        setProvider(response.provider);
+        setSelectedId((currentId) => {
+          if (response.items.some((item) => item.id === currentId)) return currentId;
+          return response.items[0]?.id ?? '';
+        });
+      } catch (nextError) {
+        if (cancelled) return;
+        setError(nextError instanceof Error ? nextError.message : 'Failed to load flows');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void load(true);
+    const interval = window.setInterval(() => {
+      void load(false);
+    }, 15_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [kindFilter, search, sizeFilter]);
+
+  const filteredEvents = useMemo(() => events, [events]);
 
   const selectedEvent =
     filteredEvents.find((event) => event.id === selectedId) ??
@@ -119,7 +147,7 @@ export function ScreenerView() {
                     : 'text-text-muted hover:text-text-secondary'
                 }`}
               >
-                {value === 'all' ? 'All size' : `≥ $${value.toUpperCase()}`}
+                {value === 'all' ? 'All size' : `>= $${value.toUpperCase()}`}
               </button>
             ))}
           </div>
@@ -136,10 +164,13 @@ export function ScreenerView() {
         <div className="glass-card overflow-hidden min-h-0 flex flex-col">
           <div className="px-4 py-3 border-b border-border bg-bg-primary/30 flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-text-primary">Live feed prototype</div>
-              <div className="text-[11px] text-text-muted">This is the product direction for large public Hyperliquid activity.</div>
+              <div className="text-sm font-semibold text-text-primary">Hyperliquid flow feed</div>
+              <div className="text-[11px] text-text-muted">
+                Source: {provider === 'quicknode' ? 'QuickNode dataset' : 'backend mock provider'}
+              </div>
             </div>
-            <div className="text-[10px] uppercase tracking-wider text-text-muted">
+            <div className="text-[10px] uppercase tracking-wider text-text-muted flex items-center gap-2">
+              {loading && <Loader2 className="w-3 h-3 animate-spin" />}
               {filteredEvents.length} events
             </div>
           </div>
@@ -161,7 +192,11 @@ export function ScreenerView() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
-            {filteredEvents.length === 0 ? (
+            {error ? (
+              <div className="h-full flex items-center justify-center text-center text-sm text-negative px-6">
+                {error}
+              </div>
+            ) : filteredEvents.length === 0 ? (
               <div className="h-full flex items-center justify-center text-center text-sm text-text-muted px-6">
                 No flow events match current filters.
               </div>
@@ -277,8 +312,8 @@ export function ScreenerView() {
                   <ul className="space-y-2 text-sm text-text-secondary">
                     <li>Show only strong public events, not every micro movement.</li>
                     <li>Keep the feed focused on size, timing, wallet and asset.</li>
-                    <li>Use our own tags and summaries instead of чужих labels.</li>
-                    <li>Add official wallet / tx links once backend source is connected.</li>
+                    <li>Use our own tags and summaries instead of third-party labels.</li>
+                    <li>Frontend now reads backend data, so only the global provider is still external.</li>
                   </ul>
                 </div>
               </div>
