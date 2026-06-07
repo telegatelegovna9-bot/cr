@@ -143,7 +143,7 @@ export class PatternsService {
     const now = Date.now();
     const values: unknown[] = [now, PATTERN_ACTIVE_MAX_AGE_MS, ACTIVE_SETUP_KINDS];
     const conditions = [
-      `((status != 'finished' AND updated_at >= ($1 - $2)) OR (status = 'finished' AND expires_at IS NOT NULL AND expires_at > $1))`,
+      `((status != 'finished' AND updated_at >= ($1::bigint - $2::bigint)) OR (status = 'finished' AND expires_at IS NOT NULL AND expires_at > $1::bigint))`,
       `kind = ANY($3)`,
     ];
 
@@ -169,7 +169,7 @@ export class PatternsService {
 
     if (params.cursor) {
       values.push(params.cursor);
-      conditions.push(`updated_at < $${values.length}`);
+      conditions.push(`updated_at < $${values.length}::bigint`);
     }
 
     const limit = params.limit ?? PATTERNS_PAGE_SIZE;
