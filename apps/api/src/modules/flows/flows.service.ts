@@ -26,7 +26,7 @@ export class FlowsService {
       try {
         const items = await this.getRealFlows();
         return this.filterItems(items, params, provider);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error(`Failed to fetch real Hyperliquid flows: ${error.message}`);
         return this.filterItems(HYPERLIQUID_FLOW_MOCK_ITEMS, params, 'mock');
       }
@@ -119,7 +119,7 @@ export class FlowsService {
       this.cachedItems = items.sort((a, b) => b.usdValue - a.usdValue);
       this.lastFetchTime = now;
       return this.cachedItems;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Flow fetch error: ${error.message}`);
       return HYPERLIQUID_FLOW_MOCK_ITEMS;
     }
