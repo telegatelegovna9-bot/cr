@@ -44,6 +44,8 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
       DB_RESET_ON_BOOT: "false"
+    env_file:
+      - .env
     ports:
       - "80:8080"
 
