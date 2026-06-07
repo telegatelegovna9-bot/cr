@@ -46,14 +46,29 @@ export class FlowsService {
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       // 1. Get all active coins to not limit to just BTC/ETH
       const metaResponse = await fetch(this.INFO_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          'Origin': 'https://app.hyperliquid.xyz',
+          'Referer': 'https://app.hyperliquid.xyz/',
+        },
         body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
+        signal: controller.signal,
       });
       
-      if (!metaResponse.ok) throw new Error('Failed to fetch meta');
+      clearTimeout(timeoutId);
+      
+      if (!metaResponse.ok) {
+        const text = await metaResponse.text();
+        throw new Error(`HTTP ${metaResponse.status}: ${text.slice(0, 100)}`);
+      }
       const [meta, assetCtxs] = await metaResponse.json() as [any, any[]];
       
       // Get coins with highest volume/activity to poll trades
@@ -72,8 +87,13 @@ export class FlowsService {
         try {
           const res = await fetch(this.INFO_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': '*/*',
+            },
             body: JSON.stringify({ type: 'recentTrades', coin: coin.name }),
+            signal: AbortSignal.timeout(5000),
           });
           if (!res.ok) return [];
           const trades = await res.json() as any[];
