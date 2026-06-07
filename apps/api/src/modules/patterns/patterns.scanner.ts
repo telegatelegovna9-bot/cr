@@ -7,6 +7,7 @@ import {
   PATTERN_SCAN_BATCH_SIZE,
   PATTERN_MIN_QUALITY,
   PATTERN_SCAN_CONCURRENCY,
+  PATTERN_MAX_ACTIVE_RESULTS,
 } from './patterns.constants';
 import { type PatternTimeframe, PATTERN_SCAN_TIMEFRAMES } from './patterns.types';
 import { type PatternCandidate } from './detectors/detector.types';
@@ -92,7 +93,11 @@ export class PatternsScanner implements OnModuleInit {
 
       const activeCandidates = candidates
         .filter(c => c.quality >= PATTERN_MIN_QUALITY)
-        .sort((a, b) => b.quality - a.quality);
+        .sort((a, b) => {
+          if (a.status !== b.status) return a.status === 'forming' ? -1 : 1;
+          return b.quality - a.quality;
+        })
+        .slice(0, PATTERN_MAX_ACTIVE_RESULTS);
       const scanNow = Date.now();
       await this.patternsService.upsertScannerSnapshot(activeCandidates, scanNow);
       await this.patternsService.reconcileScannerSnapshot(

@@ -964,6 +964,7 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
             chartRef={chartRef}
             candleSeriesRef={candleSeriesRef}
             hostRef={containerRef}
+            overlayVersion={`${effectiveSymbol}:${marketType}:${timeframe}`}
           />
         )}
         

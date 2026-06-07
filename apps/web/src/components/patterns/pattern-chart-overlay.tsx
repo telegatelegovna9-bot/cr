@@ -50,6 +50,7 @@ interface PatternChartOverlayProps {
   chartRef: MutableRefObject<IChartApi | null>;
   candleSeriesRef: MutableRefObject<ISeriesApi<'Candlestick'> | null>;
   hostRef: MutableRefObject<HTMLDivElement | null>;
+  overlayVersion: string;
 }
 
 function toNum(v: number | null | undefined): number | null {
@@ -143,6 +144,7 @@ export function PatternChartOverlay({
   chartRef,
   candleSeriesRef,
   hostRef,
+  overlayVersion,
 }: PatternChartOverlayProps) {
   const [projection, setProjection] = useState<ProjectionState | null>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
@@ -190,7 +192,8 @@ export function PatternChartOverlay({
     };
 
     const focusChart = (chart: IChartApi) => {
-      if (focusedPatternRef.current === pattern.id) return;
+      const focusKey = `${pattern.id}:${overlayVersion}`;
+      if (focusedPatternRef.current === focusKey) return;
       const span = Math.max(60_000, pattern.geometry.anchorTimeTo - pattern.geometry.anchorTimeFrom);
       const leftPadding = Math.max(5 * 60_000, Math.floor(span * 0.25));
       const rightPadding = Math.max(5 * 60_000, Math.floor(span * 0.4));
@@ -203,7 +206,7 @@ export function PatternChartOverlay({
         from: Math.floor(visibleFrom / 1000) as Time,
         to: Math.floor(visibleTo / 1000) as Time,
       });
-      focusedPatternRef.current = pattern.id;
+      focusedPatternRef.current = focusKey;
     };
 
     const subscribe = () => {
@@ -232,7 +235,7 @@ export function PatternChartOverlay({
       resizeObserver.disconnect();
       setProjection(null);
     };
-  }, [pattern, chartRef, candleSeriesRef, hostRef]);
+  }, [pattern, chartRef, candleSeriesRef, hostRef, overlayVersion]);
 
   if (!pattern || !projection || !patternColor || !portalTarget) {
     return null;

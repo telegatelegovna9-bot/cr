@@ -4,7 +4,7 @@ export type PatternKind =
   | 'structure_break'
   | 'liquidity_sweep';
 export type PatternStatus = 'forming' | 'confirmed' | 'finished';
-export type PatternTimeframe = '5m' | '15m' | '1h';
+export type PatternTimeframe = '15m' | '1h';
 
 export interface PatternPoint {
   time: number;
@@ -49,5 +49,5 @@ export interface PersistedPatternPayload {
   expiresAt: number | null;
 }
 
-export const PATTERN_SCAN_TIMEFRAMES: PatternTimeframe[] = ['5m', '15m', '1h'];
+export const PATTERN_SCAN_TIMEFRAMES: PatternTimeframe[] = ['15m', '1h'];
 export const PATTERN_FINISHED_RETENTION_MINUTES = 15;

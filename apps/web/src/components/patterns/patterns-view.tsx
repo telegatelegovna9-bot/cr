@@ -28,15 +28,19 @@ export function PatternsView() {
   const seenConfirmedIdsRef = useRef<Set<string>>(new Set());
 
   const selectedItem = useMemo(
-    () =>
-      query.items.find(item => item.id === patternsUI.selectedPatternId) ??
-      query.items[0] ??
-      null,
+    () => {
+      if (patternsUI.selectedPatternId) {
+        return query.items.find(item => item.id === patternsUI.selectedPatternId) ?? null;
+      }
+
+      return query.items[0] ?? null;
+    },
     [patternsUI.selectedPatternId, query.items],
   );
-  const detail = usePatternDetail(selectedItem?.id ?? null, query.refreshKey);
+  const resolvedPatternId = patternsUI.selectedPatternId ?? selectedItem?.id ?? null;
+  const detail = usePatternDetail(resolvedPatternId, query.refreshKey);
   const selectedPatternDetail = useMemo<PatternDetail | null>(() => {
-    if (detail.item) return detail.item;
+    if (detail.item && detail.item.id === resolvedPatternId) return detail.item;
     if (!selectedItem?.geometry) return null;
 
     return {
@@ -54,14 +58,15 @@ export function PatternsView() {
       finishedAt: selectedItem.finishedAt ?? null,
       expiresAt: selectedItem.expiresAt ?? null,
     };
-  }, [detail.item, selectedItem]);
+  }, [detail.item, resolvedPatternId, selectedItem]);
+
+  const activePattern = selectedPatternDetail ?? selectedItem;
 
   useEffect(() => {
-    if (!selectedItem) return;
-    if (patternsUI.selectedPatternId !== selectedItem.id) {
-      setSelectedPatternId(selectedItem.id);
+    if (!patternsUI.selectedPatternId && query.items[0]) {
+      setSelectedPatternId(query.items[0].id);
     }
-  }, [patternsUI.selectedPatternId, selectedItem, setSelectedPatternId]);
+  }, [patternsUI.selectedPatternId, query.items, setSelectedPatternId]);
 
   useEffect(() => {
     if (query.loading) return;
@@ -111,7 +116,7 @@ export function PatternsView() {
   }, [addAlert, addTriggeredAlert, query.items, query.loading]);
 
   const handleOpenInTerminal = () => {
-    if (!selectedItem) return;
+    if (!activePattern) return;
 
     const targetSlot =
       personalGrid.slots.find(slot => !slot.symbol)?.id ??
@@ -120,10 +125,10 @@ export function PatternsView() {
     if (!targetSlot) return;
 
     setPersonalGridSlot(targetSlot, {
-      symbol: selectedItem.symbol,
+      symbol: activePattern.symbol,
       exchange: 'binance',
       marketType: 'futures',
-      timeframe: selectedItem.timeframe ?? selectedTimeframe,
+      timeframe: activePattern.timeframe ?? selectedTimeframe,
     });
     setViewMode('grid');
   };
@@ -145,18 +150,18 @@ export function PatternsView() {
 
       <div className="min-h-0 flex flex-col gap-3">
         <PatternDetailsCard
-          item={selectedItem}
+          item={activePattern}
           loading={detail.loading && !selectedPatternDetail}
-          onOpenInTerminal={selectedItem ? handleOpenInTerminal : undefined}
+          onOpenInTerminal={activePattern ? handleOpenInTerminal : undefined}
         />
         <div className="flex-1 min-h-0">
-          {selectedItem ? (
+          {activePattern ? (
             <ChartCard
-              key={`${selectedItem.id}:${selectedItem.updatedAt}`}
-              symbol={selectedItem.symbol}
+              key={activePattern.id}
+              symbol={activePattern.symbol}
               exchange="binance"
               index={0}
-              initialTimeframe={selectedItem.timeframe}
+              initialTimeframe={activePattern.timeframe}
               initialMarketType="futures"
               patternOverlay={selectedPatternDetail}
               headerActions={

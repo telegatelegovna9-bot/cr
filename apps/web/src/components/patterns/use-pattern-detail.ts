@@ -15,18 +15,19 @@ export function usePatternDetail(patternId: string | null, refreshKey: number) {
     }
 
     let cancelled = false;
+    setItem(previous => (previous?.id === patternId ? previous : null));
     setLoading(true);
 
     fetchPatternDetail(patternId)
       .then(data => {
         if (!cancelled) {
-          setItem(data);
+          if (data) {
+            setItem(data);
+          }
         }
       })
       .catch(() => {
-        if (!cancelled) {
-          setItem(null);
-        }
+        // Preserve the previous detail snapshot during transient polling failures.
       })
       .finally(() => {
         if (!cancelled) {

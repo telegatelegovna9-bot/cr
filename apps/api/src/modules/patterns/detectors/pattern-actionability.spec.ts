@@ -19,7 +19,7 @@ function buildCandidate(kind: PatternCandidate['kind'], anchorTimeTo: number, le
     exchange: 'binance',
     marketType: 'futures',
     symbol: 'BTC/USDT:USDT',
-    timeframe: '5m',
+    timeframe: '15m',
     kind,
     status: 'confirmed',
     quality: 70,
@@ -48,12 +48,12 @@ function buildCandidate(kind: PatternCandidate['kind'], anchorTimeTo: number, le
   };
 }
 
-assert.equal(refinePatternActionability(buildCandidate('breakout', 7), candles, '5m').keep, true);
-assert.equal(refinePatternActionability(buildCandidate('retest', 7, 104.5), candles, '5m').keep, true);
-assert.equal(refinePatternActionability(buildCandidate('structure_break', 7), candles, '5m').keep, true);
+assert.equal(refinePatternActionability(buildCandidate('breakout', 7), candles, '15m').keep, true);
+assert.equal(refinePatternActionability(buildCandidate('retest', 7, 104.5), candles, '15m').keep, true);
+assert.equal(refinePatternActionability(buildCandidate('structure_break', 7), candles, '15m').keep, true);
 
 const staleBreakout = buildCandidate('breakout', 2);
-assert.equal(refinePatternActionability(staleBreakout, candles, '5m').keep, false);
+assert.equal(refinePatternActionability(staleBreakout, candles, '15m').keep, false);
 
 const farSweep = buildCandidate('liquidity_sweep', 7, 90);
-assert.equal(refinePatternActionability(farSweep, candles, '5m').keep, false);
+assert.equal(refinePatternActionability(farSweep, candles, '15m').keep, false);

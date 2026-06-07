@@ -53,7 +53,7 @@ export function PatternsFilters({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {(['5m', '15m', '1h'] as const).map(timeframe => (
+        {(['15m', '1h'] as const).map(timeframe => (
           <button
             key={timeframe}
             onClick={() =>

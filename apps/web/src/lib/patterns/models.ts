@@ -5,7 +5,7 @@ export type PatternKind =
   | 'liquidity_sweep';
 
 export type PatternStatus = 'forming' | 'confirmed' | 'finished';
-export type PatternTimeframe = '5m' | '15m' | '1h';
+export type PatternTimeframe = '15m' | '1h';
 
 export interface PatternPoint {
   time: number;

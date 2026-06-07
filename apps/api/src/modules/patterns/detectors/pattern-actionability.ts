@@ -3,7 +3,6 @@ import type { DetectorCandle, PatternCandidate } from './detector.types';
 import { clampQuality } from './detector.utils';
 
 const TIMEFRAME_TO_MS: Record<PatternTimeframe, number> = {
-  '5m': 5 * 60_000,
   '15m': 15 * 60_000,
   '1h': 60 * 60_000,
 };

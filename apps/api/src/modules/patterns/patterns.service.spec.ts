@@ -10,7 +10,7 @@ import {
   type PatternStatus,
 } from './patterns.types';
 
-assert.deepEqual(PATTERN_SCAN_TIMEFRAMES, ['5m', '15m', '1h']);
+assert.deepEqual(PATTERN_SCAN_TIMEFRAMES, ['15m', '1h']);
 assert.equal(PATTERN_FINISHED_RETENTION_MINUTES, 15);
 
 const kinds: PatternKind[] = ['breakout', 'retest', 'structure_break', 'liquidity_sweep'];
