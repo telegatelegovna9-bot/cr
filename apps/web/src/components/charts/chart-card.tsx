@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
@@ -146,7 +146,14 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
   const exchange = exchangeProp || selectedExchange;
-  const [timeframe, setTimeframe] = useState<TF>((initialTimeframe as TF | undefined) ?? (selectedTimeframe as TF));
+  // Local timeframe state for every chart so TF changes are per-chart.
+  // Initialise with the safe SSR default ('1h') to avoid hydration mismatch.
+  // A layout effect then switches to the persisted/default value before paint.
+  const [timeframe, setTimeframe] = useState<TF>('1h');
+  useLayoutEffect(() => {
+    setTimeframe((initialTimeframe as TF | undefined) ?? (selectedTimeframe as TF));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [marketType, setMarketType] = useState<'spot' | 'futures'>(
     initialMarketType ?? (symbol.includes(':USDT') ? 'futures' : 'spot')
   );
