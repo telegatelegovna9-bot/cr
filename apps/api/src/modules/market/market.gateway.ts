@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Inject, forwardRef, Logger } from '@nestjs/common';
 import { Server, WebSocket } from 'ws';
+import { DatabaseService } from '../../database/database.service';
 import { MarketService } from './market.service';
 import type { ExchangeId, Timeframe } from '@crypto-screener/shared';
 
@@ -38,11 +39,26 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private channelSubscriptions = new Map<string, Map<string, Set<WebSocket>>>();
 
   constructor(
+    private readonly db: DatabaseService,
     @Inject(forwardRef(() => MarketService)) private readonly marketService: MarketService,
   ) {
     // Initialize channel maps
     ['ticker', 'candle', 'orderbook', 'trade', 'alert', 'pattern'].forEach(ch => {
       this.channelSubscriptions.set(ch, new Map());
+    });
+
+    // Listen for global alerts from Redis
+    const subscriber = this.db.createSubscriber();
+    subscriber.subscribe('alert');
+    subscriber.on('message', (channel, message) => {
+      if (channel === 'alert') {
+        try {
+          const alert = JSON.parse(message);
+          this.broadcast('alert', alert);
+        } catch (err) {
+          this.logger.error('Failed to parse relayed alert:', err);
+        }
+      }
     });
   }
 
@@ -108,14 +124,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Send confirmation
       client.send(JSON.stringify({ event: 'subscribed', data: { exchange, marketType, symbol, timeframe, channel } }));
-
-      // Send initial data if available
-      if (!timeframe && !channel) {
-        const tickers = this.marketService.getTickers(exchange, [symbol]);
-        if (tickers.length > 0) {
-          client.send(JSON.stringify({ channel: 'ticker', data: tickers[0] }));
-        }
-      }
+      this.sendInitialSnapshot(client, subData);
     } else if (action === 'unsubscribe') {
       if (!subs.has(subKey)) return;
       subs.delete(subKey);
@@ -129,6 +138,29 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.marketService.unsubscribeSymbol(symbol);
       }
       client.send(JSON.stringify({ event: 'unsubscribed', data: { exchange, marketType, symbol, timeframe, channel } }));
+    }
+  }
+
+  private sendInitialSnapshot(client: WebSocket, sub: Omit<SubscribePayload, 'action'>) {
+    if (sub.channel === 'orderbook') {
+      const orderbook = this.marketService.getLatestOrderBook(sub.symbol, sub.exchange);
+      if (orderbook) {
+        client.send(JSON.stringify({ channel: 'orderbook', data: orderbook }));
+      }
+      return;
+    }
+
+    if (sub.timeframe) {
+      const candle = this.marketService.getLatestCandle(sub.symbol, sub.timeframe, sub.exchange);
+      if (candle) {
+        client.send(JSON.stringify({ channel: 'candle', data: candle }));
+      }
+      return;
+    }
+
+    const ticker = this.marketService.getLatestTicker(sub.symbol, sub.exchange);
+    if (ticker) {
+      client.send(JSON.stringify({ channel: 'ticker', data: ticker }));
     }
   }
 

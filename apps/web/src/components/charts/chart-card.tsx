@@ -26,6 +26,10 @@ import {
   mergeChartHistory,
   shouldBackfillInitialHistory,
 } from './chart-history';
+import {
+  createChartRecoveryRequestKey,
+  requestCoalescedChartRecovery,
+} from './chart-recovery';
 
 interface ChartCardProps {
   symbol: string;
@@ -64,6 +68,40 @@ function getChartHistoryCacheKey(
   timeframe: string,
 ): string {
   return `${exchange}:${marketType}:${symbol}:${timeframe}`;
+}
+
+async function fetchChartHistorySlice(params: {
+  exchange: string;
+  marketType: 'spot' | 'futures';
+  symbol: string;
+  timeframe: string;
+  limit: number;
+  endTime?: number;
+}): Promise<any[]> {
+  const searchParams = new URLSearchParams({
+    exchange: params.exchange,
+    marketType: params.marketType,
+    symbol: params.symbol,
+    timeframe: params.timeframe,
+    limit: String(params.limit),
+  });
+  if (params.endTime != null) searchParams.set('endTime', String(params.endTime));
+
+  const requestKey = createChartRecoveryRequestKey({
+    exchange: params.exchange,
+    marketType: params.marketType,
+    symbol: params.symbol,
+    timeframe: params.timeframe,
+    limit: params.limit,
+    endTime: params.endTime,
+  });
+
+  return requestCoalescedChartRecovery(requestKey, async () => {
+    const resp = await fetch(`${API_BASE}/api/history?${searchParams.toString()}`);
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    return data.data || [];
+  });
 }
 
 function isValidCandle(k: any): boolean {
@@ -234,19 +272,14 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
     historyRefreshInFlightRef.current = true;
     try {
       const fetchCandles = async (endTime?: number) => {
-        const params = new URLSearchParams({
+        return fetchChartHistorySlice({
           exchange: exchangeRef.current,
           marketType: marketTypeRef.current,
           symbol: effectiveSymbolRef.current,
           timeframe: timeframeRef.current,
-          limit: String(INITIAL_HISTORY_LIMIT),
+          limit: INITIAL_HISTORY_LIMIT,
+          endTime,
         });
-        if (endTime != null) params.set('endTime', String(endTime));
-
-        const resp = await fetch(`${API_BASE}/api/history?${params.toString()}`);
-        if (!resp.ok) return [];
-        const data = await resp.json();
-        return data.data || [];
       };
 
       let latest = await fetchCandles();
