@@ -1,0 +1,37 @@
+{
+  "nodes": [
+    {
+      "id": "config:apps/api/package.json",
+      "type": "config",
+      "name": "API Package.json",
+      "filePath": "apps/api/package.json",
+      "summary": "Package manifest for the NestJS API application with dependencies for WebSockets, database, authentication, and background jobs.",
+      "tags": ["npm", "nestjs", "api", "config"],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:apps/api/tsconfig.json",
+      "type": "config",
+      "name": "API TypeScript Config",
+      "filePath": "apps/api/tsconfig.json",
+      "summary": "TypeScript configuration for the NestJS API extending base config with decorators and emit metadata for NestJS DI.",
+      "tags": ["typescript", "config", "nestjs", "decorators"],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:apps/api/nest-cli.json",
+      "type": "config",
+      "name": "Nest CLI Config",
+      "filePath": "apps/api/nest-cli.json",
+      "summary": "NestJS CLI configuration for project structure, entry file, and build options.",
+      "tags": ["nestjs", "cli", "config", "build"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    { "source": "config:apps/api/tsconfig.json", "target": "config:tsconfig.base.json", "type": "configures", "weight": 0.7 },
+    { "source": "config:apps/api/package.json", "target": "config:packages/shared/package.json", "type": "depends_on", "weight": 0.8 },
+    { "source": "config:apps/api/package.json", "target": "config:packages/exchange-connectors/package.json", "type": "depends_on", "weight": 0.8 },
+    { "source": "config:apps/api/nest-cli.json", "target": "config:apps/api/tsconfig.json", "type": "configures", "weight": 0.6 }
+  ]
+}

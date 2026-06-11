@@ -1,0 +1,734 @@
+﻿[
+    {
+        "path":  ".env.production.example",
+        "sizeLines":  5
+    },
+    {
+        "path":  ".gitignore",
+        "sizeLines":  32
+    },
+    {
+        "path":  ".npmrc",
+        "sizeLines":  2
+    },
+    {
+        "path":  ".nvmrc",
+        "sizeLines":  1
+    },
+    {
+        "path":  "docker-compose.dev.yml",
+        "sizeLines":  66
+    },
+    {
+        "path":  "docker-compose.prod.yml",
+        "sizeLines":  51
+    },
+    {
+        "path":  "Dockerfile",
+        "sizeLines":  41
+    },
+    {
+        "path":  "Dockerfile.api",
+        "sizeLines":  30
+    },
+    {
+        "path":  "Dockerfile.web",
+        "sizeLines":  15
+    },
+    {
+        "path":  "env.example",
+        "sizeLines":  22
+    },
+    {
+        "path":  "nginx.conf",
+        "sizeLines":  52
+    },
+    {
+        "path":  "package.json",
+        "sizeLines":  25
+    },
+    {
+        "path":  "PROJECT_SUMMARY.md",
+        "sizeLines":  243
+    },
+    {
+        "path":  "railway.json",
+        "sizeLines":  15
+    },
+    {
+        "path":  "README.md",
+        "sizeLines":  122
+    },
+    {
+        "path":  "setup.bat",
+        "sizeLines":  26
+    },
+    {
+        "path":  "setup.sh",
+        "sizeLines":  36
+    },
+    {
+        "path":  "start-web.sh",
+        "sizeLines":  2
+    },
+    {
+        "path":  "supervisord.conf",
+        "sizeLines":  36
+    },
+    {
+        "path":  "tsconfig.base.json",
+        "sizeLines":  25
+    },
+    {
+        "path":  "turbo.json",
+        "sizeLines":  26
+    },
+    {
+        "path":  "vercel.json",
+        "sizeLines":  5
+    },
+    {
+        "path":  ".claude/settings.local.json",
+        "sizeLines":  15
+    },
+    {
+        "path":  ".github/workflows/ci.yml",
+        "sizeLines":  104
+    },
+    {
+        "path":  "apps/api/nest-cli.json",
+        "sizeLines":  8
+    },
+    {
+        "path":  "apps/api/package.json",
+        "sizeLines":  57
+    },
+    {
+        "path":  "apps/api/test-runner.cjs",
+        "sizeLines":  37
+    },
+    {
+        "path":  "apps/api/tsconfig.json",
+        "sizeLines":  18
+    },
+    {
+        "path":  "apps/api/src/app.module.ts",
+        "sizeLines":  26
+    },
+    {
+        "path":  "apps/api/src/main.ts",
+        "sizeLines":  69
+    },
+    {
+        "path":  "apps/api/src/database/database.module.ts",
+        "sizeLines":  8
+    },
+    {
+        "path":  "apps/api/src/database/database.service.ts",
+        "sizeLines":  186
+    },
+    {
+        "path":  "apps/api/src/modules/alerts/alerts.controller.ts",
+        "sizeLines":  69
+    },
+    {
+        "path":  "apps/api/src/modules/alerts/alerts.module.ts",
+        "sizeLines":  9
+    },
+    {
+        "path":  "apps/api/src/modules/alerts/alerts.service.ts",
+        "sizeLines":  133
+    },
+    {
+        "path":  "apps/api/src/modules/auth/auth.controller.ts",
+        "sizeLines":  34
+    },
+    {
+        "path":  "apps/api/src/modules/auth/auth.module.ts",
+        "sizeLines":  9
+    },
+    {
+        "path":  "apps/api/src/modules/auth/auth.service.ts",
+        "sizeLines":  57
+    },
+    {
+        "path":  "apps/api/src/modules/flows/flows.controller.ts",
+        "sizeLines":  33
+    },
+    {
+        "path":  "apps/api/src/modules/flows/flows.mock.ts",
+        "sizeLines":  114
+    },
+    {
+        "path":  "apps/api/src/modules/flows/flows.module.ts",
+        "sizeLines":  9
+    },
+    {
+        "path":  "apps/api/src/modules/flows/flows.service.spec.ts",
+        "sizeLines":  30
+    },
+    {
+        "path":  "apps/api/src/modules/flows/flows.service.ts",
+        "sizeLines":  162
+    },
+    {
+        "path":  "apps/api/src/modules/flows/flows.types.ts",
+        "sizeLines":  35
+    },
+    {
+        "path":  "apps/api/src/modules/market/history.controller.ts",
+        "sizeLines":  44
+    },
+    {
+        "path":  "apps/api/src/modules/market/market.controller.ts",
+        "sizeLines":  125
+    },
+    {
+        "path":  "apps/api/src/modules/market/market.gateway.ts",
+        "sizeLines":  202
+    },
+    {
+        "path":  "apps/api/src/modules/market/market.module.ts",
+        "sizeLines":  14
+    },
+    {
+        "path":  "apps/api/src/modules/market/market.service.ts",
+        "sizeLines":  316
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.constants.ts",
+        "sizeLines":  11
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.controller.ts",
+        "sizeLines":  44
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.mapper.ts",
+        "sizeLines":  66
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.module.ts",
+        "sizeLines":  12
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.scanner.ts",
+        "sizeLines":  166
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.scanner.utils.spec.ts",
+        "sizeLines":  12
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.scanner.utils.ts",
+        "sizeLines":  32
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.service.spec.ts",
+        "sizeLines":  64
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.service.ts",
+        "sizeLines":  225
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/patterns.types.ts",
+        "sizeLines":  47
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/breakout.detector.ts",
+        "sizeLines":  188
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/detector.types.ts",
+        "sizeLines":  27
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/detector.utils.spec.ts",
+        "sizeLines":  31
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/detector.utils.ts",
+        "sizeLines":  124
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/liquidity-sweep.detector.ts",
+        "sizeLines":  100
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/pattern-actionability.spec.ts",
+        "sizeLines":  54
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/pattern-actionability.ts",
+        "sizeLines":  97
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/retest.detector.ts",
+        "sizeLines":  119
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/setup-helpers.ts",
+        "sizeLines":  171
+    },
+    {
+        "path":  "apps/api/src/modules/patterns/detectors/structure-break.detector.ts",
+        "sizeLines":  103
+    },
+    {
+        "path":  "apps/api/src/modules/screener/screener.controller.ts",
+        "sizeLines":  59
+    },
+    {
+        "path":  "apps/api/src/modules/screener/screener.module.ts",
+        "sizeLines":  11
+    },
+    {
+        "path":  "apps/api/src/modules/screener/screener.service.ts",
+        "sizeLines":  89
+    },
+    {
+        "path":  "apps/api/src/modules/watchlist/watchlist.controller.ts",
+        "sizeLines":  62
+    },
+    {
+        "path":  "apps/api/src/modules/watchlist/watchlist.module.ts",
+        "sizeLines":  11
+    },
+    {
+        "path":  "apps/api/src/modules/watchlist/watchlist.service.ts",
+        "sizeLines":  75
+    },
+    {
+        "path":  "apps/api/src/modules/websocket/websocket.module.ts",
+        "sizeLines":  9
+    },
+    {
+        "path":  "apps/api/src/modules/websocket/websocket.service.ts",
+        "sizeLines":  34
+    },
+    {
+        "path":  "apps/web/next-env.d.ts",
+        "sizeLines":  5
+    },
+    {
+        "path":  "apps/web/next.config.js",
+        "sizeLines":  24
+    },
+    {
+        "path":  "apps/web/package.json",
+        "sizeLines":  36
+    },
+    {
+        "path":  "apps/web/postcss.config.js",
+        "sizeLines":  6
+    },
+    {
+        "path":  "apps/web/railway.json",
+        "sizeLines":  15
+    },
+    {
+        "path":  "apps/web/tailwind.config.js",
+        "sizeLines":  102
+    },
+    {
+        "path":  "apps/web/tsconfig.json",
+        "sizeLines":  19
+    },
+    {
+        "path":  "apps/web/public/manifest.json",
+        "sizeLines":  25
+    },
+    {
+        "path":  "apps/web/public/sw.js",
+        "sizeLines":  80
+    },
+    {
+        "path":  "apps/web/src/app/globals.css",
+        "sizeLines":  266
+    },
+    {
+        "path":  "apps/web/src/app/layout.tsx",
+        "sizeLines":  29
+    },
+    {
+        "path":  "apps/web/src/app/page.tsx",
+        "sizeLines":  95
+    },
+    {
+        "path":  "apps/web/src/components/alerts/alert-toast.tsx",
+        "sizeLines":  266
+    },
+    {
+        "path":  "apps/web/src/components/alerts/alerts-panel.tsx",
+        "sizeLines":  123
+    },
+    {
+        "path":  "apps/web/src/components/charts/chart-card.tsx",
+        "sizeLines":  1085
+    },
+    {
+        "path":  "apps/web/src/components/charts/chart-grid.tsx",
+        "sizeLines":  205
+    },
+    {
+        "path":  "apps/web/src/components/charts/chart-history.test.ts",
+        "sizeLines":  34
+    },
+    {
+        "path":  "apps/web/src/components/charts/chart-history.ts",
+        "sizeLines":  31
+    },
+    {
+        "path":  "apps/web/src/components/charts/drawing-overlay-helpers.test.ts",
+        "sizeLines":  21
+    },
+    {
+        "path":  "apps/web/src/components/charts/drawing-overlay-helpers.ts",
+        "sizeLines":  44
+    },
+    {
+        "path":  "apps/web/src/components/charts/drawing-overlay.tsx",
+        "sizeLines":  404
+    },
+    {
+        "path":  "apps/web/src/components/charts/drawing-toolbar.tsx",
+        "sizeLines":  93
+    },
+    {
+        "path":  "apps/web/src/components/charts/heatmap-controls.tsx",
+        "sizeLines":  142
+    },
+    {
+        "path":  "apps/web/src/components/charts/heatmap-summary.tsx",
+        "sizeLines":  61
+    },
+    {
+        "path":  "apps/web/src/components/coin-list/coin-list.tsx",
+        "sizeLines":  372
+    },
+    {
+        "path":  "apps/web/src/components/grid/chart-picker-modal.tsx",
+        "sizeLines":  182
+    },
+    {
+        "path":  "apps/web/src/components/grid/personal-grid-slot.tsx",
+        "sizeLines":  84
+    },
+    {
+        "path":  "apps/web/src/components/grid/personal-grid-view.tsx",
+        "sizeLines":  122
+    },
+    {
+        "path":  "apps/web/src/components/patterns/pattern-chart-overlay.tsx",
+        "sizeLines":  353
+    },
+    {
+        "path":  "apps/web/src/components/patterns/pattern-details-card.tsx",
+        "sizeLines":  59
+    },
+    {
+        "path":  "apps/web/src/components/patterns/patterns-empty-state.tsx",
+        "sizeLines":  14
+    },
+    {
+        "path":  "apps/web/src/components/patterns/patterns-filters.tsx",
+        "sizeLines":  91
+    },
+    {
+        "path":  "apps/web/src/components/patterns/patterns-list-row.tsx",
+        "sizeLines":  54
+    },
+    {
+        "path":  "apps/web/src/components/patterns/patterns-list.tsx",
+        "sizeLines":  51
+    },
+    {
+        "path":  "apps/web/src/components/patterns/patterns-sidebar.tsx",
+        "sizeLines":  64
+    },
+    {
+        "path":  "apps/web/src/components/patterns/patterns-view.tsx",
+        "sizeLines":  168
+    },
+    {
+        "path":  "apps/web/src/components/patterns/use-pattern-detail.ts",
+        "sizeLines":  37
+    },
+    {
+        "path":  "apps/web/src/components/patterns/use-patterns-query.ts",
+        "sizeLines":  54
+    },
+    {
+        "path":  "apps/web/src/components/screener/screener-view.tsx",
+        "sizeLines":  365
+    },
+    {
+        "path":  "apps/web/src/components/terminal/header.tsx",
+        "sizeLines":  119
+    },
+    {
+        "path":  "apps/web/src/components/terminal/heatmap-view.tsx",
+        "sizeLines":  232
+    },
+    {
+        "path":  "apps/web/src/components/terminal/settings-view.tsx",
+        "sizeLines":  192
+    },
+    {
+        "path":  "apps/web/src/components/terminal/terminal-view.tsx",
+        "sizeLines":  14
+    },
+    {
+        "path":  "apps/web/src/hooks/useData.ts",
+        "sizeLines":  92
+    },
+    {
+        "path":  "apps/web/src/hooks/useSignalMonitor.test.ts",
+        "sizeLines":  33
+    },
+    {
+        "path":  "apps/web/src/hooks/useSignalMonitor.ts",
+        "sizeLines":  134
+    },
+    {
+        "path":  "apps/web/src/hooks/useWebSocket.ts",
+        "sizeLines":  137
+    },
+    {
+        "path":  "apps/web/src/lib/api.ts",
+        "sizeLines":  161
+    },
+    {
+        "path":  "apps/web/src/lib/display-symbol.test.ts",
+        "sizeLines":  20
+    },
+    {
+        "path":  "apps/web/src/lib/display-symbol.ts",
+        "sizeLines":  9
+    },
+    {
+        "path":  "apps/web/src/lib/format.ts",
+        "sizeLines":  73
+    },
+    {
+        "path":  "apps/web/src/lib/heatmap-accumulator.ts",
+        "sizeLines":  100
+    },
+    {
+        "path":  "apps/web/src/lib/liquidity-buckets.test.ts",
+        "sizeLines":  64
+    },
+    {
+        "path":  "apps/web/src/lib/liquidity-buckets.ts",
+        "sizeLines":  79
+    },
+    {
+        "path":  "apps/web/src/lib/liquidity-engine.ts",
+        "sizeLines":  350
+    },
+    {
+        "path":  "apps/web/src/lib/liquidity-signals.test.ts",
+        "sizeLines":  38
+    },
+    {
+        "path":  "apps/web/src/lib/liquidity-signals.ts",
+        "sizeLines":  154
+    },
+    {
+        "path":  "apps/web/src/lib/market-preferences.test.ts",
+        "sizeLines":  50
+    },
+    {
+        "path":  "apps/web/src/lib/market-preferences.ts",
+        "sizeLines":  40
+    },
+    {
+        "path":  "apps/web/src/lib/utils.ts",
+        "sizeLines":  6
+    },
+    {
+        "path":  "apps/web/src/lib/drawings/engine.test.ts",
+        "sizeLines":  52
+    },
+    {
+        "path":  "apps/web/src/lib/drawings/engine.ts",
+        "sizeLines":  144
+    },
+    {
+        "path":  "apps/web/src/lib/drawings/models.ts",
+        "sizeLines":  108
+    },
+    {
+        "path":  "apps/web/src/lib/drawings/persistence.test.ts",
+        "sizeLines":  44
+    },
+    {
+        "path":  "apps/web/src/lib/drawings/persistence.ts",
+        "sizeLines":  41
+    },
+    {
+        "path":  "apps/web/src/lib/drawings/primitive.ts",
+        "sizeLines":  167
+    },
+    {
+        "path":  "apps/web/src/lib/drawings/sync-bus.test.ts",
+        "sizeLines":  28
+    },
+    {
+        "path":  "apps/web/src/lib/drawings/sync-bus.ts",
+        "sizeLines":  72
+    },
+    {
+        "path":  "apps/web/src/lib/flows/api.ts",
+        "sizeLines":  32
+    },
+    {
+        "path":  "apps/web/src/lib/flows/models.ts",
+        "sizeLines":  47
+    },
+    {
+        "path":  "apps/web/src/lib/patterns/api.ts",
+        "sizeLines":  46
+    },
+    {
+        "path":  "apps/web/src/lib/patterns/color-map.ts",
+        "sizeLines":  43
+    },
+    {
+        "path":  "apps/web/src/lib/patterns/models.ts",
+        "sizeLines":  77
+    },
+    {
+        "path":  "apps/web/src/lib/patterns/persistence.test.ts",
+        "sizeLines":  59
+    },
+    {
+        "path":  "apps/web/src/lib/patterns/persistence.ts",
+        "sizeLines":  56
+    },
+    {
+        "path":  "apps/web/src/lib/personal-grid/models.ts",
+        "sizeLines":  29
+    },
+    {
+        "path":  "apps/web/src/lib/personal-grid/persistence.test.ts",
+        "sizeLines":  91
+    },
+    {
+        "path":  "apps/web/src/lib/personal-grid/persistence.ts",
+        "sizeLines":  94
+    },
+    {
+        "path":  "apps/web/src/stores/index.ts",
+        "sizeLines":  669
+    },
+    {
+        "path":  "docs/vps-deploy.md",
+        "sizeLines":  19
+    },
+    {
+        "path":  "docs/superpowers/plans/2026-06-02-chart-drawing-engine-implementation.md",
+        "sizeLines":  567
+    },
+    {
+        "path":  "docs/superpowers/plans/2026-06-04-liquidity-heatmap-implementation.md",
+        "sizeLines":  599
+    },
+    {
+        "path":  "docs/superpowers/plans/2026-06-05-patterns-implementation.md",
+        "sizeLines":  1908
+    },
+    {
+        "path":  "docs/superpowers/plans/2026-06-05-personal-grid-implementation.md",
+        "sizeLines":  784
+    },
+    {
+        "path":  "docs/superpowers/specs/2026-06-02-chart-drawing-engine-design.md",
+        "sizeLines":  177
+    },
+    {
+        "path":  "docs/superpowers/specs/2026-06-04-liquidity-heatmap-design.md",
+        "sizeLines":  217
+    },
+    {
+        "path":  "docs/superpowers/specs/2026-06-05-patterns-design.md",
+        "sizeLines":  338
+    },
+    {
+        "path":  "docs/superpowers/specs/2026-06-05-personal-grid-design.md",
+        "sizeLines":  177
+    },
+    {
+        "path":  "packages/exchange-connectors/package.json",
+        "sizeLines":  19
+    },
+    {
+        "path":  "packages/exchange-connectors/tsconfig.json",
+        "sizeLines":  14
+    },
+    {
+        "path":  "packages/exchange-connectors/src/base.ts",
+        "sizeLines":  192
+    },
+    {
+        "path":  "packages/exchange-connectors/src/binance.ts",
+        "sizeLines":  339
+    },
+    {
+        "path":  "packages/exchange-connectors/src/bitget.ts",
+        "sizeLines":  479
+    },
+    {
+        "path":  "packages/exchange-connectors/src/bybit.ts",
+        "sizeLines":  409
+    },
+    {
+        "path":  "packages/exchange-connectors/src/generic.ts",
+        "sizeLines":  643
+    },
+    {
+        "path":  "packages/exchange-connectors/src/index.ts",
+        "sizeLines":  9
+    },
+    {
+        "path":  "packages/exchange-connectors/src/manager.ts",
+        "sizeLines":  200
+    },
+    {
+        "path":  "packages/exchange-connectors/src/mexc-spot-proto.ts",
+        "sizeLines":  156
+    },
+    {
+        "path":  "packages/exchange-connectors/src/mexc.ts",
+        "sizeLines":  606
+    },
+    {
+        "path":  "packages/exchange-connectors/src/okx.ts",
+        "sizeLines":  391
+    },
+    {
+        "path":  "packages/shared/package.json",
+        "sizeLines":  11
+    },
+    {
+        "path":  "packages/shared/tsconfig.json",
+        "sizeLines":  11
+    },
+    {
+        "path":  "packages/shared/src/constants.ts",
+        "sizeLines":  97
+    },
+    {
+        "path":  "packages/shared/src/index.ts",
+        "sizeLines":  3
+    },
+    {
+        "path":  "packages/shared/src/types.ts",
+        "sizeLines":  304
+    },
+    {
+        "path":  "packages/shared/src/utils.ts",
+        "sizeLines":  159
+    }
+]

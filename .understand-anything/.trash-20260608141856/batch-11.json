@@ -1,0 +1,195 @@
+{
+  "nodes": [
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-view.tsx",
+      "type": "file",
+      "name": "PatternsView",
+      "filePath": "apps/web/src/components/patterns/patterns-view.tsx",
+      "summary": "Main patterns view layout: combines PatternsSidebar (list + filters) and PatternDetailsCard (selected pattern detail) in a split-pane layout.",
+      "tags": ["react", "component", "patterns", "view", "layout"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-list.tsx",
+      "type": "file",
+      "name": "PatternsList",
+      "filePath": "apps/web/src/components/patterns/patterns-list.tsx",
+      "summary": "Virtualized list of detected patterns with sorting, filtering, and selection. Uses TanStack Query for data fetching.",
+      "tags": ["react", "component", "patterns", "list", "virtualized"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-list-row.tsx",
+      "type": "file",
+      "name": "PatternsListRow",
+      "filePath": "apps/web/src/components/patterns/patterns-list-row.tsx",
+      "summary": "Single row in the patterns list: displays pattern type, symbol, timeframe, score, and exchange badge.",
+      "tags": ["react", "component", "patterns", "list-item"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-sidebar.tsx",
+      "type": "file",
+      "name": "PatternsSidebar",
+      "filePath": "apps/web/src/components/patterns/patterns-sidebar.tsx",
+      "summary": "Left sidebar for the patterns view: contains filters and the scrollable patterns list.",
+      "tags": ["react", "component", "patterns", "sidebar"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-filters.tsx",
+      "type": "file",
+      "name": "PatternsFilters",
+      "filePath": "apps/web/src/components/patterns/patterns-filters.tsx",
+      "summary": "Filter controls for the patterns view: pattern type selection, exchange filter, timeframe filter, and search input.",
+      "tags": ["react", "component", "patterns", "filters", "ui"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/pattern-chart-overlay.tsx",
+      "type": "file",
+      "name": "PatternChartOverlay",
+      "filePath": "apps/web/src/components/patterns/pattern-chart-overlay.tsx",
+      "summary": "SVG overlay rendered on top of Lightweight Charts to visualize pattern markers, entry/stop/target levels, and shaded zones.",
+      "tags": ["react", "component", "patterns", "chart-overlay", "svg"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/pattern-details-card.tsx",
+      "type": "file",
+      "name": "PatternDetailsCard",
+      "filePath": "apps/web/src/components/patterns/pattern-details-card.tsx",
+      "summary": "Detailed card for a selected pattern: shows embedded chart with pattern overlay, entry/stop/target prices, confidence score, and pattern description.",
+      "tags": ["react", "component", "patterns", "detail", "chart"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-empty-state.tsx",
+      "type": "file",
+      "name": "PatternsEmptyState",
+      "filePath": "apps/web/src/components/patterns/patterns-empty-state.tsx",
+      "summary": "Empty state component for the patterns list when no patterns match the current filters.",
+      "tags": ["react", "component", "patterns", "empty-state"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/use-patterns-query.ts",
+      "type": "file",
+      "name": "usePatternsQuery",
+      "filePath": "apps/web/src/components/patterns/use-patterns-query.ts",
+      "summary": "TanStack Query hook for fetching and caching pattern data from the API with auto-refresh interval.",
+      "tags": ["react", "hook", "tanstack-query", "patterns", "data-fetching"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/use-pattern-detail.ts",
+      "type": "file",
+      "name": "usePatternDetail",
+      "filePath": "apps/web/src/components/patterns/use-pattern-detail.ts",
+      "summary": "Hook for loading the detailed candle history and pattern data for the selected pattern in the details card.",
+      "tags": ["react", "hook", "patterns", "detail", "candles"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/alerts/alert-toast.tsx",
+      "type": "file",
+      "name": "AlertToast & AlertModal",
+      "filePath": "apps/web/src/components/alerts/alert-toast.tsx",
+      "summary": "Toast notification and modal components for displaying triggered price alerts with sound, visual flash, and auto-dismiss support.",
+      "tags": ["react", "component", "alerts", "toast", "notifications"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/alerts/alerts-panel.tsx",
+      "type": "file",
+      "name": "AlertsPanel",
+      "filePath": "apps/web/src/components/alerts/alerts-panel.tsx",
+      "summary": "Slide-out panel for managing user alerts: create new alerts, list active alerts, and mark as read.",
+      "tags": ["react", "component", "alerts", "panel", "management"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/screener/screener-view.tsx",
+      "type": "file",
+      "name": "ScreenerView",
+      "filePath": "apps/web/src/components/screener/screener-view.tsx",
+      "summary": "Main screener view with sortable, filterable table of all tracked crypto pairs: price, 24h change, volume, exchange badges.",
+      "tags": ["react", "component", "screener", "table", "filtering", "sorting"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/coin-list/coin-list.tsx",
+      "type": "file",
+      "name": "CoinList",
+      "filePath": "apps/web/src/components/coin-list/coin-list.tsx",
+      "summary": "Collapsible left sidebar showing all tracked coins with live price updates, 24h change indicators, and search/filter.",
+      "tags": ["react", "component", "coin-list", "sidebar", "real-time"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/terminal/terminal-view.tsx",
+      "type": "file",
+      "name": "TerminalView",
+      "filePath": "apps/web/src/components/terminal/terminal-view.tsx",
+      "summary": "Container wrapper for the main terminal content area providing consistent layout and overflow handling.",
+      "tags": ["react", "component", "terminal", "layout"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/components/terminal/heatmap-view.tsx",
+      "type": "file",
+      "name": "HeatmapView",
+      "filePath": "apps/web/src/components/terminal/heatmap-view.tsx",
+      "summary": "Liquidity heatmap view displaying order book depth visualization with configurable price levels and intensity coloring.",
+      "tags": ["react", "component", "heatmap", "liquidity", "orderbook", "visualization"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/terminal/header.tsx",
+      "type": "file",
+      "name": "Header",
+      "filePath": "apps/web/src/components/terminal/header.tsx",
+      "summary": "Top navigation header: view mode tabs (Terminal, Screener, Patterns, Grid, Heatmap), connection status indicator, and alert badge.",
+      "tags": ["react", "component", "header", "navigation", "view-modes"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/terminal/settings-view.tsx",
+      "type": "file",
+      "name": "SettingsView",
+      "filePath": "apps/web/src/components/terminal/settings-view.tsx",
+      "summary": "Application settings panel: heatmap configuration, exchange visibility toggles, notification preferences.",
+      "tags": ["react", "component", "settings", "configuration"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    { "source": "file:apps/web/src/components/patterns/patterns-view.tsx", "target": "file:apps/web/src/components/patterns/patterns-sidebar.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/components/patterns/patterns-view.tsx", "target": "file:apps/web/src/components/patterns/pattern-details-card.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/components/patterns/patterns-sidebar.tsx", "target": "file:apps/web/src/components/patterns/patterns-filters.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/components/patterns/patterns-sidebar.tsx", "target": "file:apps/web/src/components/patterns/patterns-list.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/components/patterns/patterns-list.tsx", "target": "file:apps/web/src/components/patterns/patterns-list-row.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/components/patterns/patterns-list.tsx", "target": "file:apps/web/src/components/patterns/patterns-empty-state.tsx", "type": "contains", "weight": 0.6 },
+    { "source": "file:apps/web/src/components/patterns/patterns-list.tsx", "target": "file:apps/web/src/components/patterns/use-patterns-query.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/patterns/pattern-details-card.tsx", "target": "file:apps/web/src/components/patterns/pattern-chart-overlay.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/components/patterns/pattern-details-card.tsx", "target": "file:apps/web/src/components/patterns/use-pattern-detail.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/patterns/use-patterns-query.ts", "target": "file:apps/web/src/lib/patterns/api.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/web/src/components/patterns/patterns-filters.tsx", "target": "file:apps/web/src/stores/index.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/terminal/header.tsx", "target": "file:apps/web/src/stores/index.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/terminal/heatmap-view.tsx", "target": "file:apps/web/src/lib/liquidity-engine.ts", "type": "imports", "weight": 0.8 },
+    { "source": "file:apps/web/src/components/terminal/heatmap-view.tsx", "target": "file:apps/web/src/lib/liquidity-signals.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/terminal/heatmap-view.tsx", "target": "file:apps/web/src/stores/index.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/screener/screener-view.tsx", "target": "file:apps/web/src/stores/index.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/screener/screener-view.tsx", "target": "file:apps/web/src/lib/api.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/coin-list/coin-list.tsx", "target": "file:apps/web/src/stores/index.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/alerts/alert-toast.tsx", "target": "file:apps/web/src/stores/index.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/alerts/alerts-panel.tsx", "target": "file:apps/web/src/stores/index.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/components/alerts/alerts-panel.tsx", "target": "file:apps/web/src/lib/api.ts", "type": "calls", "weight": 0.6 },
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/components/patterns/patterns-view.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/components/terminal/header.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/components/terminal/heatmap-view.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/components/screener/screener-view.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/components/coin-list/coin-list.tsx", "type": "contains", "weight": 0.8 },
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/components/alerts/alert-toast.tsx", "type": "contains", "weight": 0.7 }
+  ]
+}

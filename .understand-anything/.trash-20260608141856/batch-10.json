@@ -1,0 +1,253 @@
+{
+  "nodes": [
+    {
+      "id": "file:apps/web/src/app/layout.tsx",
+      "type": "file",
+      "name": "Root Layout",
+      "filePath": "apps/web/src/app/layout.tsx",
+      "summary": "Next.js root layout component setting up HTML structure, global CSS, fonts, metadata, and React Query/Zustand providers for the crypto terminal.",
+      "tags": ["nextjs", "layout", "react", "providers", "app-router"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/app/page.tsx",
+      "type": "file",
+      "name": "Terminal Page",
+      "filePath": "apps/web/src/app/page.tsx",
+      "summary": "Main terminal page orchestrating view modes (terminal, screener, patterns, grid, heatmap, settings), loading initial market data, and managing WebSocket subscription lifecycle.",
+      "tags": ["nextjs", "page", "react", "terminal", "view-modes"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/app/globals.css",
+      "type": "file",
+      "name": "Global CSS",
+      "filePath": "apps/web/src/app/globals.css",
+      "summary": "Global CSS with TailwindCSS directives, CSS custom properties for the dark crypto screener theme, and typography styles.",
+      "tags": ["css", "tailwindcss", "theme", "design-system"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/stores/index.ts",
+      "type": "file",
+      "name": "Zustand Stores",
+      "filePath": "apps/web/src/stores/index.ts",
+      "summary": "Global Zustand state management: MarketStore (tickers, candles, exchanges), DrawingStore (chart annotations with localStorage persistence and cross-tab sync), UIStore (view modes, alerts, personal grid), WSStore, OrderbookStore, AlertStore.",
+      "tags": ["zustand", "state-management", "stores", "market", "drawings", "ui"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/hooks/useWebSocket.ts",
+      "type": "file",
+      "name": "useWebSocket Hook",
+      "filePath": "apps/web/src/hooks/useWebSocket.ts",
+      "summary": "Custom React hook managing WebSocket connection to the NestJS API: auto-reconnect with exponential backoff, subscription management, and routing incoming events to Zustand stores.",
+      "tags": ["react", "hook", "websocket", "real-time", "reconnect"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/hooks/useData.ts",
+      "type": "file",
+      "name": "useData Hook",
+      "filePath": "apps/web/src/hooks/useData.ts",
+      "summary": "React hook for fetching and subscribing to market data, combining REST initial load with WebSocket real-time updates.",
+      "tags": ["react", "hook", "data-fetching", "market-data"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/hooks/useSignalMonitor.ts",
+      "type": "file",
+      "name": "useSignalMonitor Hook",
+      "filePath": "apps/web/src/hooks/useSignalMonitor.ts",
+      "summary": "React hook monitoring signal levels drawn on charts: watches ticker updates and triggers alerts when price crosses defined signal level drawings.",
+      "tags": ["react", "hook", "signals", "alerts", "drawings"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/hooks/useSignalMonitor.test.ts",
+      "type": "file",
+      "name": "useSignalMonitor Tests",
+      "filePath": "apps/web/src/hooks/useSignalMonitor.test.ts",
+      "summary": "Unit tests for the useSignalMonitor hook verifying price alert triggering logic.",
+      "tags": ["testing", "unit-test", "hook", "signals"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/api.ts",
+      "type": "file",
+      "name": "API Client",
+      "filePath": "apps/web/src/lib/api.ts",
+      "summary": "Type-safe REST API client for the NestJS backend: marketApi, alertsApi, screenerApi, patternsApi, watchlistApi — all using fetch with error handling.",
+      "tags": ["api-client", "rest", "fetch", "market", "typescript"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/format.ts",
+      "type": "file",
+      "name": "Format Utils",
+      "filePath": "apps/web/src/lib/format.ts",
+      "summary": "Formatting utility functions: formatPrice, formatVolume, formatPercent, getChartPriceFormat — adapted for crypto price scales.",
+      "tags": ["utils", "formatting", "numbers", "price"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/display-symbol.ts",
+      "type": "file",
+      "name": "Display Symbol Utils",
+      "filePath": "apps/web/src/lib/display-symbol.ts",
+      "summary": "Utilities for normalizing and formatting crypto trading pair symbols for display: formatDisplaySymbol, getDisplayBaseSymbol, formatMarketTypeLabel.",
+      "tags": ["utils", "symbols", "formatting", "crypto"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/display-symbol.test.ts",
+      "type": "file",
+      "name": "Display Symbol Tests",
+      "filePath": "apps/web/src/lib/display-symbol.test.ts",
+      "summary": "Unit tests for display symbol formatting functions.",
+      "tags": ["testing", "unit-test", "symbols"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/market-preferences.ts",
+      "type": "file",
+      "name": "Market Preferences",
+      "filePath": "apps/web/src/lib/market-preferences.ts",
+      "summary": "Persistent user market preferences: selected timeframe stored in localStorage with default fallback.",
+      "tags": ["preferences", "localStorage", "persistence", "timeframe"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/market-preferences.test.ts",
+      "type": "file",
+      "name": "Market Preferences Tests",
+      "filePath": "apps/web/src/lib/market-preferences.test.ts",
+      "summary": "Tests for market preferences persistence logic.",
+      "tags": ["testing", "unit-test", "preferences"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/heatmap-accumulator.ts",
+      "type": "file",
+      "name": "Heatmap Accumulator",
+      "filePath": "apps/web/src/lib/heatmap-accumulator.ts",
+      "summary": "Accumulates order flow data into time-bucketed price levels for the liquidity heatmap visualization.",
+      "tags": ["heatmap", "accumulator", "order-flow", "liquidity"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-engine.ts",
+      "type": "file",
+      "name": "Liquidity Engine",
+      "filePath": "apps/web/src/lib/liquidity-engine.ts",
+      "summary": "Core liquidity heatmap engine: aggregates order book data into price buckets, calculates heat colors, and manages HeatmapSettings configuration.",
+      "tags": ["liquidity", "heatmap", "engine", "orderbook", "visualization"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-buckets.ts",
+      "type": "file",
+      "name": "Liquidity Buckets",
+      "filePath": "apps/web/src/lib/liquidity-buckets.ts",
+      "summary": "Price bucket management for the liquidity heatmap: groups order book levels into configurable price buckets for visualization.",
+      "tags": ["liquidity", "buckets", "orderbook", "aggregation"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-buckets.test.ts",
+      "type": "file",
+      "name": "Liquidity Buckets Tests",
+      "filePath": "apps/web/src/lib/liquidity-buckets.test.ts",
+      "summary": "Tests for liquidity bucket aggregation logic.",
+      "tags": ["testing", "unit-test", "liquidity"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-signals.ts",
+      "type": "file",
+      "name": "Liquidity Signals",
+      "filePath": "apps/web/src/lib/liquidity-signals.ts",
+      "summary": "Detects significant liquidity events from order book data: large bid/ask walls, liquidity imbalances, and absorption signals.",
+      "tags": ["liquidity", "signals", "detection", "orderbook"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-signals.test.ts",
+      "type": "file",
+      "name": "Liquidity Signals Tests",
+      "filePath": "apps/web/src/lib/liquidity-signals.test.ts",
+      "summary": "Tests for liquidity signal detection functions.",
+      "tags": ["testing", "unit-test", "liquidity", "signals"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/flows/api.ts",
+      "type": "file",
+      "name": "Flows API Client",
+      "filePath": "apps/web/src/lib/flows/api.ts",
+      "summary": "API client functions for fetching Hyperliquid order flow data from the NestJS backend.",
+      "tags": ["api-client", "flows", "hyperliquid", "fetch"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/flows/models.ts",
+      "type": "file",
+      "name": "Flows Models",
+      "filePath": "apps/web/src/lib/flows/models.ts",
+      "summary": "TypeScript models and types for Hyperliquid flow data on the frontend.",
+      "tags": ["typescript", "models", "flows", "hyperliquid"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/patterns/api.ts",
+      "type": "file",
+      "name": "Patterns API Client",
+      "filePath": "apps/web/src/lib/patterns/api.ts",
+      "summary": "API client for fetching detected chart patterns from the NestJS patterns endpoint.",
+      "tags": ["api-client", "patterns", "fetch"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/patterns/models.ts",
+      "type": "file",
+      "name": "Patterns Models",
+      "filePath": "apps/web/src/lib/patterns/models.ts",
+      "summary": "TypeScript models for pattern data on the frontend: PatternDetail, PatternFilters, PatternsUIState, and DEFAULT_PATTERNS_UI_STATE.",
+      "tags": ["typescript", "models", "patterns", "ui-state"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/utils.ts",
+      "type": "file",
+      "name": "General Utils",
+      "filePath": "apps/web/src/lib/utils.ts",
+      "summary": "General utility functions: cn() for TailwindCSS class merging using clsx and tailwind-merge.",
+      "tags": ["utils", "tailwindcss", "cn", "clsx"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/stores/index.ts", "type": "imports", "weight": 0.8 },
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/hooks/useWebSocket.ts", "type": "imports", "weight": 0.8 },
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/hooks/useSignalMonitor.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/web/src/app/page.tsx", "target": "file:apps/web/src/lib/api.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/web/src/app/layout.tsx", "target": "file:apps/web/src/app/globals.css", "type": "imports", "weight": 0.6 },
+    { "source": "file:apps/web/src/stores/index.ts", "target": "file:apps/web/src/lib/drawings/models.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/web/src/stores/index.ts", "target": "file:apps/web/src/lib/drawings/persistence.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/web/src/stores/index.ts", "target": "file:apps/web/src/lib/drawings/sync-bus.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/web/src/stores/index.ts", "target": "file:apps/web/src/lib/personal-grid/models.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/web/src/stores/index.ts", "target": "file:apps/web/src/lib/personal-grid/persistence.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/web/src/stores/index.ts", "target": "file:apps/web/src/lib/market-preferences.ts", "type": "imports", "weight": 0.6 },
+    { "source": "file:apps/web/src/stores/index.ts", "target": "file:apps/web/src/lib/patterns/models.ts", "type": "imports", "weight": 0.6 },
+    { "source": "file:apps/web/src/stores/index.ts", "target": "file:apps/web/src/lib/patterns/persistence.ts", "type": "imports", "weight": 0.6 },
+    { "source": "file:apps/web/src/hooks/useWebSocket.ts", "target": "file:apps/web/src/stores/index.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/web/src/hooks/useSignalMonitor.ts", "target": "file:apps/web/src/stores/index.ts", "type": "calls", "weight": 0.7 },
+    { "source": "file:apps/web/src/hooks/useSignalMonitor.test.ts", "target": "file:apps/web/src/hooks/useSignalMonitor.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:apps/web/src/lib/display-symbol.test.ts", "target": "file:apps/web/src/lib/display-symbol.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:apps/web/src/lib/market-preferences.test.ts", "target": "file:apps/web/src/lib/market-preferences.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:apps/web/src/lib/liquidity-buckets.test.ts", "target": "file:apps/web/src/lib/liquidity-buckets.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:apps/web/src/lib/liquidity-signals.test.ts", "target": "file:apps/web/src/lib/liquidity-signals.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:apps/web/src/lib/liquidity-engine.ts", "target": "file:apps/web/src/lib/liquidity-buckets.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/web/src/lib/liquidity-engine.ts", "target": "file:apps/web/src/lib/heatmap-accumulator.ts", "type": "imports", "weight": 0.7 }
+  ]
+}

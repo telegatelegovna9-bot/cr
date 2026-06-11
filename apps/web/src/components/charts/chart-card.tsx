@@ -21,6 +21,7 @@ import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingOverlay } from './drawing-overlay';
 import { PatternChartOverlay } from '@/components/patterns/pattern-chart-overlay';
 import {
+  detectGap,
   getInitialHistoryBackfillEndTime,
   mergeChartHistory,
   shouldBackfillInitialHistory,
@@ -1001,6 +1002,24 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
       }
     };
   }, []);
+
+  // ─── Visibility Change Gap Filling ─────────────────────────
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && dataLoadedRef.current && !paused) {
+        const lastCandle = allRawRef.current[allRawRef.current.length - 1];
+        const gap = detectGap(lastCandle, timeframeRef.current);
+        
+        if (gap) {
+          console.log(`[Chart] Gap detected for ${effectiveSymbolRef.current}:`, gap);
+          void refreshLatestHistory();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [paused, refreshLatestHistory]);
 
   const livePrice = ticker?.lastPrice ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;

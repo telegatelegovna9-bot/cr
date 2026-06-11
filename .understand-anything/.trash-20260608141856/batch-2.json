@@ -1,0 +1,18 @@
+{
+  "nodes": [
+    {
+      "id": "pipeline:.github/workflows/ci.yml",
+      "type": "pipeline",
+      "name": "CI/CD Pipeline",
+      "filePath": ".github/workflows/ci.yml",
+      "summary": "GitHub Actions CI/CD pipeline that runs tests, linting, and builds for the monorepo on pull requests and main branch pushes.",
+      "tags": ["github-actions", "ci-cd", "testing", "automation", "infrastructure"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    { "source": "pipeline:.github/workflows/ci.yml", "target": "config:turbo.json", "type": "configures", "weight": 0.6 },
+    { "source": "pipeline:.github/workflows/ci.yml", "target": "service:Dockerfile.api", "type": "triggers", "weight": 0.7 },
+    { "source": "pipeline:.github/workflows/ci.yml", "target": "service:Dockerfile.web", "type": "triggers", "weight": 0.7 }
+  ]
+}

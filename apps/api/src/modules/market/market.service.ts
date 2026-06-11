@@ -14,6 +14,7 @@ import {
 } from '@crypto-screener/shared';
 import { DatabaseService } from '../../database/database.service';
 import { MarketGateway } from './market.gateway';
+import { AlertsService } from '../alerts/alerts.service';
 
 export interface TickerWithMeta extends Ticker {
   volatility: number;
@@ -51,6 +52,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly db: DatabaseService,
+    private readonly alertsService: AlertsService,
     @Inject(forwardRef(() => MarketGateway)) private readonly gateway: MarketGateway,
   ) {}
 
@@ -136,6 +138,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       ...ticker,
     };
     this.tickerCache.set(key, updated);
+    
+    // Check for price alerts/signals on every ticker update
+    this.alertsService.checkPriceSignals(updated);
+
     const now = Date.now();
     const lastEmit = this.tickerThrottle.get(key) || 0;
     if (now - lastEmit >= this.THROTTLE_MS) {
@@ -177,6 +183,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       timestamp: trade.timestamp,
     };
     this.tickerCache.set(key, updatedTicker);
+
+    // Check for price alerts/signals on every trade update
+    this.alertsService.checkPriceSignals(updatedTicker);
+
     const now = Date.now();
     const lastEmit = this.tickerThrottle.get(key) || 0;
     if (now - lastEmit >= this.THROTTLE_MS) {

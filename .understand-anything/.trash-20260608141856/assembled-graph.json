@@ -1,0 +1,4106 @@
+{
+  "nodes": [
+    {
+      "id": "service:docker-compose.dev.yml",
+      "type": "service",
+      "name": "Docker Compose Dev",
+      "filePath": "docker-compose.dev.yml",
+      "summary": "Development Docker Compose configuration that orchestrates the API, web frontend, PostgreSQL, and Redis services with hot-reload and volume mounts.",
+      "tags": [
+        "docker",
+        "infrastructure",
+        "development",
+        "compose",
+        "orchestration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "service:docker-compose.prod.yml",
+      "type": "service",
+      "name": "Docker Compose Prod",
+      "filePath": "docker-compose.prod.yml",
+      "summary": "Production Docker Compose configuration with optimized container settings, health checks, and nginx reverse proxy.",
+      "tags": [
+        "docker",
+        "infrastructure",
+        "production",
+        "compose",
+        "orchestration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "service:Dockerfile",
+      "type": "service",
+      "name": "Root Dockerfile",
+      "filePath": "Dockerfile",
+      "summary": "Multi-stage Dockerfile for the monorepo that builds and packages the full application.",
+      "tags": [
+        "docker",
+        "build",
+        "infrastructure"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "service:Dockerfile.api",
+      "type": "service",
+      "name": "API Dockerfile",
+      "filePath": "Dockerfile.api",
+      "summary": "Dockerfile for the NestJS API service, builds the TypeScript app and runs with Node.js.",
+      "tags": [
+        "docker",
+        "nestjs",
+        "api",
+        "infrastructure"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "service:Dockerfile.web",
+      "type": "service",
+      "name": "Web Dockerfile",
+      "filePath": "Dockerfile.web",
+      "summary": "Dockerfile for the Next.js web frontend, builds static assets and serves with Node.js.",
+      "tags": [
+        "docker",
+        "nextjs",
+        "frontend",
+        "infrastructure"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:nginx.conf",
+      "type": "config",
+      "name": "Nginx Config",
+      "filePath": "nginx.conf",
+      "summary": "Nginx reverse proxy configuration routing HTTP traffic to the API and web services with SSL termination support.",
+      "tags": [
+        "nginx",
+        "proxy",
+        "infrastructure",
+        "routing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:supervisord.conf",
+      "type": "config",
+      "name": "Supervisord Config",
+      "filePath": "supervisord.conf",
+      "summary": "Supervisord process manager configuration for running multiple services (API, web, nginx) within a single container.",
+      "tags": [
+        "supervisord",
+        "process-manager",
+        "infrastructure"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:railway.json",
+      "type": "config",
+      "name": "Railway Config",
+      "filePath": "railway.json",
+      "summary": "Railway deployment configuration specifying build and start commands for the monorepo.",
+      "tags": [
+        "railway",
+        "deployment",
+        "infrastructure",
+        "hosting"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:vercel.json",
+      "type": "config",
+      "name": "Vercel Config",
+      "filePath": "vercel.json",
+      "summary": "Vercel deployment configuration for the Next.js frontend with routing rewrites.",
+      "tags": [
+        "vercel",
+        "deployment",
+        "infrastructure",
+        "hosting"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:turbo.json",
+      "type": "config",
+      "name": "Turbo Config",
+      "filePath": "turbo.json",
+      "summary": "Turborepo pipeline configuration defining build, dev, lint, and test task dependencies across the monorepo.",
+      "tags": [
+        "turborepo",
+        "monorepo",
+        "build-system",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "pipeline:.github/workflows/ci.yml",
+      "type": "pipeline",
+      "name": "CI/CD Pipeline",
+      "filePath": ".github/workflows/ci.yml",
+      "summary": "GitHub Actions CI/CD pipeline that runs tests, linting, and builds for the monorepo on pull requests and main branch pushes.",
+      "tags": [
+        "github-actions",
+        "ci-cd",
+        "testing",
+        "automation",
+        "infrastructure"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:package.json",
+      "type": "config",
+      "name": "Root Package.json",
+      "filePath": "package.json",
+      "summary": "Root npm workspace package.json for the crypto-screener monorepo, defines workspaces (apps/*, packages/*) and Turborepo scripts.",
+      "tags": [
+        "npm",
+        "monorepo",
+        "workspace",
+        "config",
+        "turborepo"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:tsconfig.base.json",
+      "type": "config",
+      "name": "Base TypeScript Config",
+      "filePath": "tsconfig.base.json",
+      "summary": "Base TypeScript configuration with strict mode, path aliases, and shared compiler options inherited by all workspace packages.",
+      "tags": [
+        "typescript",
+        "config",
+        "monorepo",
+        "strict"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.env.production.example",
+      "type": "config",
+      "name": "Production Env Example",
+      "filePath": ".env.production.example",
+      "summary": "Example production environment variables template covering database, Redis, JWT, API keys, and deployment settings.",
+      "tags": [
+        "environment",
+        "config",
+        "production",
+        "secrets"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:env.example",
+      "type": "config",
+      "name": "Dev Env Example",
+      "filePath": "env.example",
+      "summary": "Example development environment variables for local setup including database, Redis, and API configuration.",
+      "tags": [
+        "environment",
+        "config",
+        "development",
+        "secrets"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:setup.sh",
+      "type": "file",
+      "name": "Setup Script (Unix)",
+      "filePath": "setup.sh",
+      "summary": "Unix shell script that automates initial project setup: installs dependencies, copies env files, and starts Docker services.",
+      "tags": [
+        "shell",
+        "script",
+        "setup",
+        "automation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:setup.bat",
+      "type": "file",
+      "name": "Setup Script (Windows)",
+      "filePath": "setup.bat",
+      "summary": "Windows batch script equivalent of setup.sh for Windows development environments.",
+      "tags": [
+        "bat",
+        "script",
+        "setup",
+        "automation",
+        "windows"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:start-web.sh",
+      "type": "file",
+      "name": "Start Web Script",
+      "filePath": "start-web.sh",
+      "summary": "Shell script to start the Next.js web development server.",
+      "tags": [
+        "shell",
+        "script",
+        "startup",
+        "nextjs"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:packages/exchange-connectors/package.json",
+      "type": "config",
+      "name": "Exchange Connectors Package.json",
+      "filePath": "packages/exchange-connectors/package.json",
+      "summary": "Package manifest for the @crypto-screener/exchange-connectors workspace package providing multi-exchange WebSocket connectors.",
+      "tags": [
+        "npm",
+        "package",
+        "exchange-connectors",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:packages/exchange-connectors/tsconfig.json",
+      "type": "config",
+      "name": "Exchange Connectors TS Config",
+      "filePath": "packages/exchange-connectors/tsconfig.json",
+      "summary": "TypeScript configuration for the exchange-connectors package extending the base tsconfig.",
+      "tags": [
+        "typescript",
+        "config",
+        "exchange-connectors"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:packages/shared/package.json",
+      "type": "config",
+      "name": "Shared Package.json",
+      "filePath": "packages/shared/package.json",
+      "summary": "Package manifest for the @crypto-screener/shared workspace package containing shared types, constants, and utilities.",
+      "tags": [
+        "npm",
+        "package",
+        "shared",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:packages/shared/tsconfig.json",
+      "type": "config",
+      "name": "Shared TS Config",
+      "filePath": "packages/shared/tsconfig.json",
+      "summary": "TypeScript configuration for the shared package extending the base tsconfig.",
+      "tags": [
+        "typescript",
+        "config",
+        "shared"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:apps/api/package.json",
+      "type": "config",
+      "name": "API Package.json",
+      "filePath": "apps/api/package.json",
+      "summary": "Package manifest for the NestJS API application with dependencies for WebSockets, database, authentication, and background jobs.",
+      "tags": [
+        "npm",
+        "nestjs",
+        "api",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:apps/api/tsconfig.json",
+      "type": "config",
+      "name": "API TypeScript Config",
+      "filePath": "apps/api/tsconfig.json",
+      "summary": "TypeScript configuration for the NestJS API extending base config with decorators and emit metadata for NestJS DI.",
+      "tags": [
+        "typescript",
+        "config",
+        "nestjs",
+        "decorators"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:apps/api/nest-cli.json",
+      "type": "config",
+      "name": "Nest CLI Config",
+      "filePath": "apps/api/nest-cli.json",
+      "summary": "NestJS CLI configuration for project structure, entry file, and build options.",
+      "tags": [
+        "nestjs",
+        "cli",
+        "config",
+        "build"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:apps/web/package.json",
+      "type": "config",
+      "name": "Web Package.json",
+      "filePath": "apps/web/package.json",
+      "summary": "Package manifest for the Next.js 15 web application with dependencies for React 19, TailwindCSS, Zustand, and Lightweight Charts.",
+      "tags": [
+        "npm",
+        "nextjs",
+        "react",
+        "frontend",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:apps/web/tsconfig.json",
+      "type": "config",
+      "name": "Web TypeScript Config",
+      "filePath": "apps/web/tsconfig.json",
+      "summary": "TypeScript configuration for the Next.js web app with path aliases for @/ imports.",
+      "tags": [
+        "typescript",
+        "config",
+        "nextjs",
+        "paths"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:apps/web/next.config.js",
+      "type": "config",
+      "name": "Next.js Config",
+      "filePath": "apps/web/next.config.js",
+      "summary": "Next.js configuration with API proxy rewrites, image optimization settings, and environment variable exposure.",
+      "tags": [
+        "nextjs",
+        "config",
+        "proxy",
+        "rewrites"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:apps/web/tailwind.config.js",
+      "type": "config",
+      "name": "Tailwind Config",
+      "filePath": "apps/web/tailwind.config.js",
+      "summary": "TailwindCSS configuration with custom crypto screener theme colors, dark mode, and custom typography.",
+      "tags": [
+        "tailwindcss",
+        "design-system",
+        "config",
+        "theme"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:apps/web/railway.json",
+      "type": "config",
+      "name": "Web Railway Config",
+      "filePath": "apps/web/railway.json",
+      "summary": "Railway deployment configuration for the web frontend service.",
+      "tags": [
+        "railway",
+        "deployment",
+        "hosting",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README",
+      "filePath": "README.md",
+      "summary": "Main project README documenting the Crypto Screener Pro platform: features (real-time data, heatmap, pattern detection), tech stack (Next.js 15, NestJS, PostgreSQL, Redis), and quick-start instructions.",
+      "tags": [
+        "documentation",
+        "overview",
+        "getting-started",
+        "readme"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:PROJECT_SUMMARY.md",
+      "type": "document",
+      "name": "Project Summary",
+      "filePath": "PROJECT_SUMMARY.md",
+      "summary": "Comprehensive project summary covering architecture decisions, implemented features, and deployment configuration.",
+      "tags": [
+        "documentation",
+        "architecture",
+        "summary"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/vps-deploy.md",
+      "type": "document",
+      "name": "VPS Deploy Guide",
+      "filePath": "docs/vps-deploy.md",
+      "summary": "Step-by-step deployment guide for running the crypto screener on a VPS with Docker, SSL, and nginx configuration.",
+      "tags": [
+        "documentation",
+        "deployment",
+        "vps",
+        "docker",
+        "ops"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-06-02-chart-drawing-engine-implementation.md",
+      "type": "document",
+      "name": "Chart Drawing Engine Implementation Plan",
+      "filePath": "docs/superpowers/plans/2026-06-02-chart-drawing-engine-implementation.md",
+      "summary": "Implementation plan for the chart drawing engine: trendlines, horizontal lines, rectangles, signal levels, persistence, and sync across tabs.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "drawing-engine",
+        "charts"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-06-04-liquidity-heatmap-implementation.md",
+      "type": "document",
+      "name": "Liquidity Heatmap Implementation Plan",
+      "filePath": "docs/superpowers/plans/2026-06-04-liquidity-heatmap-implementation.md",
+      "summary": "Implementation plan for the liquidity heatmap feature: order flow visualization, bucket aggregation, signal detection, and chart overlay.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "heatmap",
+        "liquidity"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-06-05-patterns-implementation.md",
+      "type": "document",
+      "name": "Patterns Implementation Plan",
+      "filePath": "docs/superpowers/plans/2026-06-05-patterns-implementation.md",
+      "summary": "Implementation plan for chart pattern detection: breakout, retest, structure break, liquidity sweep detectors, and pattern dashboard UI.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "patterns",
+        "detection"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-06-05-personal-grid-implementation.md",
+      "type": "document",
+      "name": "Personal Grid Implementation Plan",
+      "filePath": "docs/superpowers/plans/2026-06-05-personal-grid-implementation.md",
+      "summary": "Implementation plan for the personal grid feature: multi-chart layout, slot management, symbol picker, and persistence.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "personal-grid",
+        "layout"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-06-02-chart-drawing-engine-design.md",
+      "type": "document",
+      "name": "Chart Drawing Engine Design Spec",
+      "filePath": "docs/superpowers/specs/2026-06-02-chart-drawing-engine-design.md",
+      "summary": "Design specification for the chart drawing engine: data models, rendering architecture, coordinate system, event handling, and localStorage persistence strategy.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "drawing-engine",
+        "architecture"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-06-04-liquidity-heatmap-design.md",
+      "type": "document",
+      "name": "Liquidity Heatmap Design Spec",
+      "filePath": "docs/superpowers/specs/2026-06-04-liquidity-heatmap-design.md",
+      "summary": "Design specification for the liquidity heatmap: bucket accumulation algorithm, price-level aggregation, signal detection thresholds, and color rendering.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "heatmap",
+        "liquidity",
+        "algorithm"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-06-05-patterns-design.md",
+      "type": "document",
+      "name": "Patterns Design Spec",
+      "filePath": "docs/superpowers/specs/2026-06-05-patterns-design.md",
+      "summary": "Design specification for chart pattern detection: detector interface contracts, scoring system, pattern types, and API response schemas.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "patterns",
+        "detection",
+        "api"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-06-05-personal-grid-design.md",
+      "type": "document",
+      "name": "Personal Grid Design Spec",
+      "filePath": "docs/superpowers/specs/2026-06-05-personal-grid-design.md",
+      "summary": "Design specification for the personal multi-chart grid: slot model, layout options (2x2, 2x3, 3x3), expand/collapse behavior, and persistence.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "personal-grid",
+        "ui",
+        "layout"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/main.ts",
+      "type": "file",
+      "name": "API Entry Point",
+      "filePath": "apps/api/src/main.ts",
+      "summary": "NestJS application bootstrap: configures CORS, WebSocket adapter, Helmet security, rate limiting, Swagger docs, and starts the HTTP server on the configured port.",
+      "tags": [
+        "nestjs",
+        "bootstrap",
+        "entry-point",
+        "security",
+        "swagger"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/app.module.ts",
+      "type": "file",
+      "name": "App Module",
+      "filePath": "apps/api/src/app.module.ts",
+      "summary": "Root NestJS module that imports all feature modules: DatabaseModule, AuthModule, MarketModule, ScreenerModule, AlertsModule, PatternsModule, FlowsModule, WebSocketModule, WatchlistModule.",
+      "tags": [
+        "nestjs",
+        "module",
+        "root",
+        "di"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/api/src/app.module.ts:AppModule",
+      "type": "class",
+      "name": "AppModule",
+      "filePath": "apps/api/src/app.module.ts",
+      "summary": "Root NestJS application module that aggregates all feature modules.",
+      "tags": [
+        "nestjs",
+        "module"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/database/database.module.ts",
+      "type": "file",
+      "name": "Database Module",
+      "filePath": "apps/api/src/database/database.module.ts",
+      "summary": "NestJS module providing PostgreSQL (via pg) and Redis (ioredis) connections as global providers.",
+      "tags": [
+        "nestjs",
+        "database",
+        "postgresql",
+        "redis",
+        "module"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/database/database.service.ts",
+      "type": "file",
+      "name": "Database Service",
+      "filePath": "apps/api/src/database/database.service.ts",
+      "summary": "Injectable service wrapping PostgreSQL Pool and Redis client, providing query(), cacheGet(), cacheSet(), and publish() methods used across all modules.",
+      "tags": [
+        "nestjs",
+        "database",
+        "postgresql",
+        "redis",
+        "service"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/api/src/database/database.service.ts:DatabaseService",
+      "type": "class",
+      "name": "DatabaseService",
+      "filePath": "apps/api/src/database/database.service.ts",
+      "summary": "Provides typed access to PostgreSQL and Redis with query, cache, and pub/sub methods.",
+      "tags": [
+        "nestjs",
+        "service",
+        "database",
+        "redis"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/auth/auth.module.ts",
+      "type": "file",
+      "name": "Auth Module",
+      "filePath": "apps/api/src/modules/auth/auth.module.ts",
+      "summary": "NestJS authentication module providing JWT-based auth with Telegram and standard login support.",
+      "tags": [
+        "nestjs",
+        "auth",
+        "jwt",
+        "module"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/auth/auth.controller.ts",
+      "type": "file",
+      "name": "Auth Controller",
+      "filePath": "apps/api/src/modules/auth/auth.controller.ts",
+      "summary": "REST controller handling /api/auth endpoints: login, Telegram auth, token refresh, and user profile.",
+      "tags": [
+        "nestjs",
+        "controller",
+        "auth",
+        "rest",
+        "jwt"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/auth/auth.service.ts",
+      "type": "file",
+      "name": "Auth Service",
+      "filePath": "apps/api/src/modules/auth/auth.service.ts",
+      "summary": "Implements authentication logic: JWT token generation, Telegram init data validation, user creation/lookup in PostgreSQL.",
+      "tags": [
+        "nestjs",
+        "service",
+        "auth",
+        "jwt",
+        "telegram"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/market.module.ts",
+      "type": "file",
+      "name": "Market Module",
+      "filePath": "apps/api/src/modules/market/market.module.ts",
+      "summary": "NestJS module providing real-time market data via REST and WebSocket, containing MarketService, MarketGateway, MarketController, and HistoryController.",
+      "tags": [
+        "nestjs",
+        "market",
+        "websocket",
+        "module"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/market.controller.ts",
+      "type": "file",
+      "name": "Market Controller",
+      "filePath": "apps/api/src/modules/market/market.controller.ts",
+      "summary": "REST controller exposing /api/market endpoints: tickers, exchange health, top gainers/losers/volume, order books, connected exchanges.",
+      "tags": [
+        "nestjs",
+        "controller",
+        "market",
+        "rest",
+        "api"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/market.service.ts",
+      "type": "file",
+      "name": "Market Service",
+      "filePath": "apps/api/src/modules/market/market.service.ts",
+      "summary": "Core market data service managing ExchangeManager connections, in-memory ticker/candle/orderbook caches, throttled WebSocket broadcasts, and PostgreSQL candle storage.",
+      "tags": [
+        "nestjs",
+        "service",
+        "market",
+        "websocket",
+        "exchange",
+        "real-time"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/api/src/modules/market/market.service.ts:MarketService",
+      "type": "class",
+      "name": "MarketService",
+      "filePath": "apps/api/src/modules/market/market.service.ts",
+      "summary": "Manages exchange connections, aggregates real-time market data, stores candles to DB, and broadcasts updates via WebSocket gateway.",
+      "tags": [
+        "nestjs",
+        "service",
+        "market",
+        "exchange-manager"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/market.gateway.ts",
+      "type": "file",
+      "name": "Market WebSocket Gateway",
+      "filePath": "apps/api/src/modules/market/market.gateway.ts",
+      "summary": "NestJS WebSocket gateway at /ws path managing client subscriptions to ticker, candle, orderbook, and trade channels with optimized per-symbol lookup maps.",
+      "tags": [
+        "nestjs",
+        "gateway",
+        "websocket",
+        "market",
+        "real-time",
+        "subscriptions"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/api/src/modules/market/market.gateway.ts:MarketGateway",
+      "type": "class",
+      "name": "MarketGateway",
+      "filePath": "apps/api/src/modules/market/market.gateway.ts",
+      "summary": "WebSocket gateway managing client subscriptions and broadcasting market data to subscribed clients.",
+      "tags": [
+        "nestjs",
+        "gateway",
+        "websocket"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/history.controller.ts",
+      "type": "file",
+      "name": "History Controller",
+      "filePath": "apps/api/src/modules/market/history.controller.ts",
+      "summary": "REST controller for historical candle data endpoint /api/market/history, fetching from exchange APIs with pagination support.",
+      "tags": [
+        "nestjs",
+        "controller",
+        "candles",
+        "history",
+        "rest"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/alerts/alerts.module.ts",
+      "type": "file",
+      "name": "Alerts Module",
+      "filePath": "apps/api/src/modules/alerts/alerts.module.ts",
+      "summary": "NestJS module for price and volume alert management.",
+      "tags": [
+        "nestjs",
+        "alerts",
+        "module"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/alerts/alerts.controller.ts",
+      "type": "file",
+      "name": "Alerts Controller",
+      "filePath": "apps/api/src/modules/alerts/alerts.controller.ts",
+      "summary": "REST controller for /api/alerts: CRUD operations for user price alerts.",
+      "tags": [
+        "nestjs",
+        "controller",
+        "alerts",
+        "rest"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/alerts/alerts.service.ts",
+      "type": "file",
+      "name": "Alerts Service",
+      "filePath": "apps/api/src/modules/alerts/alerts.service.ts",
+      "summary": "Business logic for alert management: creating, updating, deleting, and triggering alerts stored in PostgreSQL.",
+      "tags": [
+        "nestjs",
+        "service",
+        "alerts",
+        "postgresql"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/screener/screener.module.ts",
+      "type": "file",
+      "name": "Screener Module",
+      "filePath": "apps/api/src/modules/screener/screener.module.ts",
+      "summary": "NestJS module for the advanced crypto screener with filtering and sorting capabilities.",
+      "tags": [
+        "nestjs",
+        "screener",
+        "module"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/screener/screener.controller.ts",
+      "type": "file",
+      "name": "Screener Controller",
+      "filePath": "apps/api/src/modules/screener/screener.controller.ts",
+      "summary": "REST controller exposing /api/screener endpoint with filter and sort query parameters for market screening.",
+      "tags": [
+        "nestjs",
+        "controller",
+        "screener",
+        "rest",
+        "filtering"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/screener/screener.service.ts",
+      "type": "file",
+      "name": "Screener Service",
+      "filePath": "apps/api/src/modules/screener/screener.service.ts",
+      "summary": "Implements screener filtering logic: applies multi-field filters (exchange, volume, price change) and sorting across all cached tickers.",
+      "tags": [
+        "nestjs",
+        "service",
+        "screener",
+        "filtering",
+        "sorting"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/watchlist/watchlist.module.ts",
+      "type": "file",
+      "name": "Watchlist Module",
+      "filePath": "apps/api/src/modules/watchlist/watchlist.module.ts",
+      "summary": "NestJS module for user watchlist management.",
+      "tags": [
+        "nestjs",
+        "watchlist",
+        "module"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/watchlist/watchlist.controller.ts",
+      "type": "file",
+      "name": "Watchlist Controller",
+      "filePath": "apps/api/src/modules/watchlist/watchlist.controller.ts",
+      "summary": "REST controller for /api/watchlist: add/remove symbols from user watchlists.",
+      "tags": [
+        "nestjs",
+        "controller",
+        "watchlist",
+        "rest"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/watchlist/watchlist.service.ts",
+      "type": "file",
+      "name": "Watchlist Service",
+      "filePath": "apps/api/src/modules/watchlist/watchlist.service.ts",
+      "summary": "Business logic for watchlist CRUD operations stored in PostgreSQL with user association.",
+      "tags": [
+        "nestjs",
+        "service",
+        "watchlist",
+        "postgresql"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/websocket/websocket.module.ts",
+      "type": "file",
+      "name": "WebSocket Module",
+      "filePath": "apps/api/src/modules/websocket/websocket.module.ts",
+      "summary": "NestJS module providing shared WebSocket infrastructure and the global websocket service.",
+      "tags": [
+        "nestjs",
+        "websocket",
+        "module"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/websocket/websocket.service.ts",
+      "type": "file",
+      "name": "WebSocket Service",
+      "filePath": "apps/api/src/modules/websocket/websocket.service.ts",
+      "summary": "Shared WebSocket service for broadcasting messages across all connected clients, used by pattern and alert modules.",
+      "tags": [
+        "nestjs",
+        "service",
+        "websocket",
+        "broadcast"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.module.ts",
+      "type": "file",
+      "name": "Flows Module",
+      "filePath": "apps/api/src/modules/flows/flows.module.ts",
+      "summary": "NestJS module for Hyperliquid order flow data, providing large trader activity metrics.",
+      "tags": [
+        "nestjs",
+        "flows",
+        "hyperliquid",
+        "module"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.controller.ts",
+      "type": "file",
+      "name": "Flows Controller",
+      "filePath": "apps/api/src/modules/flows/flows.controller.ts",
+      "summary": "REST controller for /api/flows: exposes Hyperliquid order flow data with exchange and symbol filtering.",
+      "tags": [
+        "nestjs",
+        "controller",
+        "flows",
+        "hyperliquid",
+        "rest"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.service.ts",
+      "type": "file",
+      "name": "Flows Service",
+      "filePath": "apps/api/src/modules/flows/flows.service.ts",
+      "summary": "Fetches and caches large trader order flow data from Hyperliquid API, providing aggregated buy/sell volume metrics per asset.",
+      "tags": [
+        "nestjs",
+        "service",
+        "flows",
+        "hyperliquid",
+        "order-flow",
+        "tested"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.types.ts",
+      "type": "file",
+      "name": "Flows Types",
+      "filePath": "apps/api/src/modules/flows/flows.types.ts",
+      "summary": "TypeScript type definitions for Hyperliquid order flow data: FlowEntry, FlowsResponse, and aggregation types.",
+      "tags": [
+        "typescript",
+        "types",
+        "flows",
+        "hyperliquid"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.mock.ts",
+      "type": "file",
+      "name": "Flows Mock Data",
+      "filePath": "apps/api/src/modules/flows/flows.mock.ts",
+      "summary": "Mock Hyperliquid flows data for development and testing when the real API is unavailable.",
+      "tags": [
+        "mock",
+        "testing",
+        "flows",
+        "development"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.service.spec.ts",
+      "type": "file",
+      "name": "Flows Service Tests",
+      "filePath": "apps/api/src/modules/flows/flows.service.spec.ts",
+      "summary": "Unit tests for FlowsService verifying Hyperliquid data fetching, caching, and error handling.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "flows",
+        "jest"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.module.ts",
+      "type": "file",
+      "name": "Patterns Module",
+      "filePath": "apps/api/src/modules/patterns/patterns.module.ts",
+      "summary": "NestJS module for automated chart pattern detection using technical analysis detectors.",
+      "tags": [
+        "nestjs",
+        "patterns",
+        "module",
+        "technical-analysis"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.controller.ts",
+      "type": "file",
+      "name": "Patterns Controller",
+      "filePath": "apps/api/src/modules/patterns/patterns.controller.ts",
+      "summary": "REST controller for /api/patterns: returns detected patterns with filtering by symbol, timeframe, exchange, and pattern type.",
+      "tags": [
+        "nestjs",
+        "controller",
+        "patterns",
+        "rest",
+        "technical-analysis"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "type": "file",
+      "name": "Patterns Service",
+      "filePath": "apps/api/src/modules/patterns/patterns.service.ts",
+      "summary": "Orchestrates pattern detection by running all detectors against market candle data, caching results in Redis, and broadcasting new patterns via WebSocket.",
+      "tags": [
+        "nestjs",
+        "service",
+        "patterns",
+        "detection",
+        "redis",
+        "websocket",
+        "tested"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.scanner.ts",
+      "type": "file",
+      "name": "Patterns Scanner",
+      "filePath": "apps/api/src/modules/patterns/patterns.scanner.ts",
+      "summary": "Scheduled scanner that periodically runs pattern detectors across all tracked symbols and timeframes, storing results and triggering alerts.",
+      "tags": [
+        "nestjs",
+        "scanner",
+        "patterns",
+        "scheduler",
+        "cron"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.scanner.utils.ts",
+      "type": "file",
+      "name": "Patterns Scanner Utils",
+      "filePath": "apps/api/src/modules/patterns/patterns.scanner.utils.ts",
+      "summary": "Utility functions for the pattern scanner: deduplication, serialization, result merging, and time-based filtering.",
+      "tags": [
+        "patterns",
+        "utils",
+        "scanner",
+        "tested"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.types.ts",
+      "type": "file",
+      "name": "Patterns Types",
+      "filePath": "apps/api/src/modules/patterns/patterns.types.ts",
+      "summary": "TypeScript type definitions for pattern detection: PatternType, PatternResult, DetectedPattern, and pattern scoring interfaces.",
+      "tags": [
+        "typescript",
+        "types",
+        "patterns"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.constants.ts",
+      "type": "file",
+      "name": "Patterns Constants",
+      "filePath": "apps/api/src/modules/patterns/patterns.constants.ts",
+      "summary": "Constants for pattern detection: minimum candle counts, scoring thresholds, timeframe configurations, and pattern category definitions.",
+      "tags": [
+        "patterns",
+        "constants",
+        "config"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.mapper.ts",
+      "type": "file",
+      "name": "Patterns Mapper",
+      "filePath": "apps/api/src/modules/patterns/patterns.mapper.ts",
+      "summary": "Maps internal pattern detection results to API response DTOs with human-readable labels and formatted data.",
+      "tags": [
+        "patterns",
+        "mapper",
+        "dto",
+        "api"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.service.spec.ts",
+      "type": "file",
+      "name": "Patterns Service Tests",
+      "filePath": "apps/api/src/modules/patterns/patterns.service.spec.ts",
+      "summary": "Unit tests for PatternsService verifying detection orchestration and caching behavior.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "patterns",
+        "jest"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.scanner.utils.spec.ts",
+      "type": "file",
+      "name": "Patterns Scanner Utils Tests",
+      "filePath": "apps/api/src/modules/patterns/patterns.scanner.utils.spec.ts",
+      "summary": "Unit tests for pattern scanner utility functions.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "patterns",
+        "jest"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/detector.types.ts",
+      "type": "file",
+      "name": "Detector Types",
+      "filePath": "apps/api/src/modules/patterns/detectors/detector.types.ts",
+      "summary": "Type definitions for the detector system: DetectorInput, DetectorResult, PatternSignal, and the IDetector interface contract.",
+      "tags": [
+        "typescript",
+        "types",
+        "detectors",
+        "patterns"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "type": "file",
+      "name": "Detector Utils",
+      "filePath": "apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "summary": "Shared utility functions for all detectors: ATR calculation, pivot detection, swing high/low identification, and statistical helpers.",
+      "tags": [
+        "patterns",
+        "detectors",
+        "utils",
+        "technical-analysis",
+        "atr",
+        "tested"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/detector.utils.spec.ts",
+      "type": "file",
+      "name": "Detector Utils Tests",
+      "filePath": "apps/api/src/modules/patterns/detectors/detector.utils.spec.ts",
+      "summary": "Unit tests for detector utility functions including ATR, pivot, and swing calculations.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "detectors",
+        "jest"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/breakout.detector.ts",
+      "type": "file",
+      "name": "Breakout Detector",
+      "filePath": "apps/api/src/modules/patterns/detectors/breakout.detector.ts",
+      "summary": "Detects price breakout patterns from consolidation zones, resistance levels, and trend channels using ATR-normalized measurements.",
+      "tags": [
+        "patterns",
+        "detector",
+        "breakout",
+        "technical-analysis"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/liquidity-sweep.detector.ts",
+      "type": "file",
+      "name": "Liquidity Sweep Detector",
+      "filePath": "apps/api/src/modules/patterns/detectors/liquidity-sweep.detector.ts",
+      "summary": "Detects liquidity sweep patterns where price briefly pierces a swing high/low before reversing, indicating stop-hunt activity.",
+      "tags": [
+        "patterns",
+        "detector",
+        "liquidity-sweep",
+        "market-structure"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/retest.detector.ts",
+      "type": "file",
+      "name": "Retest Detector",
+      "filePath": "apps/api/src/modules/patterns/detectors/retest.detector.ts",
+      "summary": "Detects retest patterns where price returns to a broken support/resistance level after a breakout.",
+      "tags": [
+        "patterns",
+        "detector",
+        "retest",
+        "support-resistance"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/structure-break.detector.ts",
+      "type": "file",
+      "name": "Structure Break Detector",
+      "filePath": "apps/api/src/modules/patterns/detectors/structure-break.detector.ts",
+      "summary": "Detects market structure breaks (BOS/CHoCH) where price breaks a key swing high or low, indicating trend change.",
+      "tags": [
+        "patterns",
+        "detector",
+        "structure-break",
+        "bos",
+        "choch",
+        "market-structure"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.ts",
+      "type": "file",
+      "name": "Pattern Actionability",
+      "filePath": "apps/api/src/modules/patterns/detectors/pattern-actionability.ts",
+      "summary": "Evaluates pattern quality and trade actionability: assigns confidence scores, risk/reward ratios, and entry/stop/target levels.",
+      "tags": [
+        "patterns",
+        "scoring",
+        "risk-reward",
+        "trading",
+        "tested"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.spec.ts",
+      "type": "file",
+      "name": "Pattern Actionability Tests",
+      "filePath": "apps/api/src/modules/patterns/detectors/pattern-actionability.spec.ts",
+      "summary": "Tests for pattern actionability scoring and confidence calculation.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "patterns",
+        "jest"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/setup-helpers.ts",
+      "type": "file",
+      "name": "Setup Helpers",
+      "filePath": "apps/api/src/modules/patterns/detectors/setup-helpers.ts",
+      "summary": "Helper functions for constructing test candle arrays and detector input fixtures used in pattern detection tests.",
+      "tags": [
+        "testing",
+        "helpers",
+        "patterns",
+        "fixtures"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/shared/src/types.ts",
+      "type": "file",
+      "name": "Shared Types",
+      "filePath": "packages/shared/src/types.ts",
+      "summary": "Core TypeScript type definitions shared across frontend and backend: ExchangeId, Ticker, Candle, Timeframe, OrderBook, Trade, Alert, ViewMode, and 9 supported exchanges.",
+      "tags": [
+        "typescript",
+        "types",
+        "shared",
+        "exchange",
+        "market-data"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:packages/shared/src/constants.ts",
+      "type": "file",
+      "name": "Shared Constants",
+      "filePath": "packages/shared/src/constants.ts",
+      "summary": "Shared constants: DEFAULT_SYMBOLS (top crypto pairs), TIMEFRAMES, ALL_EXCHANGES, and default configuration values.",
+      "tags": [
+        "constants",
+        "shared",
+        "symbols",
+        "exchanges"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/shared/src/utils.ts",
+      "type": "file",
+      "name": "Shared Utils",
+      "filePath": "packages/shared/src/utils.ts",
+      "summary": "Shared utility functions: number formatting, percentage calculation, symbol normalization, and price comparison helpers.",
+      "tags": [
+        "utils",
+        "shared",
+        "formatting"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/shared/src/index.ts",
+      "type": "file",
+      "name": "Shared Package Index",
+      "filePath": "packages/shared/src/index.ts",
+      "summary": "Barrel export for @crypto-screener/shared package, re-exporting all types, constants, and utilities.",
+      "tags": [
+        "shared",
+        "exports",
+        "package"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/index.ts",
+      "type": "file",
+      "name": "Exchange Connectors Index",
+      "filePath": "packages/exchange-connectors/src/index.ts",
+      "summary": "Barrel export for @crypto-screener/exchange-connectors package, exporting ExchangeManager and all connector classes.",
+      "tags": [
+        "exchange-connectors",
+        "exports",
+        "package"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/base.ts",
+      "type": "file",
+      "name": "Base Exchange Connector",
+      "filePath": "packages/exchange-connectors/src/base.ts",
+      "summary": "Abstract base class for exchange connectors defining the interface: WebSocket connection management, subscription methods, and event emitter pattern.",
+      "tags": [
+        "exchange-connector",
+        "abstract",
+        "websocket",
+        "base-class"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "type": "class",
+      "name": "BaseExchangeConnector",
+      "filePath": "packages/exchange-connectors/src/base.ts",
+      "summary": "Abstract base for exchange connectors with WebSocket lifecycle management and event emission.",
+      "tags": [
+        "abstract",
+        "websocket",
+        "exchange"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/manager.ts",
+      "type": "file",
+      "name": "Exchange Manager",
+      "filePath": "packages/exchange-connectors/src/manager.ts",
+      "summary": "ExchangeManager orchestrates all exchange connectors: connects all exchanges, aggregates market data events, and provides unified subscription and data fetch APIs.",
+      "tags": [
+        "exchange-manager",
+        "orchestration",
+        "multi-exchange",
+        "websocket"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "type": "class",
+      "name": "ExchangeManager",
+      "filePath": "packages/exchange-connectors/src/manager.ts",
+      "summary": "Manages 9 exchange WebSocket connectors, aggregating ticker/candle/orderbook/trade events and providing unified subscription APIs.",
+      "tags": [
+        "exchange-manager",
+        "multi-exchange",
+        "event-emitter"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/binance.ts",
+      "type": "file",
+      "name": "Binance Connector",
+      "filePath": "packages/exchange-connectors/src/binance.ts",
+      "summary": "Binance exchange WebSocket connector implementing ticker, candle, orderbook, and trade stream subscriptions for both spot and futures markets.",
+      "tags": [
+        "exchange-connector",
+        "binance",
+        "websocket",
+        "spot",
+        "futures"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/bybit.ts",
+      "type": "file",
+      "name": "Bybit Connector",
+      "filePath": "packages/exchange-connectors/src/bybit.ts",
+      "summary": "Bybit exchange WebSocket connector for linear perpetuals and spot market data streams.",
+      "tags": [
+        "exchange-connector",
+        "bybit",
+        "websocket",
+        "perpetuals"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/okx.ts",
+      "type": "file",
+      "name": "OKX Connector",
+      "filePath": "packages/exchange-connectors/src/okx.ts",
+      "summary": "OKX exchange WebSocket connector for spot and swap market data.",
+      "tags": [
+        "exchange-connector",
+        "okx",
+        "websocket"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/mexc.ts",
+      "type": "file",
+      "name": "MEXC Connector",
+      "filePath": "packages/exchange-connectors/src/mexc.ts",
+      "summary": "MEXC exchange WebSocket connector with custom message format handling.",
+      "tags": [
+        "exchange-connector",
+        "mexc",
+        "websocket"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/mexc-spot-proto.ts",
+      "type": "file",
+      "name": "MEXC Spot Proto",
+      "filePath": "packages/exchange-connectors/src/mexc-spot-proto.ts",
+      "summary": "Protocol buffer / binary message parser for MEXC spot market WebSocket messages.",
+      "tags": [
+        "mexc",
+        "protobuf",
+        "parser",
+        "websocket"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/bitget.ts",
+      "type": "file",
+      "name": "Bitget Connector",
+      "filePath": "packages/exchange-connectors/src/bitget.ts",
+      "summary": "Bitget exchange WebSocket connector for futures and spot market data streams.",
+      "tags": [
+        "exchange-connector",
+        "bitget",
+        "websocket"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/generic.ts",
+      "type": "file",
+      "name": "Generic Exchange Connector",
+      "filePath": "packages/exchange-connectors/src/generic.ts",
+      "summary": "Generic fallback exchange connector for KuCoin, Gate.io, Hyperliquid, and Coinbase using standardized WebSocket protocols.",
+      "tags": [
+        "exchange-connector",
+        "generic",
+        "kucoin",
+        "gate",
+        "hyperliquid",
+        "coinbase"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/app/layout.tsx",
+      "type": "file",
+      "name": "Root Layout",
+      "filePath": "apps/web/src/app/layout.tsx",
+      "summary": "Next.js root layout component setting up HTML structure, global CSS, fonts, metadata, and React Query/Zustand providers for the crypto terminal.",
+      "tags": [
+        "nextjs",
+        "layout",
+        "react",
+        "providers",
+        "app-router"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/app/page.tsx",
+      "type": "file",
+      "name": "Terminal Page",
+      "filePath": "apps/web/src/app/page.tsx",
+      "summary": "Main terminal page orchestrating view modes (terminal, screener, patterns, grid, heatmap, settings), loading initial market data, and managing WebSocket subscription lifecycle.",
+      "tags": [
+        "nextjs",
+        "page",
+        "react",
+        "terminal",
+        "view-modes"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/app/globals.css",
+      "type": "file",
+      "name": "Global CSS",
+      "filePath": "apps/web/src/app/globals.css",
+      "summary": "Global CSS with TailwindCSS directives, CSS custom properties for the dark crypto screener theme, and typography styles.",
+      "tags": [
+        "css",
+        "tailwindcss",
+        "theme",
+        "design-system"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/stores/index.ts",
+      "type": "file",
+      "name": "Zustand Stores",
+      "filePath": "apps/web/src/stores/index.ts",
+      "summary": "Global Zustand state management: MarketStore (tickers, candles, exchanges), DrawingStore (chart annotations with localStorage persistence and cross-tab sync), UIStore (view modes, alerts, personal grid), WSStore, OrderbookStore, AlertStore.",
+      "tags": [
+        "zustand",
+        "state-management",
+        "stores",
+        "market",
+        "drawings",
+        "ui"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/hooks/useWebSocket.ts",
+      "type": "file",
+      "name": "useWebSocket Hook",
+      "filePath": "apps/web/src/hooks/useWebSocket.ts",
+      "summary": "Custom React hook managing WebSocket connection to the NestJS API: auto-reconnect with exponential backoff, subscription management, and routing incoming events to Zustand stores.",
+      "tags": [
+        "react",
+        "hook",
+        "websocket",
+        "real-time",
+        "reconnect"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/hooks/useData.ts",
+      "type": "file",
+      "name": "useData Hook",
+      "filePath": "apps/web/src/hooks/useData.ts",
+      "summary": "React hook for fetching and subscribing to market data, combining REST initial load with WebSocket real-time updates.",
+      "tags": [
+        "react",
+        "hook",
+        "data-fetching",
+        "market-data"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/hooks/useSignalMonitor.ts",
+      "type": "file",
+      "name": "useSignalMonitor Hook",
+      "filePath": "apps/web/src/hooks/useSignalMonitor.ts",
+      "summary": "React hook monitoring signal levels drawn on charts: watches ticker updates and triggers alerts when price crosses defined signal level drawings.",
+      "tags": [
+        "react",
+        "hook",
+        "signals",
+        "alerts",
+        "drawings",
+        "tested"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/hooks/useSignalMonitor.test.ts",
+      "type": "file",
+      "name": "useSignalMonitor Tests",
+      "filePath": "apps/web/src/hooks/useSignalMonitor.test.ts",
+      "summary": "Unit tests for the useSignalMonitor hook verifying price alert triggering logic.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "hook",
+        "signals"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/api.ts",
+      "type": "file",
+      "name": "API Client",
+      "filePath": "apps/web/src/lib/api.ts",
+      "summary": "Type-safe REST API client for the NestJS backend: marketApi, alertsApi, screenerApi, patternsApi, watchlistApi — all using fetch with error handling.",
+      "tags": [
+        "api-client",
+        "rest",
+        "fetch",
+        "market",
+        "typescript"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/format.ts",
+      "type": "file",
+      "name": "Format Utils",
+      "filePath": "apps/web/src/lib/format.ts",
+      "summary": "Formatting utility functions: formatPrice, formatVolume, formatPercent, getChartPriceFormat — adapted for crypto price scales.",
+      "tags": [
+        "utils",
+        "formatting",
+        "numbers",
+        "price"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/display-symbol.ts",
+      "type": "file",
+      "name": "Display Symbol Utils",
+      "filePath": "apps/web/src/lib/display-symbol.ts",
+      "summary": "Utilities for normalizing and formatting crypto trading pair symbols for display: formatDisplaySymbol, getDisplayBaseSymbol, formatMarketTypeLabel.",
+      "tags": [
+        "utils",
+        "symbols",
+        "formatting",
+        "crypto",
+        "tested"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/display-symbol.test.ts",
+      "type": "file",
+      "name": "Display Symbol Tests",
+      "filePath": "apps/web/src/lib/display-symbol.test.ts",
+      "summary": "Unit tests for display symbol formatting functions.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "symbols"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/market-preferences.ts",
+      "type": "file",
+      "name": "Market Preferences",
+      "filePath": "apps/web/src/lib/market-preferences.ts",
+      "summary": "Persistent user market preferences: selected timeframe stored in localStorage with default fallback.",
+      "tags": [
+        "preferences",
+        "localStorage",
+        "persistence",
+        "timeframe",
+        "tested"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/market-preferences.test.ts",
+      "type": "file",
+      "name": "Market Preferences Tests",
+      "filePath": "apps/web/src/lib/market-preferences.test.ts",
+      "summary": "Tests for market preferences persistence logic.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "preferences"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/heatmap-accumulator.ts",
+      "type": "file",
+      "name": "Heatmap Accumulator",
+      "filePath": "apps/web/src/lib/heatmap-accumulator.ts",
+      "summary": "Accumulates order flow data into time-bucketed price levels for the liquidity heatmap visualization.",
+      "tags": [
+        "heatmap",
+        "accumulator",
+        "order-flow",
+        "liquidity"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-engine.ts",
+      "type": "file",
+      "name": "Liquidity Engine",
+      "filePath": "apps/web/src/lib/liquidity-engine.ts",
+      "summary": "Core liquidity heatmap engine: aggregates order book data into price buckets, calculates heat colors, and manages HeatmapSettings configuration.",
+      "tags": [
+        "liquidity",
+        "heatmap",
+        "engine",
+        "orderbook",
+        "visualization"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-buckets.ts",
+      "type": "file",
+      "name": "Liquidity Buckets",
+      "filePath": "apps/web/src/lib/liquidity-buckets.ts",
+      "summary": "Price bucket management for the liquidity heatmap: groups order book levels into configurable price buckets for visualization.",
+      "tags": [
+        "liquidity",
+        "buckets",
+        "orderbook",
+        "aggregation",
+        "tested"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-buckets.test.ts",
+      "type": "file",
+      "name": "Liquidity Buckets Tests",
+      "filePath": "apps/web/src/lib/liquidity-buckets.test.ts",
+      "summary": "Tests for liquidity bucket aggregation logic.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "liquidity"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-signals.ts",
+      "type": "file",
+      "name": "Liquidity Signals",
+      "filePath": "apps/web/src/lib/liquidity-signals.ts",
+      "summary": "Detects significant liquidity events from order book data: large bid/ask walls, liquidity imbalances, and absorption signals.",
+      "tags": [
+        "liquidity",
+        "signals",
+        "detection",
+        "orderbook",
+        "tested"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/lib/liquidity-signals.test.ts",
+      "type": "file",
+      "name": "Liquidity Signals Tests",
+      "filePath": "apps/web/src/lib/liquidity-signals.test.ts",
+      "summary": "Tests for liquidity signal detection functions.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "liquidity",
+        "signals"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/flows/api.ts",
+      "type": "file",
+      "name": "Flows API Client",
+      "filePath": "apps/web/src/lib/flows/api.ts",
+      "summary": "API client functions for fetching Hyperliquid order flow data from the NestJS backend.",
+      "tags": [
+        "api-client",
+        "flows",
+        "hyperliquid",
+        "fetch"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/flows/models.ts",
+      "type": "file",
+      "name": "Flows Models",
+      "filePath": "apps/web/src/lib/flows/models.ts",
+      "summary": "TypeScript models and types for Hyperliquid flow data on the frontend.",
+      "tags": [
+        "typescript",
+        "models",
+        "flows",
+        "hyperliquid"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/patterns/api.ts",
+      "type": "file",
+      "name": "Patterns API Client",
+      "filePath": "apps/web/src/lib/patterns/api.ts",
+      "summary": "API client for fetching detected chart patterns from the NestJS patterns endpoint.",
+      "tags": [
+        "api-client",
+        "patterns",
+        "fetch"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/patterns/models.ts",
+      "type": "file",
+      "name": "Patterns Models",
+      "filePath": "apps/web/src/lib/patterns/models.ts",
+      "summary": "TypeScript models for pattern data on the frontend: PatternDetail, PatternFilters, PatternsUIState, and DEFAULT_PATTERNS_UI_STATE.",
+      "tags": [
+        "typescript",
+        "models",
+        "patterns",
+        "ui-state"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/utils.ts",
+      "type": "file",
+      "name": "General Utils",
+      "filePath": "apps/web/src/lib/utils.ts",
+      "summary": "General utility functions: cn() for TailwindCSS class merging using clsx and tailwind-merge.",
+      "tags": [
+        "utils",
+        "tailwindcss",
+        "cn",
+        "clsx"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-view.tsx",
+      "type": "file",
+      "name": "PatternsView",
+      "filePath": "apps/web/src/components/patterns/patterns-view.tsx",
+      "summary": "Main patterns view layout: combines PatternsSidebar (list + filters) and PatternDetailsCard (selected pattern detail) in a split-pane layout.",
+      "tags": [
+        "react",
+        "component",
+        "patterns",
+        "view",
+        "layout"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-list.tsx",
+      "type": "file",
+      "name": "PatternsList",
+      "filePath": "apps/web/src/components/patterns/patterns-list.tsx",
+      "summary": "Virtualized list of detected patterns with sorting, filtering, and selection. Uses TanStack Query for data fetching.",
+      "tags": [
+        "react",
+        "component",
+        "patterns",
+        "list",
+        "virtualized"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-list-row.tsx",
+      "type": "file",
+      "name": "PatternsListRow",
+      "filePath": "apps/web/src/components/patterns/patterns-list-row.tsx",
+      "summary": "Single row in the patterns list: displays pattern type, symbol, timeframe, score, and exchange badge.",
+      "tags": [
+        "react",
+        "component",
+        "patterns",
+        "list-item"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-sidebar.tsx",
+      "type": "file",
+      "name": "PatternsSidebar",
+      "filePath": "apps/web/src/components/patterns/patterns-sidebar.tsx",
+      "summary": "Left sidebar for the patterns view: contains filters and the scrollable patterns list.",
+      "tags": [
+        "react",
+        "component",
+        "patterns",
+        "sidebar"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-filters.tsx",
+      "type": "file",
+      "name": "PatternsFilters",
+      "filePath": "apps/web/src/components/patterns/patterns-filters.tsx",
+      "summary": "Filter controls for the patterns view: pattern type selection, exchange filter, timeframe filter, and search input.",
+      "tags": [
+        "react",
+        "component",
+        "patterns",
+        "filters",
+        "ui"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/pattern-chart-overlay.tsx",
+      "type": "file",
+      "name": "PatternChartOverlay",
+      "filePath": "apps/web/src/components/patterns/pattern-chart-overlay.tsx",
+      "summary": "SVG overlay rendered on top of Lightweight Charts to visualize pattern markers, entry/stop/target levels, and shaded zones.",
+      "tags": [
+        "react",
+        "component",
+        "patterns",
+        "chart-overlay",
+        "svg"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/pattern-details-card.tsx",
+      "type": "file",
+      "name": "PatternDetailsCard",
+      "filePath": "apps/web/src/components/patterns/pattern-details-card.tsx",
+      "summary": "Detailed card for a selected pattern: shows embedded chart with pattern overlay, entry/stop/target prices, confidence score, and pattern description.",
+      "tags": [
+        "react",
+        "component",
+        "patterns",
+        "detail",
+        "chart"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/patterns-empty-state.tsx",
+      "type": "file",
+      "name": "PatternsEmptyState",
+      "filePath": "apps/web/src/components/patterns/patterns-empty-state.tsx",
+      "summary": "Empty state component for the patterns list when no patterns match the current filters.",
+      "tags": [
+        "react",
+        "component",
+        "patterns",
+        "empty-state"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/use-patterns-query.ts",
+      "type": "file",
+      "name": "usePatternsQuery",
+      "filePath": "apps/web/src/components/patterns/use-patterns-query.ts",
+      "summary": "TanStack Query hook for fetching and caching pattern data from the API with auto-refresh interval.",
+      "tags": [
+        "react",
+        "hook",
+        "tanstack-query",
+        "patterns",
+        "data-fetching"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/patterns/use-pattern-detail.ts",
+      "type": "file",
+      "name": "usePatternDetail",
+      "filePath": "apps/web/src/components/patterns/use-pattern-detail.ts",
+      "summary": "Hook for loading the detailed candle history and pattern data for the selected pattern in the details card.",
+      "tags": [
+        "react",
+        "hook",
+        "patterns",
+        "detail",
+        "candles"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/alerts/alert-toast.tsx",
+      "type": "file",
+      "name": "AlertToast & AlertModal",
+      "filePath": "apps/web/src/components/alerts/alert-toast.tsx",
+      "summary": "Toast notification and modal components for displaying triggered price alerts with sound, visual flash, and auto-dismiss support.",
+      "tags": [
+        "react",
+        "component",
+        "alerts",
+        "toast",
+        "notifications"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/alerts/alerts-panel.tsx",
+      "type": "file",
+      "name": "AlertsPanel",
+      "filePath": "apps/web/src/components/alerts/alerts-panel.tsx",
+      "summary": "Slide-out panel for managing user alerts: create new alerts, list active alerts, and mark as read.",
+      "tags": [
+        "react",
+        "component",
+        "alerts",
+        "panel",
+        "management"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/screener/screener-view.tsx",
+      "type": "file",
+      "name": "ScreenerView",
+      "filePath": "apps/web/src/components/screener/screener-view.tsx",
+      "summary": "Main screener view with sortable, filterable table of all tracked crypto pairs: price, 24h change, volume, exchange badges.",
+      "tags": [
+        "react",
+        "component",
+        "screener",
+        "table",
+        "filtering",
+        "sorting"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/coin-list/coin-list.tsx",
+      "type": "file",
+      "name": "CoinList",
+      "filePath": "apps/web/src/components/coin-list/coin-list.tsx",
+      "summary": "Collapsible left sidebar showing all tracked coins with live price updates, 24h change indicators, and search/filter.",
+      "tags": [
+        "react",
+        "component",
+        "coin-list",
+        "sidebar",
+        "real-time"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/terminal/terminal-view.tsx",
+      "type": "file",
+      "name": "TerminalView",
+      "filePath": "apps/web/src/components/terminal/terminal-view.tsx",
+      "summary": "Container wrapper for the main terminal content area providing consistent layout and overflow handling.",
+      "tags": [
+        "react",
+        "component",
+        "terminal",
+        "layout"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/components/terminal/heatmap-view.tsx",
+      "type": "file",
+      "name": "HeatmapView",
+      "filePath": "apps/web/src/components/terminal/heatmap-view.tsx",
+      "summary": "Liquidity heatmap view displaying order book depth visualization with configurable price levels and intensity coloring.",
+      "tags": [
+        "react",
+        "component",
+        "heatmap",
+        "liquidity",
+        "orderbook",
+        "visualization"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/terminal/header.tsx",
+      "type": "file",
+      "name": "Header",
+      "filePath": "apps/web/src/components/terminal/header.tsx",
+      "summary": "Top navigation header: view mode tabs (Terminal, Screener, Patterns, Grid, Heatmap), connection status indicator, and alert badge.",
+      "tags": [
+        "react",
+        "component",
+        "header",
+        "navigation",
+        "view-modes"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/terminal/settings-view.tsx",
+      "type": "file",
+      "name": "SettingsView",
+      "filePath": "apps/web/src/components/terminal/settings-view.tsx",
+      "summary": "Application settings panel: heatmap configuration, exchange visibility toggles, notification preferences.",
+      "tags": [
+        "react",
+        "component",
+        "settings",
+        "configuration"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/drawings/engine.ts",
+      "type": "file",
+      "name": "Drawing Engine",
+      "filePath": "apps/web/src/lib/drawings/engine.ts",
+      "summary": "Pure projection functions for the chart drawing engine: converts drawing models to SVG/canvas coordinates using chart time/price projection APIs. Handles trendlines, horizontal lines, vertical lines, rectangles, and rulers with off-screen extrapolation.",
+      "tags": [
+        "drawings",
+        "engine",
+        "projection",
+        "svg",
+        "charts",
+        "coordinate-system",
+        "tested"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/lib/drawings/engine.test.ts",
+      "type": "file",
+      "name": "Drawing Engine Tests",
+      "filePath": "apps/web/src/lib/drawings/engine.test.ts",
+      "summary": "Unit tests for drawing projection functions: coordinate transformation, off-screen extrapolation, and hit-testing.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "drawings",
+        "projection"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/drawings/models.ts",
+      "type": "file",
+      "name": "Drawing Models",
+      "filePath": "apps/web/src/lib/drawings/models.ts",
+      "summary": "TypeScript types for all drawing types: AnyDrawing union, HorizontalLine, VerticalLine, Trendline, Rectangle, Ruler, SignalLevel, DrawingTool, DrawingOperationEvent, and makeInstrumentKey.",
+      "tags": [
+        "typescript",
+        "models",
+        "drawings",
+        "types"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/drawings/persistence.ts",
+      "type": "file",
+      "name": "Drawing Persistence",
+      "filePath": "apps/web/src/lib/drawings/persistence.ts",
+      "summary": "Serializes and deserializes drawing state to/from localStorage: loadPersistedDrawings and savePersistedDrawings with versioning and migration support.",
+      "tags": [
+        "drawings",
+        "persistence",
+        "localStorage",
+        "serialization",
+        "tested"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/drawings/persistence.test.ts",
+      "type": "file",
+      "name": "Drawing Persistence Tests",
+      "filePath": "apps/web/src/lib/drawings/persistence.test.ts",
+      "summary": "Tests for drawing persistence: save/load round-trips, schema migrations, and error handling.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "drawings",
+        "persistence"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/drawings/primitive.ts",
+      "type": "file",
+      "name": "Drawing Primitive",
+      "filePath": "apps/web/src/lib/drawings/primitive.ts",
+      "summary": "Lightweight Charts custom series primitive for rendering chart drawings as SVG overlays directly on the chart canvas.",
+      "tags": [
+        "drawings",
+        "primitive",
+        "lightweight-charts",
+        "custom-series",
+        "svg"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/lib/drawings/sync-bus.ts",
+      "type": "file",
+      "name": "Drawing Sync Bus",
+      "filePath": "apps/web/src/lib/drawings/sync-bus.ts",
+      "summary": "BroadcastChannel-based event bus for synchronizing drawing operations across multiple browser tabs showing the same chart instrument.",
+      "tags": [
+        "drawings",
+        "sync",
+        "broadcast-channel",
+        "cross-tab",
+        "event-bus",
+        "tested"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/drawings/sync-bus.test.ts",
+      "type": "file",
+      "name": "Drawing Sync Bus Tests",
+      "filePath": "apps/web/src/lib/drawings/sync-bus.test.ts",
+      "summary": "Tests for the drawing sync bus: event propagation, origin filtering, and subscription lifecycle.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "drawings",
+        "sync"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/chart-card.tsx",
+      "type": "file",
+      "name": "ChartCard",
+      "filePath": "apps/web/src/components/charts/chart-card.tsx",
+      "summary": "Core chart card component using Lightweight Charts: renders candlestick + volume charts, manages real-time candle updates, handles historical scroll-back with lazy loading, integrates heatmap overlay, drawing overlay, and pattern overlays.",
+      "tags": [
+        "react",
+        "component",
+        "charts",
+        "lightweight-charts",
+        "real-time",
+        "candles",
+        "drawings"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/chart-grid.tsx",
+      "type": "file",
+      "name": "ChartGrid",
+      "filePath": "apps/web/src/components/charts/chart-grid.tsx",
+      "summary": "Multi-chart grid component: renders 1, 4, 6, or 9 ChartCard instances in a configurable grid layout with symbol assignment.",
+      "tags": [
+        "react",
+        "component",
+        "chart-grid",
+        "layout",
+        "multi-chart"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/chart-history.ts",
+      "type": "file",
+      "name": "Chart History Utils",
+      "filePath": "apps/web/src/components/charts/chart-history.ts",
+      "summary": "Utility functions for chart history management: mergeChartHistory (deduplication + sort), shouldBackfillInitialHistory, getInitialHistoryBackfillEndTime.",
+      "tags": [
+        "charts",
+        "history",
+        "candles",
+        "utils",
+        "tested"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/chart-history.test.ts",
+      "type": "file",
+      "name": "Chart History Tests",
+      "filePath": "apps/web/src/components/charts/chart-history.test.ts",
+      "summary": "Tests for chart history merging and backfill logic.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "charts",
+        "history"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/drawing-overlay.tsx",
+      "type": "file",
+      "name": "DrawingOverlay",
+      "filePath": "apps/web/src/components/charts/drawing-overlay.tsx",
+      "summary": "SVG overlay component rendered on top of the chart: displays active drawings, handles mouse events for creating/editing/selecting drawings, implements drag-to-move and resize handles.",
+      "tags": [
+        "react",
+        "component",
+        "drawings",
+        "overlay",
+        "svg",
+        "interaction"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/drawing-overlay-helpers.ts",
+      "type": "file",
+      "name": "Drawing Overlay Helpers",
+      "filePath": "apps/web/src/components/charts/drawing-overlay-helpers.ts",
+      "summary": "Helper functions for DrawingOverlay: mouse coordinate snapping, handle hit-testing, drawing creation from mouse events, and cursor state management.",
+      "tags": [
+        "drawings",
+        "overlay",
+        "helpers",
+        "hit-testing",
+        "snapping",
+        "tested"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/drawing-overlay-helpers.test.ts",
+      "type": "file",
+      "name": "Drawing Overlay Helpers Tests",
+      "filePath": "apps/web/src/components/charts/drawing-overlay-helpers.test.ts",
+      "summary": "Tests for drawing overlay helper functions including coordinate transformation and hit-testing.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "drawings",
+        "overlay"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/drawing-toolbar.tsx",
+      "type": "file",
+      "name": "DrawingToolbar",
+      "filePath": "apps/web/src/components/charts/drawing-toolbar.tsx",
+      "summary": "Floating toolbar for chart drawing tools: cursor, horizontal line, vertical line, trendline, rectangle, ruler, signal level; also hide/show toggle and clear button.",
+      "tags": [
+        "react",
+        "component",
+        "drawings",
+        "toolbar",
+        "ui"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/heatmap-controls.tsx",
+      "type": "file",
+      "name": "HeatmapControls",
+      "filePath": "apps/web/src/components/charts/heatmap-controls.tsx",
+      "summary": "Control panel for the chart-embedded liquidity heatmap: toggles heatmap visibility, configures bucket count and intensity threshold.",
+      "tags": [
+        "react",
+        "component",
+        "heatmap",
+        "controls",
+        "ui"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/components/charts/heatmap-summary.tsx",
+      "type": "file",
+      "name": "HeatmapSummary",
+      "filePath": "apps/web/src/components/charts/heatmap-summary.tsx",
+      "summary": "Compact summary overlay showing top bid/ask liquidity levels and imbalance ratio derived from the current heatmap data.",
+      "tags": [
+        "react",
+        "component",
+        "heatmap",
+        "summary",
+        "liquidity"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/patterns/color-map.ts",
+      "type": "file",
+      "name": "Pattern Color Map",
+      "filePath": "apps/web/src/lib/patterns/color-map.ts",
+      "summary": "Maps pattern types to display colors for chart overlays and UI badges.",
+      "tags": [
+        "patterns",
+        "colors",
+        "ui",
+        "visualization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/patterns/persistence.ts",
+      "type": "file",
+      "name": "Pattern Persistence",
+      "filePath": "apps/web/src/lib/patterns/persistence.ts",
+      "summary": "Persists pattern UI state (filters, selected pattern, search) to localStorage.",
+      "tags": [
+        "patterns",
+        "persistence",
+        "localStorage",
+        "ui-state",
+        "tested"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/patterns/persistence.test.ts",
+      "type": "file",
+      "name": "Pattern Persistence Tests",
+      "filePath": "apps/web/src/lib/patterns/persistence.test.ts",
+      "summary": "Tests for pattern UI state persistence.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "patterns",
+        "persistence"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/personal-grid/models.ts",
+      "type": "file",
+      "name": "Personal Grid Models",
+      "filePath": "apps/web/src/lib/personal-grid/models.ts",
+      "summary": "TypeScript models for personal grid: PersonalGridSlot, PersonalGridLayout (2x2, 2x3, 3x3), PersonalGridState, PersonalGridMarketType, and DEFAULT_PERSONAL_GRID_STATE.",
+      "tags": [
+        "typescript",
+        "models",
+        "personal-grid",
+        "layout"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/lib/personal-grid/persistence.ts",
+      "type": "file",
+      "name": "Personal Grid Persistence",
+      "filePath": "apps/web/src/lib/personal-grid/persistence.ts",
+      "summary": "Persists personal grid state (slot symbols, layout, expanded slot) to localStorage with versioned schema.",
+      "tags": [
+        "personal-grid",
+        "persistence",
+        "localStorage",
+        "tested"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/web/src/lib/personal-grid/persistence.test.ts",
+      "type": "file",
+      "name": "Personal Grid Persistence Tests",
+      "filePath": "apps/web/src/lib/personal-grid/persistence.test.ts",
+      "summary": "Tests for personal grid state persistence and schema migrations.",
+      "tags": [
+        "testing",
+        "unit-test",
+        "personal-grid",
+        "persistence"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/grid/chart-picker-modal.tsx",
+      "type": "file",
+      "name": "ChartPickerModal",
+      "filePath": "apps/web/src/components/grid/chart-picker-modal.tsx",
+      "summary": "Modal dialog for selecting a symbol and exchange to assign to a personal grid slot, with search and recent symbols.",
+      "tags": [
+        "react",
+        "component",
+        "grid",
+        "modal",
+        "symbol-picker"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/grid/personal-grid-slot.tsx",
+      "type": "file",
+      "name": "PersonalGridSlot",
+      "filePath": "apps/web/src/components/grid/personal-grid-slot.tsx",
+      "summary": "Individual grid slot: shows a ChartCard for an assigned symbol, or an empty state with add button when unassigned. Supports expand/collapse.",
+      "tags": [
+        "react",
+        "component",
+        "grid",
+        "slot",
+        "chart"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/web/src/components/grid/personal-grid-view.tsx",
+      "type": "file",
+      "name": "PersonalGridView",
+      "filePath": "apps/web/src/components/grid/personal-grid-view.tsx",
+      "summary": "Personal multi-chart grid view: renders the configured grid layout with PersonalGridSlot instances, layout selector, and global controls.",
+      "tags": [
+        "react",
+        "component",
+        "grid",
+        "layout",
+        "personal-grid"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/web/public/sw.js",
+      "type": "file",
+      "name": "Service Worker",
+      "filePath": "apps/web/public/sw.js",
+      "summary": "Progressive Web App service worker for offline caching and background sync capabilities.",
+      "tags": [
+        "pwa",
+        "service-worker",
+        "caching",
+        "offline"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:apps/web/public/manifest.json",
+      "type": "config",
+      "name": "Web App Manifest",
+      "filePath": "apps/web/public/manifest.json",
+      "summary": "PWA web app manifest defining app name, icons, theme color, and display mode for Telegram Mini App integration.",
+      "tags": [
+        "pwa",
+        "manifest",
+        "telegram",
+        "mini-app"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "service:docker-compose.dev.yml",
+      "target": "service:Dockerfile.api",
+      "type": "configures",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "service:docker-compose.dev.yml",
+      "target": "service:Dockerfile.web",
+      "type": "configures",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "service:docker-compose.prod.yml",
+      "target": "service:Dockerfile.api",
+      "type": "configures",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "service:docker-compose.prod.yml",
+      "target": "service:Dockerfile.web",
+      "type": "configures",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "service:docker-compose.prod.yml",
+      "target": "config:nginx.conf",
+      "type": "configures",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "service:docker-compose.dev.yml",
+      "target": "config:supervisord.conf",
+      "type": "configures",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "service:Dockerfile",
+      "target": "service:Dockerfile.api",
+      "type": "related",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "service:Dockerfile",
+      "target": "service:Dockerfile.web",
+      "type": "related",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "config:railway.json",
+      "target": "service:Dockerfile.api",
+      "type": "deploys",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "config:vercel.json",
+      "target": "service:Dockerfile.web",
+      "type": "deploys",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "pipeline:.github/workflows/ci.yml",
+      "target": "config:turbo.json",
+      "type": "configures",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "pipeline:.github/workflows/ci.yml",
+      "target": "service:Dockerfile.api",
+      "type": "triggers",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "pipeline:.github/workflows/ci.yml",
+      "target": "service:Dockerfile.web",
+      "type": "triggers",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "config:package.json",
+      "target": "config:packages/shared/package.json",
+      "type": "depends_on",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "config:package.json",
+      "target": "config:packages/exchange-connectors/package.json",
+      "type": "depends_on",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "config:packages/exchange-connectors/tsconfig.json",
+      "target": "config:tsconfig.base.json",
+      "type": "configures",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "config:packages/shared/tsconfig.json",
+      "target": "config:tsconfig.base.json",
+      "type": "configures",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "config:.env.production.example",
+      "target": "config:env.example",
+      "type": "related",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:setup.sh",
+      "target": "config:env.example",
+      "type": "configures",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:setup.bat",
+      "target": "config:env.example",
+      "type": "configures",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "config:apps/api/tsconfig.json",
+      "target": "config:tsconfig.base.json",
+      "type": "configures",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "config:apps/api/package.json",
+      "target": "config:packages/shared/package.json",
+      "type": "depends_on",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "config:apps/api/package.json",
+      "target": "config:packages/exchange-connectors/package.json",
+      "type": "depends_on",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "config:apps/api/nest-cli.json",
+      "target": "config:apps/api/tsconfig.json",
+      "type": "configures",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "config:apps/web/tsconfig.json",
+      "target": "config:tsconfig.base.json",
+      "type": "configures",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "config:apps/web/package.json",
+      "target": "config:packages/shared/package.json",
+      "type": "depends_on",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "config:apps/web/next.config.js",
+      "target": "config:apps/web/package.json",
+      "type": "configures",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "config:apps/web/tailwind.config.js",
+      "target": "config:apps/web/next.config.js",
+      "type": "related",
+      "weight": 0.4,
+      "direction": "forward"
+    },
+    {
+      "source": "config:apps/web/railway.json",
+      "target": "service:Dockerfile.web",
+      "type": "deploys",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-06-02-chart-drawing-engine-implementation.md",
+      "target": "document:docs/superpowers/specs/2026-06-02-chart-drawing-engine-design.md",
+      "type": "documents",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-06-04-liquidity-heatmap-implementation.md",
+      "target": "document:docs/superpowers/specs/2026-06-04-liquidity-heatmap-design.md",
+      "type": "documents",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-06-05-patterns-implementation.md",
+      "target": "document:docs/superpowers/specs/2026-06-05-patterns-design.md",
+      "type": "documents",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-06-05-personal-grid-implementation.md",
+      "target": "document:docs/superpowers/specs/2026-06-05-personal-grid-design.md",
+      "type": "documents",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "document:README.md",
+      "target": "document:PROJECT_SUMMARY.md",
+      "type": "related",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "document:docs/vps-deploy.md",
+      "target": "service:docker-compose.prod.yml",
+      "type": "documents",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-06-02-chart-drawing-engine-design.md",
+      "target": "document:docs/superpowers/plans/2026-06-02-chart-drawing-engine-implementation.md",
+      "type": "related",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-06-04-liquidity-heatmap-design.md",
+      "target": "document:docs/superpowers/plans/2026-06-04-liquidity-heatmap-implementation.md",
+      "type": "related",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-06-05-patterns-design.md",
+      "target": "document:docs/superpowers/plans/2026-06-05-patterns-implementation.md",
+      "type": "related",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-06-05-personal-grid-design.md",
+      "target": "document:docs/superpowers/plans/2026-06-05-personal-grid-implementation.md",
+      "type": "related",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/main.ts",
+      "target": "file:apps/api/src/app.module.ts",
+      "type": "imports",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/app.module.ts",
+      "target": "class:apps/api/src/app.module.ts:AppModule",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/app.module.ts:AppModule",
+      "target": "file:apps/api/src/database/database.module.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/app.module.ts:AppModule",
+      "target": "file:apps/api/src/modules/auth/auth.module.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/app.module.ts:AppModule",
+      "target": "file:apps/api/src/modules/market/market.module.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/app.module.ts:AppModule",
+      "target": "file:apps/api/src/modules/screener/screener.module.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/app.module.ts:AppModule",
+      "target": "file:apps/api/src/modules/alerts/alerts.module.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/app.module.ts:AppModule",
+      "target": "file:apps/api/src/modules/flows/flows.module.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/app.module.ts:AppModule",
+      "target": "file:apps/api/src/modules/watchlist/watchlist.module.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/app.module.ts:AppModule",
+      "target": "file:apps/api/src/modules/websocket/websocket.module.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/database/database.module.ts",
+      "target": "file:apps/api/src/database/database.service.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/database/database.service.ts",
+      "target": "class:apps/api/src/database/database.service.ts:DatabaseService",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/market/market.module.ts",
+      "target": "file:apps/api/src/modules/market/market.service.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/market/market.module.ts",
+      "target": "file:apps/api/src/modules/market/market.gateway.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/market/market.module.ts",
+      "target": "file:apps/api/src/modules/market/market.controller.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/market/market.module.ts",
+      "target": "file:apps/api/src/modules/market/history.controller.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/market/market.service.ts",
+      "target": "class:apps/api/src/modules/market/market.service.ts:MarketService",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/market/market.gateway.ts",
+      "target": "class:apps/api/src/modules/market/market.gateway.ts:MarketGateway",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/modules/market/market.service.ts:MarketService",
+      "target": "class:apps/api/src/database/database.service.ts:DatabaseService",
+      "type": "depends_on",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/modules/market/market.service.ts:MarketService",
+      "target": "class:apps/api/src/modules/market/market.gateway.ts:MarketGateway",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/market/market.controller.ts",
+      "target": "file:apps/api/src/modules/market/market.service.ts",
+      "type": "depends_on",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/auth/auth.module.ts",
+      "target": "file:apps/api/src/modules/auth/auth.controller.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/auth/auth.module.ts",
+      "target": "file:apps/api/src/modules/auth/auth.service.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/auth/auth.controller.ts",
+      "target": "file:apps/api/src/modules/auth/auth.service.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/auth/auth.service.ts",
+      "target": "class:apps/api/src/database/database.service.ts:DatabaseService",
+      "type": "depends_on",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/alerts/alerts.module.ts",
+      "target": "file:apps/api/src/modules/alerts/alerts.controller.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/alerts/alerts.module.ts",
+      "target": "file:apps/api/src/modules/alerts/alerts.service.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/alerts/alerts.controller.ts",
+      "target": "file:apps/api/src/modules/alerts/alerts.service.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/alerts/alerts.service.ts",
+      "target": "class:apps/api/src/database/database.service.ts:DatabaseService",
+      "type": "depends_on",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/screener/screener.module.ts",
+      "target": "file:apps/api/src/modules/screener/screener.controller.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/screener/screener.module.ts",
+      "target": "file:apps/api/src/modules/screener/screener.service.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/screener/screener.controller.ts",
+      "target": "file:apps/api/src/modules/screener/screener.service.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/screener/screener.service.ts",
+      "target": "file:apps/api/src/modules/market/market.service.ts",
+      "type": "depends_on",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/watchlist/watchlist.module.ts",
+      "target": "file:apps/api/src/modules/watchlist/watchlist.controller.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/watchlist/watchlist.module.ts",
+      "target": "file:apps/api/src/modules/watchlist/watchlist.service.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/watchlist/watchlist.controller.ts",
+      "target": "file:apps/api/src/modules/watchlist/watchlist.service.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/watchlist/watchlist.service.ts",
+      "target": "class:apps/api/src/database/database.service.ts:DatabaseService",
+      "type": "depends_on",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/flows/flows.module.ts",
+      "target": "file:apps/api/src/modules/flows/flows.controller.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/flows/flows.module.ts",
+      "target": "file:apps/api/src/modules/flows/flows.service.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/flows/flows.controller.ts",
+      "target": "file:apps/api/src/modules/flows/flows.service.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/flows/flows.service.ts",
+      "target": "file:apps/api/src/modules/flows/flows.types.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/flows/flows.service.ts",
+      "target": "file:apps/api/src/modules/flows/flows.service.spec.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.module.ts",
+      "target": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.module.ts",
+      "target": "file:apps/api/src/modules/patterns/patterns.controller.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.module.ts",
+      "target": "file:apps/api/src/modules/patterns/patterns.scanner.ts",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.controller.ts",
+      "target": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/breakout.detector.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/liquidity-sweep.detector.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/retest.detector.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/structure-break.detector.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "target": "class:apps/api/src/database/database.service.ts:DatabaseService",
+      "type": "depends_on",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.scanner.ts",
+      "target": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.scanner.ts",
+      "target": "file:apps/api/src/modules/patterns/patterns.scanner.utils.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/detectors/breakout.detector.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/detectors/liquidity-sweep.detector.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/detectors/retest.detector.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/detectors/structure-break.detector.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/detector.types.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.spec.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.ts",
+      "target": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.spec.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "target": "file:apps/api/src/modules/patterns/patterns.service.spec.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/api/src/modules/patterns/patterns.scanner.utils.ts",
+      "target": "file:apps/api/src/modules/patterns/patterns.scanner.utils.spec.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:packages/shared/src/index.ts",
+      "target": "file:packages/shared/src/types.ts",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/shared/src/index.ts",
+      "target": "file:packages/shared/src/constants.ts",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/shared/src/index.ts",
+      "target": "file:packages/shared/src/utils.ts",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/index.ts",
+      "target": "file:packages/exchange-connectors/src/manager.ts",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/index.ts",
+      "target": "file:packages/exchange-connectors/src/base.ts",
+      "type": "exports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/manager.ts",
+      "target": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/base.ts",
+      "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "type": "contains",
+      "weight": 1.0,
+      "direction": "forward"
+    },
+    {
+      "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "target": "file:packages/exchange-connectors/src/binance.ts",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "target": "file:packages/exchange-connectors/src/bybit.ts",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "target": "file:packages/exchange-connectors/src/okx.ts",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "target": "file:packages/exchange-connectors/src/mexc.ts",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "target": "file:packages/exchange-connectors/src/bitget.ts",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "target": "file:packages/exchange-connectors/src/generic.ts",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/binance.ts",
+      "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "type": "inherits",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/bybit.ts",
+      "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "type": "inherits",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/okx.ts",
+      "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "type": "inherits",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/mexc.ts",
+      "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "type": "inherits",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/bitget.ts",
+      "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "type": "inherits",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/generic.ts",
+      "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "type": "inherits",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/exchange-connectors/src/mexc.ts",
+      "target": "file:packages/exchange-connectors/src/mexc-spot-proto.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "class:apps/api/src/modules/market/market.service.ts:MarketService",
+      "target": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "type": "depends_on",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:packages/shared/src/types.ts",
+      "target": "file:packages/exchange-connectors/src/base.ts",
+      "type": "related",
+      "weight": 0.5,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/hooks/useWebSocket.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/hooks/useSignalMonitor.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/lib/api.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/layout.tsx",
+      "target": "file:apps/web/src/app/globals.css",
+      "type": "imports",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/stores/index.ts",
+      "target": "file:apps/web/src/lib/drawings/models.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/stores/index.ts",
+      "target": "file:apps/web/src/lib/drawings/persistence.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/stores/index.ts",
+      "target": "file:apps/web/src/lib/drawings/sync-bus.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/stores/index.ts",
+      "target": "file:apps/web/src/lib/personal-grid/models.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/stores/index.ts",
+      "target": "file:apps/web/src/lib/personal-grid/persistence.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/stores/index.ts",
+      "target": "file:apps/web/src/lib/market-preferences.ts",
+      "type": "imports",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/stores/index.ts",
+      "target": "file:apps/web/src/lib/patterns/models.ts",
+      "type": "imports",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/stores/index.ts",
+      "target": "file:apps/web/src/lib/patterns/persistence.ts",
+      "type": "imports",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/hooks/useWebSocket.ts",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/hooks/useSignalMonitor.ts",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/hooks/useSignalMonitor.ts",
+      "target": "file:apps/web/src/hooks/useSignalMonitor.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/display-symbol.ts",
+      "target": "file:apps/web/src/lib/display-symbol.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/market-preferences.ts",
+      "target": "file:apps/web/src/lib/market-preferences.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/liquidity-buckets.ts",
+      "target": "file:apps/web/src/lib/liquidity-buckets.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/liquidity-signals.ts",
+      "target": "file:apps/web/src/lib/liquidity-signals.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/liquidity-engine.ts",
+      "target": "file:apps/web/src/lib/liquidity-buckets.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/lib/liquidity-engine.ts",
+      "target": "file:apps/web/src/lib/heatmap-accumulator.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/patterns-view.tsx",
+      "target": "file:apps/web/src/components/patterns/patterns-sidebar.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/patterns-view.tsx",
+      "target": "file:apps/web/src/components/patterns/pattern-details-card.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/patterns-sidebar.tsx",
+      "target": "file:apps/web/src/components/patterns/patterns-filters.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/patterns-sidebar.tsx",
+      "target": "file:apps/web/src/components/patterns/patterns-list.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/patterns-list.tsx",
+      "target": "file:apps/web/src/components/patterns/patterns-list-row.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/patterns-list.tsx",
+      "target": "file:apps/web/src/components/patterns/patterns-empty-state.tsx",
+      "type": "contains",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/patterns-list.tsx",
+      "target": "file:apps/web/src/components/patterns/use-patterns-query.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/pattern-details-card.tsx",
+      "target": "file:apps/web/src/components/patterns/pattern-chart-overlay.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/pattern-details-card.tsx",
+      "target": "file:apps/web/src/components/patterns/use-pattern-detail.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/use-patterns-query.ts",
+      "target": "file:apps/web/src/lib/patterns/api.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/patterns-filters.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/terminal/header.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/terminal/heatmap-view.tsx",
+      "target": "file:apps/web/src/lib/liquidity-engine.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/terminal/heatmap-view.tsx",
+      "target": "file:apps/web/src/lib/liquidity-signals.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/terminal/heatmap-view.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/screener/screener-view.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/screener/screener-view.tsx",
+      "target": "file:apps/web/src/lib/api.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/coin-list/coin-list.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/alerts/alert-toast.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/alerts/alerts-panel.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/alerts/alerts-panel.tsx",
+      "target": "file:apps/web/src/lib/api.ts",
+      "type": "calls",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/components/patterns/patterns-view.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/components/terminal/header.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/components/terminal/heatmap-view.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/components/screener/screener-view.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/components/coin-list/coin-list.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/components/alerts/alert-toast.tsx",
+      "type": "contains",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/lib/drawings/engine.ts",
+      "target": "file:apps/web/src/lib/drawings/engine.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/drawings/persistence.ts",
+      "target": "file:apps/web/src/lib/drawings/persistence.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/drawings/sync-bus.ts",
+      "target": "file:apps/web/src/lib/drawings/sync-bus.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-history.ts",
+      "target": "file:apps/web/src/components/charts/chart-history.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/drawing-overlay-helpers.ts",
+      "target": "file:apps/web/src/components/charts/drawing-overlay-helpers.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/drawings/persistence.ts",
+      "target": "file:apps/web/src/lib/drawings/models.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/lib/drawings/engine.ts",
+      "target": "file:apps/web/src/lib/drawings/models.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/lib/drawings/primitive.ts",
+      "target": "file:apps/web/src/lib/drawings/models.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/lib/drawings/primitive.ts",
+      "target": "file:apps/web/src/lib/drawings/engine.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-card.tsx",
+      "target": "file:apps/web/src/components/charts/drawing-overlay.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-card.tsx",
+      "target": "file:apps/web/src/components/charts/drawing-toolbar.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-card.tsx",
+      "target": "file:apps/web/src/components/charts/heatmap-controls.tsx",
+      "type": "contains",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-card.tsx",
+      "target": "file:apps/web/src/components/charts/heatmap-summary.tsx",
+      "type": "contains",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-card.tsx",
+      "target": "file:apps/web/src/components/charts/chart-history.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-card.tsx",
+      "target": "file:apps/web/src/lib/liquidity-engine.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-card.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-card.tsx",
+      "target": "file:apps/web/src/hooks/useWebSocket.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/drawing-overlay.tsx",
+      "target": "file:apps/web/src/lib/drawings/engine.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/drawing-overlay.tsx",
+      "target": "file:apps/web/src/lib/drawings/models.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/drawing-overlay.tsx",
+      "target": "file:apps/web/src/components/charts/drawing-overlay-helpers.ts",
+      "type": "imports",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/drawing-overlay.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/drawing-toolbar.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-grid.tsx",
+      "target": "file:apps/web/src/components/charts/chart-card.tsx",
+      "type": "contains",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/charts/chart-grid.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/components/charts/chart-grid.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/lib/patterns/persistence.ts",
+      "target": "file:apps/web/src/lib/patterns/persistence.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/personal-grid/persistence.ts",
+      "target": "file:apps/web/src/lib/personal-grid/persistence.test.ts",
+      "type": "tested_by",
+      "weight": 0.5,
+      "direction": "forward",
+      "description": "Direction corrected (was test → production)"
+    },
+    {
+      "source": "file:apps/web/src/lib/patterns/persistence.ts",
+      "target": "file:apps/web/src/lib/patterns/models.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/lib/personal-grid/persistence.ts",
+      "target": "file:apps/web/src/lib/personal-grid/models.ts",
+      "type": "imports",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/grid/personal-grid-view.tsx",
+      "target": "file:apps/web/src/components/grid/personal-grid-slot.tsx",
+      "type": "contains",
+      "weight": 0.9,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/grid/personal-grid-slot.tsx",
+      "target": "file:apps/web/src/components/charts/chart-card.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/grid/personal-grid-slot.tsx",
+      "target": "file:apps/web/src/components/grid/chart-picker-modal.tsx",
+      "type": "contains",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/grid/personal-grid-view.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/grid/personal-grid-slot.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.7,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/grid/chart-picker-modal.tsx",
+      "target": "file:apps/web/src/stores/index.ts",
+      "type": "calls",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/app/page.tsx",
+      "target": "file:apps/web/src/components/grid/personal-grid-view.tsx",
+      "type": "contains",
+      "weight": 0.8,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/pattern-chart-overlay.tsx",
+      "target": "file:apps/web/src/lib/patterns/color-map.ts",
+      "type": "imports",
+      "weight": 0.6,
+      "direction": "forward"
+    },
+    {
+      "source": "file:apps/web/src/components/patterns/pattern-details-card.tsx",
+      "target": "file:apps/web/src/lib/patterns/color-map.ts",
+      "type": "imports",
+      "weight": 0.6,
+      "direction": "forward"
+    }
+  ]
+}

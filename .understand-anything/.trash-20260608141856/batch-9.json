@@ -1,0 +1,412 @@
+{
+  "nodes": [
+    {
+      "id": "file:apps/api/src/modules/flows/flows.service.ts",
+      "type": "file",
+      "name": "Flows Service",
+      "filePath": "apps/api/src/modules/flows/flows.service.ts",
+      "summary": "Fetches and caches large trader order flow data from Hyperliquid API, providing aggregated buy/sell volume metrics per asset.",
+      "tags": ["nestjs", "service", "flows", "hyperliquid", "order-flow"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.types.ts",
+      "type": "file",
+      "name": "Flows Types",
+      "filePath": "apps/api/src/modules/flows/flows.types.ts",
+      "summary": "TypeScript type definitions for Hyperliquid order flow data: FlowEntry, FlowsResponse, and aggregation types.",
+      "tags": ["typescript", "types", "flows", "hyperliquid"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.mock.ts",
+      "type": "file",
+      "name": "Flows Mock Data",
+      "filePath": "apps/api/src/modules/flows/flows.mock.ts",
+      "summary": "Mock Hyperliquid flows data for development and testing when the real API is unavailable.",
+      "tags": ["mock", "testing", "flows", "development"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.service.spec.ts",
+      "type": "file",
+      "name": "Flows Service Tests",
+      "filePath": "apps/api/src/modules/flows/flows.service.spec.ts",
+      "summary": "Unit tests for FlowsService verifying Hyperliquid data fetching, caching, and error handling.",
+      "tags": ["testing", "unit-test", "flows", "jest"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.module.ts",
+      "type": "file",
+      "name": "Patterns Module",
+      "filePath": "apps/api/src/modules/patterns/patterns.module.ts",
+      "summary": "NestJS module for automated chart pattern detection using technical analysis detectors.",
+      "tags": ["nestjs", "patterns", "module", "technical-analysis"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.controller.ts",
+      "type": "file",
+      "name": "Patterns Controller",
+      "filePath": "apps/api/src/modules/patterns/patterns.controller.ts",
+      "summary": "REST controller for /api/patterns: returns detected patterns with filtering by symbol, timeframe, exchange, and pattern type.",
+      "tags": ["nestjs", "controller", "patterns", "rest", "technical-analysis"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.service.ts",
+      "type": "file",
+      "name": "Patterns Service",
+      "filePath": "apps/api/src/modules/patterns/patterns.service.ts",
+      "summary": "Orchestrates pattern detection by running all detectors against market candle data, caching results in Redis, and broadcasting new patterns via WebSocket.",
+      "tags": ["nestjs", "service", "patterns", "detection", "redis", "websocket"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.scanner.ts",
+      "type": "file",
+      "name": "Patterns Scanner",
+      "filePath": "apps/api/src/modules/patterns/patterns.scanner.ts",
+      "summary": "Scheduled scanner that periodically runs pattern detectors across all tracked symbols and timeframes, storing results and triggering alerts.",
+      "tags": ["nestjs", "scanner", "patterns", "scheduler", "cron"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.scanner.utils.ts",
+      "type": "file",
+      "name": "Patterns Scanner Utils",
+      "filePath": "apps/api/src/modules/patterns/patterns.scanner.utils.ts",
+      "summary": "Utility functions for the pattern scanner: deduplication, serialization, result merging, and time-based filtering.",
+      "tags": ["patterns", "utils", "scanner"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.types.ts",
+      "type": "file",
+      "name": "Patterns Types",
+      "filePath": "apps/api/src/modules/patterns/patterns.types.ts",
+      "summary": "TypeScript type definitions for pattern detection: PatternType, PatternResult, DetectedPattern, and pattern scoring interfaces.",
+      "tags": ["typescript", "types", "patterns"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.constants.ts",
+      "type": "file",
+      "name": "Patterns Constants",
+      "filePath": "apps/api/src/modules/patterns/patterns.constants.ts",
+      "summary": "Constants for pattern detection: minimum candle counts, scoring thresholds, timeframe configurations, and pattern category definitions.",
+      "tags": ["patterns", "constants", "config"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.mapper.ts",
+      "type": "file",
+      "name": "Patterns Mapper",
+      "filePath": "apps/api/src/modules/patterns/patterns.mapper.ts",
+      "summary": "Maps internal pattern detection results to API response DTOs with human-readable labels and formatted data.",
+      "tags": ["patterns", "mapper", "dto", "api"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.service.spec.ts",
+      "type": "file",
+      "name": "Patterns Service Tests",
+      "filePath": "apps/api/src/modules/patterns/patterns.service.spec.ts",
+      "summary": "Unit tests for PatternsService verifying detection orchestration and caching behavior.",
+      "tags": ["testing", "unit-test", "patterns", "jest"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/patterns.scanner.utils.spec.ts",
+      "type": "file",
+      "name": "Patterns Scanner Utils Tests",
+      "filePath": "apps/api/src/modules/patterns/patterns.scanner.utils.spec.ts",
+      "summary": "Unit tests for pattern scanner utility functions.",
+      "tags": ["testing", "unit-test", "patterns", "jest"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/detector.types.ts",
+      "type": "file",
+      "name": "Detector Types",
+      "filePath": "apps/api/src/modules/patterns/detectors/detector.types.ts",
+      "summary": "Type definitions for the detector system: DetectorInput, DetectorResult, PatternSignal, and the IDetector interface contract.",
+      "tags": ["typescript", "types", "detectors", "patterns"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "type": "file",
+      "name": "Detector Utils",
+      "filePath": "apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "summary": "Shared utility functions for all detectors: ATR calculation, pivot detection, swing high/low identification, and statistical helpers.",
+      "tags": ["patterns", "detectors", "utils", "technical-analysis", "atr"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/detector.utils.spec.ts",
+      "type": "file",
+      "name": "Detector Utils Tests",
+      "filePath": "apps/api/src/modules/patterns/detectors/detector.utils.spec.ts",
+      "summary": "Unit tests for detector utility functions including ATR, pivot, and swing calculations.",
+      "tags": ["testing", "unit-test", "detectors", "jest"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/breakout.detector.ts",
+      "type": "file",
+      "name": "Breakout Detector",
+      "filePath": "apps/api/src/modules/patterns/detectors/breakout.detector.ts",
+      "summary": "Detects price breakout patterns from consolidation zones, resistance levels, and trend channels using ATR-normalized measurements.",
+      "tags": ["patterns", "detector", "breakout", "technical-analysis"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/liquidity-sweep.detector.ts",
+      "type": "file",
+      "name": "Liquidity Sweep Detector",
+      "filePath": "apps/api/src/modules/patterns/detectors/liquidity-sweep.detector.ts",
+      "summary": "Detects liquidity sweep patterns where price briefly pierces a swing high/low before reversing, indicating stop-hunt activity.",
+      "tags": ["patterns", "detector", "liquidity-sweep", "market-structure"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/retest.detector.ts",
+      "type": "file",
+      "name": "Retest Detector",
+      "filePath": "apps/api/src/modules/patterns/detectors/retest.detector.ts",
+      "summary": "Detects retest patterns where price returns to a broken support/resistance level after a breakout.",
+      "tags": ["patterns", "detector", "retest", "support-resistance"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/structure-break.detector.ts",
+      "type": "file",
+      "name": "Structure Break Detector",
+      "filePath": "apps/api/src/modules/patterns/detectors/structure-break.detector.ts",
+      "summary": "Detects market structure breaks (BOS/CHoCH) where price breaks a key swing high or low, indicating trend change.",
+      "tags": ["patterns", "detector", "structure-break", "bos", "choch", "market-structure"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.ts",
+      "type": "file",
+      "name": "Pattern Actionability",
+      "filePath": "apps/api/src/modules/patterns/detectors/pattern-actionability.ts",
+      "summary": "Evaluates pattern quality and trade actionability: assigns confidence scores, risk/reward ratios, and entry/stop/target levels.",
+      "tags": ["patterns", "scoring", "risk-reward", "trading"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.spec.ts",
+      "type": "file",
+      "name": "Pattern Actionability Tests",
+      "filePath": "apps/api/src/modules/patterns/detectors/pattern-actionability.spec.ts",
+      "summary": "Tests for pattern actionability scoring and confidence calculation.",
+      "tags": ["testing", "unit-test", "patterns", "jest"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/patterns/detectors/setup-helpers.ts",
+      "type": "file",
+      "name": "Setup Helpers",
+      "filePath": "apps/api/src/modules/patterns/detectors/setup-helpers.ts",
+      "summary": "Helper functions for constructing test candle arrays and detector input fixtures used in pattern detection tests.",
+      "tags": ["testing", "helpers", "patterns", "fixtures"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/shared/src/types.ts",
+      "type": "file",
+      "name": "Shared Types",
+      "filePath": "packages/shared/src/types.ts",
+      "summary": "Core TypeScript type definitions shared across frontend and backend: ExchangeId, Ticker, Candle, Timeframe, OrderBook, Trade, Alert, ViewMode, and 9 supported exchanges.",
+      "tags": ["typescript", "types", "shared", "exchange", "market-data"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:packages/shared/src/constants.ts",
+      "type": "file",
+      "name": "Shared Constants",
+      "filePath": "packages/shared/src/constants.ts",
+      "summary": "Shared constants: DEFAULT_SYMBOLS (top crypto pairs), TIMEFRAMES, ALL_EXCHANGES, and default configuration values.",
+      "tags": ["constants", "shared", "symbols", "exchanges"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/shared/src/utils.ts",
+      "type": "file",
+      "name": "Shared Utils",
+      "filePath": "packages/shared/src/utils.ts",
+      "summary": "Shared utility functions: number formatting, percentage calculation, symbol normalization, and price comparison helpers.",
+      "tags": ["utils", "shared", "formatting"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/shared/src/index.ts",
+      "type": "file",
+      "name": "Shared Package Index",
+      "filePath": "packages/shared/src/index.ts",
+      "summary": "Barrel export for @crypto-screener/shared package, re-exporting all types, constants, and utilities.",
+      "tags": ["shared", "exports", "package"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/index.ts",
+      "type": "file",
+      "name": "Exchange Connectors Index",
+      "filePath": "packages/exchange-connectors/src/index.ts",
+      "summary": "Barrel export for @crypto-screener/exchange-connectors package, exporting ExchangeManager and all connector classes.",
+      "tags": ["exchange-connectors", "exports", "package"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/base.ts",
+      "type": "file",
+      "name": "Base Exchange Connector",
+      "filePath": "packages/exchange-connectors/src/base.ts",
+      "summary": "Abstract base class for exchange connectors defining the interface: WebSocket connection management, subscription methods, and event emitter pattern.",
+      "tags": ["exchange-connector", "abstract", "websocket", "base-class"],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "type": "class",
+      "name": "BaseExchangeConnector",
+      "filePath": "packages/exchange-connectors/src/base.ts",
+      "summary": "Abstract base for exchange connectors with WebSocket lifecycle management and event emission.",
+      "tags": ["abstract", "websocket", "exchange"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/manager.ts",
+      "type": "file",
+      "name": "Exchange Manager",
+      "filePath": "packages/exchange-connectors/src/manager.ts",
+      "summary": "ExchangeManager orchestrates all exchange connectors: connects all exchanges, aggregates market data events, and provides unified subscription and data fetch APIs.",
+      "tags": ["exchange-manager", "orchestration", "multi-exchange", "websocket"],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "type": "class",
+      "name": "ExchangeManager",
+      "filePath": "packages/exchange-connectors/src/manager.ts",
+      "summary": "Manages 9 exchange WebSocket connectors, aggregating ticker/candle/orderbook/trade events and providing unified subscription APIs.",
+      "tags": ["exchange-manager", "multi-exchange", "event-emitter"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/binance.ts",
+      "type": "file",
+      "name": "Binance Connector",
+      "filePath": "packages/exchange-connectors/src/binance.ts",
+      "summary": "Binance exchange WebSocket connector implementing ticker, candle, orderbook, and trade stream subscriptions for both spot and futures markets.",
+      "tags": ["exchange-connector", "binance", "websocket", "spot", "futures"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/bybit.ts",
+      "type": "file",
+      "name": "Bybit Connector",
+      "filePath": "packages/exchange-connectors/src/bybit.ts",
+      "summary": "Bybit exchange WebSocket connector for linear perpetuals and spot market data streams.",
+      "tags": ["exchange-connector", "bybit", "websocket", "perpetuals"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/okx.ts",
+      "type": "file",
+      "name": "OKX Connector",
+      "filePath": "packages/exchange-connectors/src/okx.ts",
+      "summary": "OKX exchange WebSocket connector for spot and swap market data.",
+      "tags": ["exchange-connector", "okx", "websocket"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/mexc.ts",
+      "type": "file",
+      "name": "MEXC Connector",
+      "filePath": "packages/exchange-connectors/src/mexc.ts",
+      "summary": "MEXC exchange WebSocket connector with custom message format handling.",
+      "tags": ["exchange-connector", "mexc", "websocket"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/mexc-spot-proto.ts",
+      "type": "file",
+      "name": "MEXC Spot Proto",
+      "filePath": "packages/exchange-connectors/src/mexc-spot-proto.ts",
+      "summary": "Protocol buffer / binary message parser for MEXC spot market WebSocket messages.",
+      "tags": ["mexc", "protobuf", "parser", "websocket"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/bitget.ts",
+      "type": "file",
+      "name": "Bitget Connector",
+      "filePath": "packages/exchange-connectors/src/bitget.ts",
+      "summary": "Bitget exchange WebSocket connector for futures and spot market data streams.",
+      "tags": ["exchange-connector", "bitget", "websocket"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:packages/exchange-connectors/src/generic.ts",
+      "type": "file",
+      "name": "Generic Exchange Connector",
+      "filePath": "packages/exchange-connectors/src/generic.ts",
+      "summary": "Generic fallback exchange connector for KuCoin, Gate.io, Hyperliquid, and Coinbase using standardized WebSocket protocols.",
+      "tags": ["exchange-connector", "generic", "kucoin", "gate", "hyperliquid", "coinbase"],
+      "complexity": "complex"
+    }
+  ],
+  "edges": [
+    { "source": "file:apps/api/src/modules/flows/flows.module.ts", "target": "file:apps/api/src/modules/flows/flows.service.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/flows/flows.controller.ts", "target": "file:apps/api/src/modules/flows/flows.service.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/flows/flows.service.ts", "target": "file:apps/api/src/modules/flows/flows.types.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/flows/flows.service.spec.ts", "target": "file:apps/api/src/modules/flows/flows.service.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.module.ts", "target": "file:apps/api/src/modules/patterns/patterns.service.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.module.ts", "target": "file:apps/api/src/modules/patterns/patterns.controller.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.module.ts", "target": "file:apps/api/src/modules/patterns/patterns.scanner.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.controller.ts", "target": "file:apps/api/src/modules/patterns/patterns.service.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.service.ts", "target": "file:apps/api/src/modules/patterns/detectors/breakout.detector.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.service.ts", "target": "file:apps/api/src/modules/patterns/detectors/liquidity-sweep.detector.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.service.ts", "target": "file:apps/api/src/modules/patterns/detectors/retest.detector.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.service.ts", "target": "file:apps/api/src/modules/patterns/detectors/structure-break.detector.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.service.ts", "target": "class:apps/api/src/database/database.service.ts:DatabaseService", "type": "depends_on", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.scanner.ts", "target": "file:apps/api/src/modules/patterns/patterns.service.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.scanner.ts", "target": "file:apps/api/src/modules/patterns/patterns.scanner.utils.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/patterns/detectors/breakout.detector.ts", "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/patterns/detectors/liquidity-sweep.detector.ts", "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/patterns/detectors/retest.detector.ts", "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/patterns/detectors/structure-break.detector.ts", "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.ts", "target": "file:apps/api/src/modules/patterns/detectors/detector.types.ts", "type": "imports", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/patterns/detectors/detector.utils.spec.ts", "target": "file:apps/api/src/modules/patterns/detectors/detector.utils.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.spec.ts", "target": "file:apps/api/src/modules/patterns/detectors/pattern-actionability.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.service.spec.ts", "target": "file:apps/api/src/modules/patterns/patterns.service.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:apps/api/src/modules/patterns/patterns.scanner.utils.spec.ts", "target": "file:apps/api/src/modules/patterns/patterns.scanner.utils.ts", "type": "tested_by", "weight": 0.5 },
+    { "source": "file:packages/shared/src/index.ts", "target": "file:packages/shared/src/types.ts", "type": "exports", "weight": 0.8 },
+    { "source": "file:packages/shared/src/index.ts", "target": "file:packages/shared/src/constants.ts", "type": "exports", "weight": 0.8 },
+    { "source": "file:packages/shared/src/index.ts", "target": "file:packages/shared/src/utils.ts", "type": "exports", "weight": 0.8 },
+    { "source": "file:packages/exchange-connectors/src/index.ts", "target": "file:packages/exchange-connectors/src/manager.ts", "type": "exports", "weight": 0.8 },
+    { "source": "file:packages/exchange-connectors/src/index.ts", "target": "file:packages/exchange-connectors/src/base.ts", "type": "exports", "weight": 0.8 },
+    { "source": "file:packages/exchange-connectors/src/manager.ts", "target": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager", "type": "contains", "weight": 1.0 },
+    { "source": "file:packages/exchange-connectors/src/base.ts", "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector", "type": "contains", "weight": 1.0 },
+    { "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager", "target": "file:packages/exchange-connectors/src/binance.ts", "type": "contains", "weight": 0.8 },
+    { "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager", "target": "file:packages/exchange-connectors/src/bybit.ts", "type": "contains", "weight": 0.8 },
+    { "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager", "target": "file:packages/exchange-connectors/src/okx.ts", "type": "contains", "weight": 0.8 },
+    { "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager", "target": "file:packages/exchange-connectors/src/mexc.ts", "type": "contains", "weight": 0.8 },
+    { "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager", "target": "file:packages/exchange-connectors/src/bitget.ts", "type": "contains", "weight": 0.8 },
+    { "source": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager", "target": "file:packages/exchange-connectors/src/generic.ts", "type": "contains", "weight": 0.8 },
+    { "source": "file:packages/exchange-connectors/src/binance.ts", "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector", "type": "inherits", "weight": 0.9 },
+    { "source": "file:packages/exchange-connectors/src/bybit.ts", "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector", "type": "inherits", "weight": 0.9 },
+    { "source": "file:packages/exchange-connectors/src/okx.ts", "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector", "type": "inherits", "weight": 0.9 },
+    { "source": "file:packages/exchange-connectors/src/mexc.ts", "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector", "type": "inherits", "weight": 0.9 },
+    { "source": "file:packages/exchange-connectors/src/bitget.ts", "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector", "type": "inherits", "weight": 0.9 },
+    { "source": "file:packages/exchange-connectors/src/generic.ts", "target": "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector", "type": "inherits", "weight": 0.9 },
+    { "source": "file:packages/exchange-connectors/src/mexc.ts", "target": "file:packages/exchange-connectors/src/mexc-spot-proto.ts", "type": "imports", "weight": 0.7 },
+    { "source": "class:apps/api/src/modules/market/market.service.ts:MarketService", "target": "class:packages/exchange-connectors/src/manager.ts:ExchangeManager", "type": "depends_on", "weight": 0.9 },
+    { "source": "file:packages/shared/src/types.ts", "target": "file:packages/exchange-connectors/src/base.ts", "type": "related", "weight": 0.5 }
+  ]
+}

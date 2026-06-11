@@ -1,0 +1,46 @@
+{
+  "nodes": [
+    {
+      "id": "document:docs/superpowers/specs/2026-06-02-chart-drawing-engine-design.md",
+      "type": "document",
+      "name": "Chart Drawing Engine Design Spec",
+      "filePath": "docs/superpowers/specs/2026-06-02-chart-drawing-engine-design.md",
+      "summary": "Design specification for the chart drawing engine: data models, rendering architecture, coordinate system, event handling, and localStorage persistence strategy.",
+      "tags": ["documentation", "design-spec", "drawing-engine", "architecture"],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-06-04-liquidity-heatmap-design.md",
+      "type": "document",
+      "name": "Liquidity Heatmap Design Spec",
+      "filePath": "docs/superpowers/specs/2026-06-04-liquidity-heatmap-design.md",
+      "summary": "Design specification for the liquidity heatmap: bucket accumulation algorithm, price-level aggregation, signal detection thresholds, and color rendering.",
+      "tags": ["documentation", "design-spec", "heatmap", "liquidity", "algorithm"],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-06-05-patterns-design.md",
+      "type": "document",
+      "name": "Patterns Design Spec",
+      "filePath": "docs/superpowers/specs/2026-06-05-patterns-design.md",
+      "summary": "Design specification for chart pattern detection: detector interface contracts, scoring system, pattern types, and API response schemas.",
+      "tags": ["documentation", "design-spec", "patterns", "detection", "api"],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-06-05-personal-grid-design.md",
+      "type": "document",
+      "name": "Personal Grid Design Spec",
+      "filePath": "docs/superpowers/specs/2026-06-05-personal-grid-design.md",
+      "summary": "Design specification for the personal multi-chart grid: slot model, layout options (2x2, 2x3, 3x3), expand/collapse behavior, and persistence.",
+      "tags": ["documentation", "design-spec", "personal-grid", "ui", "layout"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    { "source": "document:docs/superpowers/specs/2026-06-02-chart-drawing-engine-design.md", "target": "document:docs/superpowers/plans/2026-06-02-chart-drawing-engine-implementation.md", "type": "related", "weight": 0.8 },
+    { "source": "document:docs/superpowers/specs/2026-06-04-liquidity-heatmap-design.md", "target": "document:docs/superpowers/plans/2026-06-04-liquidity-heatmap-implementation.md", "type": "related", "weight": 0.8 },
+    { "source": "document:docs/superpowers/specs/2026-06-05-patterns-design.md", "target": "document:docs/superpowers/plans/2026-06-05-patterns-implementation.md", "type": "related", "weight": 0.8 },
+    { "source": "document:docs/superpowers/specs/2026-06-05-personal-grid-design.md", "target": "document:docs/superpowers/plans/2026-06-05-personal-grid-implementation.md", "type": "related", "weight": 0.8 }
+  ]
+}

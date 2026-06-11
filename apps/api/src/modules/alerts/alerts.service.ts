@@ -1,15 +1,122 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
-import type { Alert, AlertType, AlertPriority, ExchangeId } from '@crypto-screener/shared';
+import type { Alert, AlertType, AlertPriority, ExchangeId, Ticker } from '@crypto-screener/shared';
 import { generateId, ALERT_COOLDOWN_MS } from '@crypto-screener/shared';
 
+export interface PriceSignal {
+  id: string;
+  symbol: string;
+  exchange: ExchangeId;
+  price: number;
+  direction: 'above' | 'below' | 'cross';
+  armed: boolean;
+  userId?: string;
+}
+
 @Injectable()
-export class AlertsService {
+export class AlertsService implements OnModuleInit {
+  private readonly logger = new Logger(AlertsService.name);
   private cooldowns = new Map<string, number>();
   private recentAlerts: Alert[] = [];
   private readonly MAX_RECENT = 200;
 
+  // Active signals indexed by symbol for O(1) lookup
+  private activeSignals = new Map<string, PriceSignal[]>();
+  private lastPrices = new Map<string, number>();
+
   constructor(private readonly db: DatabaseService) {}
+
+  async onModuleInit() {
+    await this.loadActiveSignals();
+  }
+
+  private async loadActiveSignals() {
+    try {
+      // For now, signals are derived from 'drawing' levels or a dedicated signals table
+      // We'll use a simplified version for this implementation
+      this.logger?.log('Loading active price signals...');
+      // Logic to load signals from DB would go here
+    } catch (err) {
+      console.error('Failed to load active signals:', err);
+    }
+  }
+
+  /**
+   * High-performance signal check called on every ticker update
+   */
+  checkPriceSignals(ticker: Ticker) {
+    const key = `${ticker.exchange}:${ticker.symbol}`;
+    const signals = this.activeSignals.get(key);
+    if (!signals || signals.length === 0) {
+      this.lastPrices.set(key, ticker.lastPrice);
+      return;
+    }
+
+    const lastPrice = this.lastPrices.get(key);
+    const currentPrice = ticker.lastPrice;
+    this.lastPrices.set(key, currentPrice);
+
+    if (lastPrice === undefined || lastPrice === currentPrice) return;
+
+    for (const signal of signals) {
+      if (!signal.armed) continue;
+
+      let triggered = false;
+      if (signal.direction === 'above' && currentPrice >= signal.price && lastPrice < signal.price) {
+        triggered = true;
+      } else if (signal.direction === 'below' && currentPrice <= signal.price && lastPrice > signal.price) {
+        triggered = true;
+      } else if (signal.direction === 'cross') {
+        const crossedUp = lastPrice <= signal.price && currentPrice >= signal.price;
+        const crossedDown = lastPrice >= signal.price && currentPrice <= signal.price;
+        triggered = crossedUp || crossedDown;
+      }
+
+      if (triggered) {
+        this.triggerSignal(signal, currentPrice);
+      }
+    }
+  }
+
+  private async triggerSignal(signal: PriceSignal, currentPrice: number) {
+    // Prevent immediate re-trigger
+    signal.armed = false;
+
+    await this.createAlert({
+      type: 'price_cross',
+      priority: 'high',
+      symbol: signal.symbol,
+      exchange: signal.exchange,
+      title: 'Price Signal Triggered',
+      message: `${signal.symbol} reached ${signal.price} (Current: ${currentPrice})`,
+      data: {
+        signalId: signal.id,
+        targetPrice: signal.price,
+        currentPrice: currentPrice,
+      },
+    });
+
+    // In a real app, we'd update the signal state in DB here
+    console.log(`[Alerts] Signal triggered for ${signal.symbol} at ${signal.price}`);
+  }
+
+  /**
+   * Registers a new signal for monitoring
+   */
+  registerSignal(signal: PriceSignal) {
+    const key = `${signal.exchange}:${signal.symbol}`;
+    const existing = this.activeSignals.get(key) || [];
+    this.activeSignals.set(key, [...existing, signal]);
+  }
+
+  unregisterSignal(id: string) {
+    for (const [key, signals] of this.activeSignals.entries()) {
+      const filtered = signals.filter(s => s.id !== id);
+      if (filtered.length !== signals.length) {
+        this.activeSignals.set(key, filtered);
+      }
+    }
+  }
 
   async createAlert(params: {
     type: AlertType;

@@ -1,0 +1,305 @@
+{
+  "nodes": [
+    {
+      "id": "file:apps/api/src/main.ts",
+      "type": "file",
+      "name": "API Entry Point",
+      "filePath": "apps/api/src/main.ts",
+      "summary": "NestJS application bootstrap: configures CORS, WebSocket adapter, Helmet security, rate limiting, Swagger docs, and starts the HTTP server on the configured port.",
+      "tags": ["nestjs", "bootstrap", "entry-point", "security", "swagger"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/app.module.ts",
+      "type": "file",
+      "name": "App Module",
+      "filePath": "apps/api/src/app.module.ts",
+      "summary": "Root NestJS module that imports all feature modules: DatabaseModule, AuthModule, MarketModule, ScreenerModule, AlertsModule, PatternsModule, FlowsModule, WebSocketModule, WatchlistModule.",
+      "tags": ["nestjs", "module", "root", "di"],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:apps/api/src/app.module.ts:AppModule",
+      "type": "class",
+      "name": "AppModule",
+      "filePath": "apps/api/src/app.module.ts",
+      "summary": "Root NestJS application module that aggregates all feature modules.",
+      "tags": ["nestjs", "module"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/database/database.module.ts",
+      "type": "file",
+      "name": "Database Module",
+      "filePath": "apps/api/src/database/database.module.ts",
+      "summary": "NestJS module providing PostgreSQL (via pg) and Redis (ioredis) connections as global providers.",
+      "tags": ["nestjs", "database", "postgresql", "redis", "module"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/database/database.service.ts",
+      "type": "file",
+      "name": "Database Service",
+      "filePath": "apps/api/src/database/database.service.ts",
+      "summary": "Injectable service wrapping PostgreSQL Pool and Redis client, providing query(), cacheGet(), cacheSet(), and publish() methods used across all modules.",
+      "tags": ["nestjs", "database", "postgresql", "redis", "service"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:apps/api/src/database/database.service.ts:DatabaseService",
+      "type": "class",
+      "name": "DatabaseService",
+      "filePath": "apps/api/src/database/database.service.ts",
+      "summary": "Provides typed access to PostgreSQL and Redis with query, cache, and pub/sub methods.",
+      "tags": ["nestjs", "service", "database", "redis"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/auth/auth.module.ts",
+      "type": "file",
+      "name": "Auth Module",
+      "filePath": "apps/api/src/modules/auth/auth.module.ts",
+      "summary": "NestJS authentication module providing JWT-based auth with Telegram and standard login support.",
+      "tags": ["nestjs", "auth", "jwt", "module"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/auth/auth.controller.ts",
+      "type": "file",
+      "name": "Auth Controller",
+      "filePath": "apps/api/src/modules/auth/auth.controller.ts",
+      "summary": "REST controller handling /api/auth endpoints: login, Telegram auth, token refresh, and user profile.",
+      "tags": ["nestjs", "controller", "auth", "rest", "jwt"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/auth/auth.service.ts",
+      "type": "file",
+      "name": "Auth Service",
+      "filePath": "apps/api/src/modules/auth/auth.service.ts",
+      "summary": "Implements authentication logic: JWT token generation, Telegram init data validation, user creation/lookup in PostgreSQL.",
+      "tags": ["nestjs", "service", "auth", "jwt", "telegram"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/market.module.ts",
+      "type": "file",
+      "name": "Market Module",
+      "filePath": "apps/api/src/modules/market/market.module.ts",
+      "summary": "NestJS module providing real-time market data via REST and WebSocket, containing MarketService, MarketGateway, MarketController, and HistoryController.",
+      "tags": ["nestjs", "market", "websocket", "module"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/market.controller.ts",
+      "type": "file",
+      "name": "Market Controller",
+      "filePath": "apps/api/src/modules/market/market.controller.ts",
+      "summary": "REST controller exposing /api/market endpoints: tickers, exchange health, top gainers/losers/volume, order books, connected exchanges.",
+      "tags": ["nestjs", "controller", "market", "rest", "api"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/market.service.ts",
+      "type": "file",
+      "name": "Market Service",
+      "filePath": "apps/api/src/modules/market/market.service.ts",
+      "summary": "Core market data service managing ExchangeManager connections, in-memory ticker/candle/orderbook caches, throttled WebSocket broadcasts, and PostgreSQL candle storage.",
+      "tags": ["nestjs", "service", "market", "websocket", "exchange", "real-time"],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/api/src/modules/market/market.service.ts:MarketService",
+      "type": "class",
+      "name": "MarketService",
+      "filePath": "apps/api/src/modules/market/market.service.ts",
+      "summary": "Manages exchange connections, aggregates real-time market data, stores candles to DB, and broadcasts updates via WebSocket gateway.",
+      "tags": ["nestjs", "service", "market", "exchange-manager"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/market.gateway.ts",
+      "type": "file",
+      "name": "Market WebSocket Gateway",
+      "filePath": "apps/api/src/modules/market/market.gateway.ts",
+      "summary": "NestJS WebSocket gateway at /ws path managing client subscriptions to ticker, candle, orderbook, and trade channels with optimized per-symbol lookup maps.",
+      "tags": ["nestjs", "gateway", "websocket", "market", "real-time", "subscriptions"],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:apps/api/src/modules/market/market.gateway.ts:MarketGateway",
+      "type": "class",
+      "name": "MarketGateway",
+      "filePath": "apps/api/src/modules/market/market.gateway.ts",
+      "summary": "WebSocket gateway managing client subscriptions and broadcasting market data to subscribed clients.",
+      "tags": ["nestjs", "gateway", "websocket"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:apps/api/src/modules/market/history.controller.ts",
+      "type": "file",
+      "name": "History Controller",
+      "filePath": "apps/api/src/modules/market/history.controller.ts",
+      "summary": "REST controller for historical candle data endpoint /api/market/history, fetching from exchange APIs with pagination support.",
+      "tags": ["nestjs", "controller", "candles", "history", "rest"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/alerts/alerts.module.ts",
+      "type": "file",
+      "name": "Alerts Module",
+      "filePath": "apps/api/src/modules/alerts/alerts.module.ts",
+      "summary": "NestJS module for price and volume alert management.",
+      "tags": ["nestjs", "alerts", "module"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/alerts/alerts.controller.ts",
+      "type": "file",
+      "name": "Alerts Controller",
+      "filePath": "apps/api/src/modules/alerts/alerts.controller.ts",
+      "summary": "REST controller for /api/alerts: CRUD operations for user price alerts.",
+      "tags": ["nestjs", "controller", "alerts", "rest"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/alerts/alerts.service.ts",
+      "type": "file",
+      "name": "Alerts Service",
+      "filePath": "apps/api/src/modules/alerts/alerts.service.ts",
+      "summary": "Business logic for alert management: creating, updating, deleting, and triggering alerts stored in PostgreSQL.",
+      "tags": ["nestjs", "service", "alerts", "postgresql"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/screener/screener.module.ts",
+      "type": "file",
+      "name": "Screener Module",
+      "filePath": "apps/api/src/modules/screener/screener.module.ts",
+      "summary": "NestJS module for the advanced crypto screener with filtering and sorting capabilities.",
+      "tags": ["nestjs", "screener", "module"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/screener/screener.controller.ts",
+      "type": "file",
+      "name": "Screener Controller",
+      "filePath": "apps/api/src/modules/screener/screener.controller.ts",
+      "summary": "REST controller exposing /api/screener endpoint with filter and sort query parameters for market screening.",
+      "tags": ["nestjs", "controller", "screener", "rest", "filtering"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/screener/screener.service.ts",
+      "type": "file",
+      "name": "Screener Service",
+      "filePath": "apps/api/src/modules/screener/screener.service.ts",
+      "summary": "Implements screener filtering logic: applies multi-field filters (exchange, volume, price change) and sorting across all cached tickers.",
+      "tags": ["nestjs", "service", "screener", "filtering", "sorting"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/watchlist/watchlist.module.ts",
+      "type": "file",
+      "name": "Watchlist Module",
+      "filePath": "apps/api/src/modules/watchlist/watchlist.module.ts",
+      "summary": "NestJS module for user watchlist management.",
+      "tags": ["nestjs", "watchlist", "module"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/watchlist/watchlist.controller.ts",
+      "type": "file",
+      "name": "Watchlist Controller",
+      "filePath": "apps/api/src/modules/watchlist/watchlist.controller.ts",
+      "summary": "REST controller for /api/watchlist: add/remove symbols from user watchlists.",
+      "tags": ["nestjs", "controller", "watchlist", "rest"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/watchlist/watchlist.service.ts",
+      "type": "file",
+      "name": "Watchlist Service",
+      "filePath": "apps/api/src/modules/watchlist/watchlist.service.ts",
+      "summary": "Business logic for watchlist CRUD operations stored in PostgreSQL with user association.",
+      "tags": ["nestjs", "service", "watchlist", "postgresql"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/websocket/websocket.module.ts",
+      "type": "file",
+      "name": "WebSocket Module",
+      "filePath": "apps/api/src/modules/websocket/websocket.module.ts",
+      "summary": "NestJS module providing shared WebSocket infrastructure and the global websocket service.",
+      "tags": ["nestjs", "websocket", "module"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/websocket/websocket.service.ts",
+      "type": "file",
+      "name": "WebSocket Service",
+      "filePath": "apps/api/src/modules/websocket/websocket.service.ts",
+      "summary": "Shared WebSocket service for broadcasting messages across all connected clients, used by pattern and alert modules.",
+      "tags": ["nestjs", "service", "websocket", "broadcast"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.module.ts",
+      "type": "file",
+      "name": "Flows Module",
+      "filePath": "apps/api/src/modules/flows/flows.module.ts",
+      "summary": "NestJS module for Hyperliquid order flow data, providing large trader activity metrics.",
+      "tags": ["nestjs", "flows", "hyperliquid", "module"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:apps/api/src/modules/flows/flows.controller.ts",
+      "type": "file",
+      "name": "Flows Controller",
+      "filePath": "apps/api/src/modules/flows/flows.controller.ts",
+      "summary": "REST controller for /api/flows: exposes Hyperliquid order flow data with exchange and symbol filtering.",
+      "tags": ["nestjs", "controller", "flows", "hyperliquid", "rest"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    { "source": "file:apps/api/src/main.ts", "target": "file:apps/api/src/app.module.ts", "type": "imports", "weight": 0.9 },
+    { "source": "file:apps/api/src/app.module.ts", "target": "class:apps/api/src/app.module.ts:AppModule", "type": "contains", "weight": 1.0 },
+    { "source": "class:apps/api/src/app.module.ts:AppModule", "target": "file:apps/api/src/database/database.module.ts", "type": "imports", "weight": 0.8 },
+    { "source": "class:apps/api/src/app.module.ts:AppModule", "target": "file:apps/api/src/modules/auth/auth.module.ts", "type": "imports", "weight": 0.8 },
+    { "source": "class:apps/api/src/app.module.ts:AppModule", "target": "file:apps/api/src/modules/market/market.module.ts", "type": "imports", "weight": 0.8 },
+    { "source": "class:apps/api/src/app.module.ts:AppModule", "target": "file:apps/api/src/modules/screener/screener.module.ts", "type": "imports", "weight": 0.8 },
+    { "source": "class:apps/api/src/app.module.ts:AppModule", "target": "file:apps/api/src/modules/alerts/alerts.module.ts", "type": "imports", "weight": 0.8 },
+    { "source": "class:apps/api/src/app.module.ts:AppModule", "target": "file:apps/api/src/modules/flows/flows.module.ts", "type": "imports", "weight": 0.8 },
+    { "source": "class:apps/api/src/app.module.ts:AppModule", "target": "file:apps/api/src/modules/watchlist/watchlist.module.ts", "type": "imports", "weight": 0.8 },
+    { "source": "class:apps/api/src/app.module.ts:AppModule", "target": "file:apps/api/src/modules/websocket/websocket.module.ts", "type": "imports", "weight": 0.8 },
+    { "source": "file:apps/api/src/database/database.module.ts", "target": "file:apps/api/src/database/database.service.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/database/database.service.ts", "target": "class:apps/api/src/database/database.service.ts:DatabaseService", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/market/market.module.ts", "target": "file:apps/api/src/modules/market/market.service.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/market/market.module.ts", "target": "file:apps/api/src/modules/market/market.gateway.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/market/market.module.ts", "target": "file:apps/api/src/modules/market/market.controller.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/market/market.module.ts", "target": "file:apps/api/src/modules/market/history.controller.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/market/market.service.ts", "target": "class:apps/api/src/modules/market/market.service.ts:MarketService", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/market/market.gateway.ts", "target": "class:apps/api/src/modules/market/market.gateway.ts:MarketGateway", "type": "contains", "weight": 1.0 },
+    { "source": "class:apps/api/src/modules/market/market.service.ts:MarketService", "target": "class:apps/api/src/database/database.service.ts:DatabaseService", "type": "depends_on", "weight": 0.7 },
+    { "source": "class:apps/api/src/modules/market/market.service.ts:MarketService", "target": "class:apps/api/src/modules/market/market.gateway.ts:MarketGateway", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/market/market.controller.ts", "target": "file:apps/api/src/modules/market/market.service.ts", "type": "depends_on", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/auth/auth.module.ts", "target": "file:apps/api/src/modules/auth/auth.controller.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/auth/auth.module.ts", "target": "file:apps/api/src/modules/auth/auth.service.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/auth/auth.controller.ts", "target": "file:apps/api/src/modules/auth/auth.service.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/auth/auth.service.ts", "target": "class:apps/api/src/database/database.service.ts:DatabaseService", "type": "depends_on", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/alerts/alerts.module.ts", "target": "file:apps/api/src/modules/alerts/alerts.controller.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/alerts/alerts.module.ts", "target": "file:apps/api/src/modules/alerts/alerts.service.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/alerts/alerts.controller.ts", "target": "file:apps/api/src/modules/alerts/alerts.service.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/alerts/alerts.service.ts", "target": "class:apps/api/src/database/database.service.ts:DatabaseService", "type": "depends_on", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/screener/screener.module.ts", "target": "file:apps/api/src/modules/screener/screener.controller.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/screener/screener.module.ts", "target": "file:apps/api/src/modules/screener/screener.service.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/screener/screener.controller.ts", "target": "file:apps/api/src/modules/screener/screener.service.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/screener/screener.service.ts", "target": "file:apps/api/src/modules/market/market.service.ts", "type": "depends_on", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/watchlist/watchlist.module.ts", "target": "file:apps/api/src/modules/watchlist/watchlist.controller.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/watchlist/watchlist.module.ts", "target": "file:apps/api/src/modules/watchlist/watchlist.service.ts", "type": "contains", "weight": 1.0 },
+    { "source": "file:apps/api/src/modules/watchlist/watchlist.controller.ts", "target": "file:apps/api/src/modules/watchlist/watchlist.service.ts", "type": "calls", "weight": 0.8 },
+    { "source": "file:apps/api/src/modules/watchlist/watchlist.service.ts", "target": "class:apps/api/src/database/database.service.ts:DatabaseService", "type": "depends_on", "weight": 0.7 },
+    { "source": "file:apps/api/src/modules/flows/flows.module.ts", "target": "file:apps/api/src/modules/flows/flows.controller.ts", "type": "contains", "weight": 1.0 }
+  ]
+}

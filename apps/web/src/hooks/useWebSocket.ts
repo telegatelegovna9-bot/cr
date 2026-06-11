@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { useMarketStore, useUIStore, useWSStore, useOrderbookStore } from '@/stores';
+import { useMarketStore, useUIStore, useWSStore, useOrderbookStore, useDrawingStore } from '@/stores';
 
 // Dynamic WS URL logic for production
 const getWsUrl = () => {
@@ -27,6 +27,7 @@ export function useWebSocket() {
   const { addAlert, addPattern } = useUIStore();
   const { setConnected, setReconnecting } = useWSStore();
   const { updateOrderbook } = useOrderbookStore();
+  const { byId, upsertDrawing } = useDrawingStore();
   const [, forceUpdate] = useState({});
 
   const connect = useCallback(() => {
@@ -76,6 +77,19 @@ export function useWebSocket() {
             break;
           case 'alert':
             addAlert(data);
+            // If it's a price signal alert, update the drawing state
+            if (data.data?.signalId) {
+              const drawing = byId[data.data.signalId];
+              if (drawing) {
+                upsertDrawing({
+                  ...drawing,
+                  triggered: true,
+                  triggeredAt: data.createdAt || Date.now(),
+                  armed: false,
+                  updatedAt: Date.now(),
+                });
+              }
+            }
             break;
           case 'pattern':
             addPattern(data);

@@ -1,0 +1,125 @@
+[
+  {
+    "order": 1,
+    "title": "Project Overview",
+    "description": "Start with the README to understand the Crypto Screener Pro platform: real-time market data from 9 exchanges, TradingView-style charts, pattern detection, liquidity heatmap, and Telegram Mini App support.",
+    "nodeIds": ["document:README.md", "document:PROJECT_SUMMARY.md"]
+  },
+  {
+    "order": 2,
+    "title": "Monorepo Structure",
+    "description": "The project is a Turborepo monorepo with two apps (apps/api, apps/web) and two packages (packages/shared, packages/exchange-connectors). Turbo orchestrates parallel build and dev tasks.",
+    "nodeIds": ["config:turbo.json", "config:package.json", "config:tsconfig.base.json"]
+  },
+  {
+    "order": 3,
+    "title": "Shared Type Contracts",
+    "description": "The @crypto-screener/shared package defines all cross-cutting types: ExchangeId (9 exchanges), Ticker, Candle, Timeframe, OrderBook, and Trade. Both API and frontend import from here.",
+    "nodeIds": ["file:packages/shared/src/types.ts", "file:packages/shared/src/constants.ts", "file:packages/shared/src/index.ts"]
+  },
+  {
+    "order": 4,
+    "title": "Exchange Connectors",
+    "description": "The @crypto-screener/exchange-connectors package provides WebSocket connectors for 9 exchanges. BaseExchangeConnector defines the interface; ExchangeManager orchestrates them, aggregating events.",
+    "nodeIds": [
+      "file:packages/exchange-connectors/src/base.ts",
+      "class:packages/exchange-connectors/src/base.ts:BaseExchangeConnector",
+      "file:packages/exchange-connectors/src/manager.ts",
+      "class:packages/exchange-connectors/src/manager.ts:ExchangeManager",
+      "file:packages/exchange-connectors/src/binance.ts"
+    ]
+  },
+  {
+    "order": 5,
+    "title": "NestJS API Bootstrap",
+    "description": "The API starts at main.ts which bootstraps NestJS with security middleware (Helmet, rate limiting), WebSocket adapter, and Swagger docs. AppModule imports all 8 feature modules.",
+    "nodeIds": ["file:apps/api/src/main.ts", "file:apps/api/src/app.module.ts", "class:apps/api/src/app.module.ts:AppModule"]
+  },
+  {
+    "order": 6,
+    "title": "Real-Time Market Data Pipeline",
+    "description": "MarketService connects to ExchangeManager on startup, subscribes to tickers/candles for top 20 symbols, throttles broadcasts (100ms), and stores closed candles to PostgreSQL. MarketGateway manages per-client WebSocket subscriptions.",
+    "nodeIds": [
+      "file:apps/api/src/modules/market/market.service.ts",
+      "class:apps/api/src/modules/market/market.service.ts:MarketService",
+      "file:apps/api/src/modules/market/market.gateway.ts",
+      "class:apps/api/src/modules/market/market.gateway.ts:MarketGateway",
+      "file:apps/api/src/database/database.service.ts"
+    ]
+  },
+  {
+    "order": 7,
+    "title": "Pattern Detection System",
+    "description": "The pattern scanner runs on a schedule, fetching candles and running 4 detectors: Breakout, Retest, LiquiditySweep, StructureBreak. Each uses detector.utils for ATR/pivot calculations. Results are scored by pattern-actionability and cached in Redis.",
+    "nodeIds": [
+      "file:apps/api/src/modules/patterns/patterns.scanner.ts",
+      "file:apps/api/src/modules/patterns/detectors/breakout.detector.ts",
+      "file:apps/api/src/modules/patterns/detectors/structure-break.detector.ts",
+      "file:apps/api/src/modules/patterns/detectors/detector.utils.ts",
+      "file:apps/api/src/modules/patterns/detectors/pattern-actionability.ts"
+    ]
+  },
+  {
+    "order": 8,
+    "title": "Frontend State Management",
+    "description": "The frontend uses Zustand for global state: MarketStore (live tickers/candles), DrawingStore (chart annotations with cross-tab sync via BroadcastChannel), UIStore (view modes, alerts), and OrderbookStore.",
+    "nodeIds": ["file:apps/web/src/stores/index.ts", "file:apps/web/src/lib/drawings/sync-bus.ts"]
+  },
+  {
+    "order": 9,
+    "title": "WebSocket Client & Real-Time Updates",
+    "description": "useWebSocket hook manages the client-side WebSocket connection with auto-reconnect. On messages, it dispatches to Zustand stores. useSignalMonitor watches tickers against signal-level drawings and fires alerts.",
+    "nodeIds": [
+      "file:apps/web/src/hooks/useWebSocket.ts",
+      "file:apps/web/src/hooks/useSignalMonitor.ts",
+      "file:apps/web/src/app/page.tsx"
+    ]
+  },
+  {
+    "order": 10,
+    "title": "Chart Drawing Engine",
+    "description": "The drawing engine converts drawing models to SVG coordinates using chart projection APIs. DrawingOverlay renders an interactive SVG on the chart. DrawingSyncBus propagates operations across tabs. Drawings persist to localStorage.",
+    "nodeIds": [
+      "file:apps/web/src/lib/drawings/engine.ts",
+      "file:apps/web/src/lib/drawings/models.ts",
+      "file:apps/web/src/components/charts/drawing-overlay.tsx",
+      "file:apps/web/src/lib/drawings/persistence.ts",
+      "file:apps/web/src/lib/drawings/sync-bus.ts"
+    ]
+  },
+  {
+    "order": 11,
+    "title": "ChartCard: The Core Chart Component",
+    "description": "ChartCard is the most complex frontend component: it initializes Lightweight Charts, handles real-time candle updates, lazy-loads historical candles on scroll-back, overlays heatmap data, and embeds the drawing overlay and toolbar.",
+    "nodeIds": [
+      "file:apps/web/src/components/charts/chart-card.tsx",
+      "file:apps/web/src/components/charts/chart-history.ts",
+      "file:apps/web/src/lib/liquidity-engine.ts"
+    ]
+  },
+  {
+    "order": 12,
+    "title": "Patterns Dashboard",
+    "description": "The patterns view combines a filterable list (PatternsList + PatternsFilters) with a detail pane (PatternDetailsCard) showing an embedded chart with pattern overlay. usePatternsQuery fetches from the API with polling.",
+    "nodeIds": [
+      "file:apps/web/src/components/patterns/patterns-view.tsx",
+      "file:apps/web/src/components/patterns/patterns-list.tsx",
+      "file:apps/web/src/components/patterns/pattern-details-card.tsx",
+      "file:apps/web/src/components/patterns/pattern-chart-overlay.tsx",
+      "file:apps/web/src/components/patterns/use-patterns-query.ts"
+    ]
+  },
+  {
+    "order": 13,
+    "title": "Infrastructure & Deployment",
+    "description": "The project deploys to Railway (API + web) or VPS (Docker Compose + nginx). CI/CD via GitHub Actions. Three Dockerfiles: root, API-specific, and web-specific. Supervisord runs multiple processes in a single container.",
+    "nodeIds": [
+      "service:docker-compose.prod.yml",
+      "service:Dockerfile.api",
+      "service:Dockerfile.web",
+      "config:nginx.conf",
+      "pipeline:.github/workflows/ci.yml",
+      "document:docs/vps-deploy.md"
+    ]
+  }
+]

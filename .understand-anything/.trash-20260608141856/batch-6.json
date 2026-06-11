@@ -1,0 +1,75 @@
+{
+  "nodes": [
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README",
+      "filePath": "README.md",
+      "summary": "Main project README documenting the Crypto Screener Pro platform: features (real-time data, heatmap, pattern detection), tech stack (Next.js 15, NestJS, PostgreSQL, Redis), and quick-start instructions.",
+      "tags": ["documentation", "overview", "getting-started", "readme"],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:PROJECT_SUMMARY.md",
+      "type": "document",
+      "name": "Project Summary",
+      "filePath": "PROJECT_SUMMARY.md",
+      "summary": "Comprehensive project summary covering architecture decisions, implemented features, and deployment configuration.",
+      "tags": ["documentation", "architecture", "summary"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/vps-deploy.md",
+      "type": "document",
+      "name": "VPS Deploy Guide",
+      "filePath": "docs/vps-deploy.md",
+      "summary": "Step-by-step deployment guide for running the crypto screener on a VPS with Docker, SSL, and nginx configuration.",
+      "tags": ["documentation", "deployment", "vps", "docker", "ops"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-06-02-chart-drawing-engine-implementation.md",
+      "type": "document",
+      "name": "Chart Drawing Engine Implementation Plan",
+      "filePath": "docs/superpowers/plans/2026-06-02-chart-drawing-engine-implementation.md",
+      "summary": "Implementation plan for the chart drawing engine: trendlines, horizontal lines, rectangles, signal levels, persistence, and sync across tabs.",
+      "tags": ["documentation", "implementation-plan", "drawing-engine", "charts"],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-06-04-liquidity-heatmap-implementation.md",
+      "type": "document",
+      "name": "Liquidity Heatmap Implementation Plan",
+      "filePath": "docs/superpowers/plans/2026-06-04-liquidity-heatmap-implementation.md",
+      "summary": "Implementation plan for the liquidity heatmap feature: order flow visualization, bucket aggregation, signal detection, and chart overlay.",
+      "tags": ["documentation", "implementation-plan", "heatmap", "liquidity"],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-06-05-patterns-implementation.md",
+      "type": "document",
+      "name": "Patterns Implementation Plan",
+      "filePath": "docs/superpowers/plans/2026-06-05-patterns-implementation.md",
+      "summary": "Implementation plan for chart pattern detection: breakout, retest, structure break, liquidity sweep detectors, and pattern dashboard UI.",
+      "tags": ["documentation", "implementation-plan", "patterns", "detection"],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-06-05-personal-grid-implementation.md",
+      "type": "document",
+      "name": "Personal Grid Implementation Plan",
+      "filePath": "docs/superpowers/plans/2026-06-05-personal-grid-implementation.md",
+      "summary": "Implementation plan for the personal grid feature: multi-chart layout, slot management, symbol picker, and persistence.",
+      "tags": ["documentation", "implementation-plan", "personal-grid", "layout"],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    { "source": "document:docs/superpowers/plans/2026-06-02-chart-drawing-engine-implementation.md", "target": "document:docs/superpowers/specs/2026-06-02-chart-drawing-engine-design.md", "type": "documents", "weight": 0.8 },
+    { "source": "document:docs/superpowers/plans/2026-06-04-liquidity-heatmap-implementation.md", "target": "document:docs/superpowers/specs/2026-06-04-liquidity-heatmap-design.md", "type": "documents", "weight": 0.8 },
+    { "source": "document:docs/superpowers/plans/2026-06-05-patterns-implementation.md", "target": "document:docs/superpowers/specs/2026-06-05-patterns-design.md", "type": "documents", "weight": 0.8 },
+    { "source": "document:docs/superpowers/plans/2026-06-05-personal-grid-implementation.md", "target": "document:docs/superpowers/specs/2026-06-05-personal-grid-design.md", "type": "documents", "weight": 0.8 },
+    { "source": "document:README.md", "target": "document:PROJECT_SUMMARY.md", "type": "related", "weight": 0.5 },
+    { "source": "document:docs/vps-deploy.md", "target": "service:docker-compose.prod.yml", "type": "documents", "weight": 0.6 }
+  ]
+}

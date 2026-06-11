@@ -104,6 +104,15 @@ export const alertsApi = {
 
   markAllAsRead: () =>
     fetchApi<{ success: boolean }>('/alerts/read-all', { method: 'POST' }),
+
+  registerSignal: (signal: any) =>
+    fetchApi<{ success: boolean }>('/alerts/signals', {
+      method: 'POST',
+      body: JSON.stringify(signal),
+    }),
+
+  unregisterSignal: (id: string) =>
+    fetchApi<{ success: boolean }>(`/alerts/signals/${id}`, { method: 'DELETE' }),
 };
 
 // Patterns API
