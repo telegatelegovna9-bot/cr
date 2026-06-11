@@ -22,6 +22,7 @@ import { DrawingOverlay } from './drawing-overlay';
 import { PatternChartOverlay } from '@/components/patterns/pattern-chart-overlay';
 import {
   detectGap,
+  detectMissingCandleRange,
   getInitialHistoryBackfillEndTime,
   mergeChartHistory,
   shouldBackfillInitialHistory,
@@ -578,6 +579,13 @@ export function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isM
 
     const { open, high, low, close, volume, time: timestamp } = latestCandle;
     if (!isFinite(open) || !isFinite(high) || !isFinite(low) || !isFinite(close)) return;
+
+    const lastKnownCandle = allRawRef.current[allRawRef.current.length - 1];
+    const missingRange = detectMissingCandleRange(lastKnownCandle, latestCandle, timeframeRef.current);
+    if (missingRange) {
+      void refreshLatestHistory();
+      return;
+    }
 
     // Update our history ref so ticker updates use the correct open price
     const timeInSeconds = Math.floor(timestamp / 1000);

@@ -1,7 +1,6 @@
 type RawCandle = {
   time?: number;
   timestamp?: number;
-  [key: string]: unknown;
 };
 
 function candleTime(candle: RawCandle): number | null {
@@ -49,6 +48,31 @@ export function detectGap(
   }
 
   return null;
+}
+
+export function detectMissingCandleRange(
+  previousCandle: RawCandle | undefined,
+  incomingCandle: RawCandle | undefined,
+  timeframe: string,
+): { startTime: number; endTime: number; missingBuckets: number } | null {
+  if (!previousCandle || !incomingCandle) return null;
+
+  const previousTime = candleTime(previousCandle);
+  const incomingTime = candleTime(incomingCandle);
+  if (!previousTime || !incomingTime) return null;
+
+  const timeframeMs = getTimeframeDurationMs(timeframe);
+  const previousBucketStart = Math.floor(previousTime / timeframeMs) * timeframeMs;
+  const incomingBucketStart = Math.floor(incomingTime / timeframeMs) * timeframeMs;
+  const bucketDelta = Math.floor((incomingBucketStart - previousBucketStart) / timeframeMs);
+
+  if (bucketDelta <= 1) return null;
+
+  return {
+    startTime: previousBucketStart + timeframeMs,
+    endTime: incomingBucketStart - 1,
+    missingBuckets: bucketDelta - 1,
+  };
 }
 
 function getTimeframeDurationMs(timeframe: string): number {

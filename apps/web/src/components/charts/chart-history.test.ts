@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  detectMissingCandleRange,
   getInitialHistoryBackfillEndTime,
   mergeChartHistory,
   shouldBackfillInitialHistory,
@@ -38,4 +39,28 @@ test('merges older history before live candles and removes duplicates by time', 
 
   assert.deepEqual(merged.map(c => c.time), [60_000, 120_000, 180_000]);
   assert.equal(merged[2].close, 4);
+});
+
+test('detects no missing candle range when incoming candle is the next bucket', () => {
+  const range = detectMissingCandleRange(
+    { time: 1_000_000 },
+    { time: 1_060_000 },
+    '1m',
+  );
+
+  assert.equal(range, null);
+});
+
+test('detects missing candle range when incoming candle jumps forward by multiple buckets', () => {
+  const range = detectMissingCandleRange(
+    { time: 1_000_000 },
+    { time: 1_180_000 },
+    '1m',
+  );
+
+  assert.deepEqual(range, {
+    startTime: 1_020_000,
+    endTime: 1_139_999,
+    missingBuckets: 2,
+  });
 });
