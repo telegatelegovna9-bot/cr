@@ -12,6 +12,7 @@ import type {
 import {
   ALL_EXCHANGES,
   DEFAULT_SYMBOLS,
+  timeframeToMs,
 } from '@crypto-screener/shared';
 import { DatabaseService } from '../../database/database.service';
 import { MarketGateway } from './market.gateway';
@@ -271,6 +272,31 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     return null;
   }
 
+  private isHistoryCacheFreshAndContiguous(
+    candles: Candle[] | undefined,
+    timeframe: Timeframe,
+    limit: number,
+  ): boolean {
+    if (!candles || candles.length < limit) return false;
+
+    const latest = candles.slice(-limit);
+    const bucketMs = timeframeToMs(timeframe);
+    const freshnessThresholdMs = bucketMs * 2;
+    const latestTime = latest[latest.length - 1]?.time;
+
+    if (!latestTime || Date.now() - latestTime > freshnessThresholdMs) {
+      return false;
+    }
+
+    for (let index = 1; index < latest.length; index += 1) {
+      if (latest[index].time - latest[index - 1].time !== bucketMs) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   async getCandles(symbol: string, timeframe: Timeframe, exchange?: ExchangeId, limit = 500, endTime?: number): Promise<Candle[]> {
     const cacheKey = `candle:${symbol}:${exchange || 'all'}:${timeframe}`;
     const cached = this.candleCache.get(cacheKey);
@@ -280,7 +306,9 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     // Only use cache for history requests if it has enough candles (≥ limit).
     // A small cache means only WS real-time candles have been stored so far —
     // returning those would cause charts to show only 1-2 candles instead of full history.
-    if (cached && cached.length >= limit && !endTime) return cached.slice(-limit);
+    if (!endTime && this.isHistoryCacheFreshAndContiguous(cached, timeframe, limit)) {
+      return cached!.slice(-limit);
+    }
     if (endTime && cachedHistory.length >= limit) return cachedHistory;
     try {
       let candles = await this.exchangeManager.fetchCandles(symbol, timeframe, exchange, limit, endTime);

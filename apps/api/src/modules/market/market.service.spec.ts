@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { MarketService } from './market.service';
+import type { Candle } from '@crypto-screener/shared';
 
 function createService() {
   const calls: Array<{ method: string; args: unknown[] }> = [];
+  let fetchCandlesImpl: (...args: unknown[]) => Promise<Candle[]> = async () => [];
 
   const exchangeManager = {
     on: () => undefined,
@@ -15,7 +17,7 @@ function createService() {
     unsubscribeCandle: (...args: unknown[]) => calls.push({ method: 'unsubscribeCandle', args }),
     subscribeOrderBook: (...args: unknown[]) => calls.push({ method: 'subscribeOrderBook', args }),
     unsubscribeOrderBook: (...args: unknown[]) => calls.push({ method: 'unsubscribeOrderBook', args }),
-    fetchCandles: async () => [],
+    fetchCandles: async (...args: unknown[]) => fetchCandlesImpl(...args),
     fetchOrderBook: async () => null,
     fetchAllTickers: async () => [],
   };
@@ -37,7 +39,13 @@ function createService() {
   const service = new MarketService(db as never, alertsService as never, gateway as never);
   (service as any).exchangeManager = exchangeManager;
 
-  return { service, calls };
+  return {
+    service,
+    calls,
+    setFetchCandlesImpl: (impl: (...args: unknown[]) => Promise<Candle[]>) => {
+      fetchCandlesImpl = impl;
+    },
+  };
 }
 
 async function runTest() {
@@ -62,6 +70,76 @@ async function runTest() {
 
     service.unsubscribeOrderBook('BTC/USDT', 'binance');
     assert.equal(calls.filter(call => call.method === 'unsubscribeOrderBook').length, 1);
+  }
+
+  {
+    const { service, setFetchCandlesImpl } = createService();
+    const now = Date.now();
+    const timeframeMs = 60_000;
+    const cached = Array.from({ length: 300 }, (_, index) => ({
+      exchange: 'binance',
+      marketType: 'spot' as const,
+      symbol: 'BTC/USDT',
+      timeframe: '1m' as const,
+      time: now - (299 - index) * timeframeMs,
+      open: 1,
+      high: 2,
+      low: 1,
+      close: 2,
+      volume: 10,
+      isClosed: true,
+    }));
+
+    (service as any).candleCache.set('candle:BTC/USDT:binance:1m', cached);
+    setFetchCandlesImpl(async () => {
+      throw new Error('should not fetch when cache is fresh and contiguous');
+    });
+
+    const candles = await service.getCandles('BTC/USDT', '1m', 'binance', 300);
+    assert.equal(candles.length, 300);
+  }
+
+  {
+    const { service, setFetchCandlesImpl } = createService();
+    const now = Date.now();
+    const timeframeMs = 60_000;
+    const cached = Array.from({ length: 300 }, (_, index) => ({
+      exchange: 'binance',
+      marketType: 'spot' as const,
+      symbol: 'BTC/USDT',
+      timeframe: '1m' as const,
+      time: now - (300 - index) * timeframeMs,
+      open: 1,
+      high: 2,
+      low: 1,
+      close: 2,
+      volume: 10,
+      isClosed: true,
+    }));
+    cached.splice(150, 1);
+
+    (service as any).candleCache.set('candle:BTC/USDT:binance:1m', cached);
+
+    let fetched = false;
+    setFetchCandlesImpl(async () => {
+      fetched = true;
+      return [{
+        exchange: 'binance',
+        marketType: 'spot' as const,
+        symbol: 'BTC/USDT',
+        timeframe: '1m' as const,
+        time: now,
+        open: 1,
+        high: 2,
+        low: 1,
+        close: 2,
+        volume: 10,
+        isClosed: true,
+      }];
+    });
+
+    await service.getCandles('BTC/USDT', '1m', 'binance', 300);
+    assert.equal(fetched, true);
   }
 
   console.log('MarketService ownership tests passed!');
