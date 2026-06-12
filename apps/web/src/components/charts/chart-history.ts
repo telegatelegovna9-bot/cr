@@ -75,6 +75,28 @@ export function detectMissingCandleRange(
   };
 }
 
+export function shouldRefreshLatestHistoryOnResume(params: {
+  dataLoaded: boolean;
+  paused: boolean;
+  wasViewActive: boolean;
+  isViewActive: boolean;
+  wasConnected: boolean;
+  isConnected: boolean;
+}): boolean {
+  const {
+    dataLoaded,
+    paused,
+    wasViewActive,
+    isViewActive,
+    wasConnected,
+    isConnected,
+  } = params;
+
+  if (!dataLoaded || paused || !isViewActive) return false;
+
+  return (!wasViewActive && isViewActive) || (!wasConnected && isConnected);
+}
+
 function getTimeframeDurationMs(timeframe: string): number {
   const amount = parseInt(timeframe);
   const unit = timeframe.replace(String(amount), '');

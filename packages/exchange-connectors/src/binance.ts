@@ -21,6 +21,7 @@ const SUBSCRIPTION_BATCH_DELAY_MS = 250;
 export class BinanceConnector extends BaseExchangeConnector {
   private futuresWs: WebSocket | null = null;
   private futuresConnected = false;
+  private activeSpotSubs = new Set<string>();
   private futuresSubscriptions = new Set<string>();
   private activeFuturesSubs = new Set<string>();
   private futuresReconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -39,13 +40,20 @@ export class BinanceConnector extends BaseExchangeConnector {
   async connectWS(): Promise<void> {
     if (this.connected || this.ws) return;
     const spotWs = new WebSocket(this.wsUrl);
-    this.setupWebSocket(spotWs);
+    this.setupSpotWS(spotWs);
     const futuresWs = new WebSocket(BINANCE_FUTURES_WS_URL);
     this.setupFuturesWS(futuresWs);
     await Promise.allSettled([
       new Promise<void>(res => { const t = setTimeout(res, 10000); spotWs.once('open', () => { clearTimeout(t); res(); }); }),
       new Promise<void>(res => { const t = setTimeout(res, 10000); futuresWs.once('open', () => { clearTimeout(t); res(); }); })
     ]);
+  }
+
+  private setupSpotWS(ws: WebSocket): void {
+    this.setupWebSocket(ws);
+    ws.on('open', () => {
+      for (const s of this.activeSpotSubs) this.enqueueSpotControl('SUBSCRIBE', s);
+    });
   }
 
   private setupFuturesWS(ws: WebSocket): void {
@@ -91,7 +99,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       this.enqueueFuturesControl('SUBSCRIBE', `${local}@ticker`);
     } else {
       if (this.subscriptions.has(`ticker:${s}`)) return;
-      this.subscriptions.add(`ticker:${s}`); this.enqueueSpotControl('SUBSCRIBE', `${local}@ticker`);
+      this.subscriptions.add(`ticker:${s}`); this.activeSpotSubs.add(`${local}@ticker`); this.enqueueSpotControl('SUBSCRIBE', `${local}@ticker`);
     }
   }
 
@@ -104,7 +112,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       this.enqueueFuturesControl('SUBSCRIBE', `${local}@kline_${interval}`);
     } else {
       if (this.subscriptions.has(`candle:${s}:${tf}`)) return;
-      this.subscriptions.add(`candle:${s}:${tf}`); this.enqueueSpotControl('SUBSCRIBE', `${local}@kline_${interval}`);
+      this.subscriptions.add(`candle:${s}:${tf}`); this.activeSpotSubs.add(`${local}@kline_${interval}`); this.enqueueSpotControl('SUBSCRIBE', `${local}@kline_${interval}`);
     }
   }
 
@@ -125,7 +133,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       this.futuresOrderBookPolls.set(s, interval);
     } else {
       if (this.subscriptions.has(`orderbook:${s}`)) return;
-      this.subscriptions.add(`orderbook:${s}`); this.enqueueSpotControl('SUBSCRIBE', `${local}@depth@100ms`);
+      this.subscriptions.add(`orderbook:${s}`); this.activeSpotSubs.add(`${local}@depth@100ms`); this.enqueueSpotControl('SUBSCRIBE', `${local}@depth@100ms`);
     }
   }
 
@@ -137,7 +145,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       this.enqueueFuturesControl('SUBSCRIBE', `${local}@aggTrade`);
     } else {
       if (this.subscriptions.has(`trades:${s}`)) return;
-      this.subscriptions.add(`trades:${s}`); this.enqueueSpotControl('SUBSCRIBE', `${local}@aggTrade`);
+      this.subscriptions.add(`trades:${s}`); this.activeSpotSubs.add(`${local}@aggTrade`); this.enqueueSpotControl('SUBSCRIBE', `${local}@aggTrade`);
     }
   }
 
@@ -147,7 +155,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       this.futuresSubscriptions.delete(`ticker:${s}`); this.activeFuturesSubs.delete(`${local}@ticker`);
       this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@ticker`);
     } else {
-      this.subscriptions.delete(`ticker:${s}`); this.enqueueSpotControl('UNSUBSCRIBE', `${local}@ticker`);
+      this.subscriptions.delete(`ticker:${s}`); this.activeSpotSubs.delete(`${local}@ticker`); this.enqueueSpotControl('UNSUBSCRIBE', `${local}@ticker`);
     }
   }
 
@@ -158,7 +166,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       this.futuresSubscriptions.delete(`candle:${s}:${tf}`); this.activeFuturesSubs.delete(`${local}@kline_${interval}`);
       this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@kline_${interval}`);
     } else {
-      this.subscriptions.delete(`candle:${s}:${tf}`); this.enqueueSpotControl('UNSUBSCRIBE', `${local}@kline_${interval}`);
+      this.subscriptions.delete(`candle:${s}:${tf}`); this.activeSpotSubs.delete(`${local}@kline_${interval}`); this.enqueueSpotControl('UNSUBSCRIBE', `${local}@kline_${interval}`);
     }
   }
 
@@ -172,7 +180,7 @@ export class BinanceConnector extends BaseExchangeConnector {
         this.futuresOrderBookPolls.delete(s);
       }
     } else {
-      this.subscriptions.delete(`orderbook:${s}`); this.enqueueSpotControl('UNSUBSCRIBE', `${local}@depth@100ms`);
+      this.subscriptions.delete(`orderbook:${s}`); this.activeSpotSubs.delete(`${local}@depth@100ms`); this.enqueueSpotControl('UNSUBSCRIBE', `${local}@depth@100ms`);
     }
   }
 
@@ -182,7 +190,7 @@ export class BinanceConnector extends BaseExchangeConnector {
       this.futuresSubscriptions.delete(`trades:${s}`); this.activeFuturesSubs.delete(`${local}@aggTrade`);
       this.enqueueFuturesControl('UNSUBSCRIBE', `${local}@aggTrade`);
     } else {
-      this.subscriptions.delete(`trades:${s}`); this.enqueueSpotControl('UNSUBSCRIBE', `${local}@aggTrade`);
+      this.subscriptions.delete(`trades:${s}`); this.activeSpotSubs.delete(`${local}@aggTrade`); this.enqueueSpotControl('UNSUBSCRIBE', `${local}@aggTrade`);
     }
   }
 
@@ -317,7 +325,7 @@ export class BinanceConnector extends BaseExchangeConnector {
     for (const interval of this.futuresOrderBookPolls.values()) clearInterval(interval);
     this.futuresOrderBookPolls.clear();
     if (this.futuresWs) { this.futuresWs.removeAllListeners(); this.futuresWs.close(); this.futuresWs = null; }
-    this.futuresConnected = false; this.futuresSubscriptions.clear(); this.activeFuturesSubs.clear();
+    this.futuresConnected = false; this.activeSpotSubs.clear(); this.futuresSubscriptions.clear(); this.activeFuturesSubs.clear();
   }
 
   private enqueueSpotControl(method: 'SUBSCRIBE' | 'UNSUBSCRIBE', stream: string): void {

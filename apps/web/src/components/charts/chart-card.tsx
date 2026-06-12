@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
 import type { Timeframe } from '@crypto-screener/shared';
-import { useMarketStore, useUIStore, useOrderbookStore } from '@/stores';
+import { useMarketStore, useUIStore, useOrderbookStore, useWSStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { formatPrice, getChartPriceFormat } from '@/lib/format';
 import { formatDisplaySymbol, formatMarketTypeLabel, getDisplayBaseSymbol } from '@/lib/display-symbol';
@@ -25,6 +25,7 @@ import {
   detectMissingCandleRange,
   getInitialHistoryBackfillEndTime,
   mergeChartHistory,
+  shouldRefreshLatestHistoryOnResume,
   shouldBackfillInitialHistory,
 } from './chart-history';
 import {
@@ -230,6 +231,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     }
     return undefined;
   });
+  const wsConnected = useWSStore(state => state.connected);
 
   // Refs that always hold the latest values so async closures don't go stale
   const timeframeRef = useRef<TF>(timeframe);
@@ -265,6 +267,8 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const heatmapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const heatmapRafRef = useRef<number | null>(null);
   const heatmapDirtyRef = useRef(false);
+  const wasViewActiveRef = useRef(isViewActive);
+  const wasWsConnectedRef = useRef(wsConnected);
 
   const refreshLatestHistory = useCallback(async () => {
     if (historyRefreshInFlightRef.current) return;
@@ -727,6 +731,24 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     }
   }, [isViewActive, paused, refreshLatestHistory]);
 
+  useEffect(() => {
+    const shouldRefresh = shouldRefreshLatestHistoryOnResume({
+      dataLoaded: dataLoadedRef.current,
+      paused,
+      wasViewActive: wasViewActiveRef.current,
+      isViewActive,
+      wasConnected: wasWsConnectedRef.current,
+      isConnected: wsConnected,
+    });
+
+    wasViewActiveRef.current = isViewActive;
+    wasWsConnectedRef.current = wsConnected;
+
+    if (shouldRefresh) {
+      void refreshLatestHistory();
+    }
+  }, [isViewActive, paused, refreshLatestHistory, wsConnected]);
+
   // ─── Chart Initialization ───────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
@@ -790,7 +812,13 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
         if (cancelled || !chartRef.current) return;
         const w = container.clientWidth || container.offsetWidth;
         const h = container.clientHeight || container.offsetHeight;
-        if (w > 0 && h > 0) chartRef.current.applyOptions({ width: w, height: h });
+        if (w > 0 && h > 0) {
+          try {
+            chart.applyOptions({ width: w, height: h });
+          } catch {
+            // Chart may already be disposed during rapid view switches.
+          }
+        }
       });
 
       const candleSeries = chart.addCandlestickSeries({
@@ -1014,6 +1042,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   // ─── Optimized Resize Observer ──────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
+    let disposed = false;
     const observer = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
       if (width === 0 || height === 0) return;
@@ -1021,8 +1050,13 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
       if (resizeFrameRef.current != null) return;
 
       resizeFrameRef.current = requestAnimationFrame(() => {
-        if (chartRef.current) {
-          chartRef.current.applyOptions({ width, height });
+        const chart = chartRef.current;
+        if (!disposed && chart) {
+          try {
+            chart.applyOptions({ width, height });
+          } catch {
+            // Lightweight-charts can throw if a pending resize lands after disposal.
+          }
         }
         // Sync canvas size — independent of whether chart is initialized
         const canvas = heatmapCanvasRef.current;
@@ -1036,6 +1070,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     });
     observer.observe(containerRef.current);
     return () => {
+      disposed = true;
       observer.disconnect();
       if (resizeFrameRef.current != null) {
         cancelAnimationFrame(resizeFrameRef.current);
