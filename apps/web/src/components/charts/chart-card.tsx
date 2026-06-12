@@ -49,6 +49,7 @@ interface ChartCardProps {
   headerActions?: ReactNode;
   patternOverlay?: PatternDetail | null;
   isViewActive?: boolean;
+  historySessionToken?: number;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
@@ -166,7 +167,7 @@ function getTimeframeDurationMs(timeframe: TF): number {
   }
 }
 
-export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded, showHeaderPrice = true, headerActions, patternOverlay = null, isViewActive = true }: ChartCardProps) {
+export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded, showHeaderPrice = true, headerActions, patternOverlay = null, isViewActive = true, historySessionToken = 0 }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -943,7 +944,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
           raw = initialData;
           chartHistoryCache.set(cacheKey, raw);
         } else {
-          const cached = chartHistoryCache.get(cacheKey);
+          const cached = historySessionToken === 0 ? chartHistoryCache.get(cacheKey) : undefined;
           if (cached?.length) {
             raw = cached;
             if (!cancelled) {
@@ -1104,7 +1105,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
         volumeSeriesRef.current = null;
       }
     };
-  }, [symbol, exchange, timeframe, marketType, isModal]);
+  }, [symbol, exchange, timeframe, marketType, isModal, historySessionToken]);
 
   // ─── Optimized Resize Observer ──────────────────────────────
   useEffect(() => {

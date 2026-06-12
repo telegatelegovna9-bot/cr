@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useUIStore, useMarketStore } from '@/stores';
 import { ChartCard } from './chart-card';
+import { shouldStartFreshHistorySession } from './chart-history';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Square,
@@ -44,16 +45,40 @@ export function ChartGrid({ isViewActive = true }: { isViewActive?: boolean }) {
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [marketType, setMarketType] = useState<'spot' | 'futures'>('spot');
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
+  const [historySessionToken, setHistorySessionToken] = useState(0);
   const chartGridSize = useUIStore(state => state.chartGridSize);
   const setChartGridSize = useUIStore(state => state.setChartGridSize);
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const tickers = useMarketStore(state => (sortMode === 'default' ? null : state.tickersList));
   const chartDataCache = useRef<Map<string, { data: any[]; timeframe: string }>>(new Map());
+  const previousViewActiveRef = useRef(isViewActive);
+  const previousMarketTypeRef = useRef<'spot' | 'futures'>(marketType);
+  const previousExchangeRef = useRef(selectedExchange);
 
   // Clear cache when exchange or market type changes so modal gets fresh data
   useEffect(() => {
     chartDataCache.current.clear();
   }, [selectedExchange, marketType]);
+
+  useEffect(() => {
+    const shouldStartFreshSession = shouldStartFreshHistorySession({
+      wasViewActive: previousViewActiveRef.current,
+      isViewActive,
+      previousMarketType: previousMarketTypeRef.current,
+      marketType,
+      previousExchange: previousExchangeRef.current,
+      exchange: selectedExchange,
+    });
+
+    previousViewActiveRef.current = isViewActive;
+    previousMarketTypeRef.current = marketType;
+    previousExchangeRef.current = selectedExchange;
+
+    if (!shouldStartFreshSession) return;
+
+    chartDataCache.current.clear();
+    setHistorySessionToken(token => token + 1);
+  }, [isViewActive, marketType, selectedExchange]);
 
   const handleDataLoaded = useCallback((symbol: string, data: any[], timeframe: string) => {
     chartDataCache.current.set(symbol, { data, timeframe });
@@ -179,7 +204,7 @@ export function ChartGrid({ isViewActive = true }: { isViewActive?: boolean }) {
       <div className={`flex-1 grid ${gridClass} gap-3 min-h-0`}>
         {displaySymbols.map((symbol, index) => (
           <ChartCard
-            key={symbol}
+            key={`${historySessionToken}:${symbol}`}
             symbol={symbol}
             index={index}
             onExpand={() => setExpandedSymbol(symbol)}
@@ -187,6 +212,7 @@ export function ChartGrid({ isViewActive = true }: { isViewActive?: boolean }) {
             onDataLoaded={handleDataLoaded}
             initialMarketType={marketType}
             isViewActive={isViewActive}
+            historySessionToken={historySessionToken}
           />
         ))}
       </div>
@@ -210,6 +236,7 @@ export function ChartGrid({ isViewActive = true }: { isViewActive?: boolean }) {
               onClick={(e) => e.stopPropagation()}
             >
               <ChartCard
+                key={`${historySessionToken}:${expandedSymbol}`}
                 symbol={expandedSymbol}
                 index={0}
                 onExpand={() => setExpandedSymbol(null)}
@@ -218,6 +245,7 @@ export function ChartGrid({ isViewActive = true }: { isViewActive?: boolean }) {
                 initialTimeframe={chartDataCache.current.get(expandedSymbol)?.timeframe}
                 initialMarketType={marketType}
                 isViewActive={isViewActive}
+                historySessionToken={historySessionToken}
               />
             </motion.div>
           </motion.div>

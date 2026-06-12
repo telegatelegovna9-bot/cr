@@ -97,6 +97,30 @@ export function shouldRefreshLatestHistoryOnResume(params: {
   return (!wasViewActive && isViewActive) || (!wasConnected && isConnected);
 }
 
+export function shouldStartFreshHistorySession(params: {
+  wasViewActive: boolean;
+  isViewActive: boolean;
+  previousMarketType: 'spot' | 'futures';
+  marketType: 'spot' | 'futures';
+  previousExchange: string;
+  exchange: string;
+}): boolean {
+  const {
+    wasViewActive,
+    isViewActive,
+    previousMarketType,
+    marketType,
+    previousExchange,
+    exchange,
+  } = params;
+
+  if (!wasViewActive && isViewActive) return true;
+  if (previousMarketType !== marketType) return true;
+  if (previousExchange !== exchange) return true;
+
+  return false;
+}
+
 function getTimeframeDurationMs(timeframe: string): number {
   const amount = parseInt(timeframe);
   const unit = timeframe.replace(String(amount), '');

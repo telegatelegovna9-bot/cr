@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { shouldRefreshLatestHistoryOnResume } from './chart-history';
+import {
+  shouldRefreshLatestHistoryOnResume,
+  shouldStartFreshHistorySession,
+} from './chart-history';
 
 test('refreshes history when the chart view becomes active again', () => {
   assert.equal(
@@ -51,6 +54,48 @@ test('does not refresh history while paused or before data is loaded', () => {
       isViewActive: true,
       wasConnected: false,
       isConnected: true,
+    }),
+    false,
+  );
+});
+
+test('starts a fresh history session when chart view becomes active again', () => {
+  assert.equal(
+    shouldStartFreshHistorySession({
+      wasViewActive: false,
+      isViewActive: true,
+      previousMarketType: 'spot',
+      marketType: 'spot',
+      previousExchange: 'binance',
+      exchange: 'binance',
+    }),
+    true,
+  );
+});
+
+test('starts a fresh history session when market type changes', () => {
+  assert.equal(
+    shouldStartFreshHistorySession({
+      wasViewActive: true,
+      isViewActive: true,
+      previousMarketType: 'spot',
+      marketType: 'futures',
+      previousExchange: 'binance',
+      exchange: 'binance',
+    }),
+    true,
+  );
+});
+
+test('does not start a fresh history session without a real context transition', () => {
+  assert.equal(
+    shouldStartFreshHistorySession({
+      wasViewActive: true,
+      isViewActive: true,
+      previousMarketType: 'spot',
+      marketType: 'spot',
+      previousExchange: 'binance',
+      exchange: 'binance',
     }),
     false,
   );
