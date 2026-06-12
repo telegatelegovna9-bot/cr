@@ -107,6 +107,19 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   updateCandle: (candle) => {
     const key = candleMapKey(candle);
     set(state => {
+      const previous = state.latestCandles.get(key);
+      if (
+        previous &&
+        previous.time === candle.time &&
+        previous.open === candle.open &&
+        previous.high === candle.high &&
+        previous.low === candle.low &&
+        previous.close === candle.close &&
+        previous.volume === candle.volume
+      ) {
+        return state;
+      }
+
       const newMap = new Map(state.latestCandles);
       newMap.set(key, candle);
       return { latestCandles: newMap };

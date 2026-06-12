@@ -52,7 +52,7 @@ function getTextColor(change: number, maxChange: number): string {
 }
 
 export function HeatmapView() {
-  const { getTicker } = useMarketStore();
+  const getTicker = useMarketStore(state => state.getTicker);
   const [exchange, setExchange] = useState<ExchangeFilter>('all');
   const [mode, setMode] = useState<HeatmapMode>('price');
   const [zoom, setZoom] = useState(1);

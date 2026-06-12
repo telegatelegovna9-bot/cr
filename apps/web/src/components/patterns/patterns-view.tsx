@@ -11,18 +11,16 @@ import { usePatternDetail } from './use-pattern-detail';
 import { usePatternsQuery } from './use-patterns-query';
 
 export function PatternsView() {
-  const {
-    patternsUI,
-    personalGrid,
-    setPatternsSearch,
-    setPatternsFilters,
-    setSelectedPatternId,
-    setViewMode,
-    setPersonalGridSlot,
-    addAlert,
-  } = useUIStore();
-  const { selectedTimeframe } = useMarketStore();
-  const { addTriggeredAlert } = useAlertStore();
+  const patternsUI = useUIStore(state => state.patternsUI);
+  const personalGrid = useUIStore(state => state.personalGrid);
+  const setPatternsSearch = useUIStore(state => state.setPatternsSearch);
+  const setPatternsFilters = useUIStore(state => state.setPatternsFilters);
+  const setSelectedPatternId = useUIStore(state => state.setSelectedPatternId);
+  const setViewMode = useUIStore(state => state.setViewMode);
+  const setPersonalGridSlot = useUIStore(state => state.setPersonalGridSlot);
+  const addAlert = useUIStore(state => state.addAlert);
+  const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
+  const addTriggeredAlert = useAlertStore(state => state.addTriggeredAlert);
   const query = usePatternsQuery(patternsUI.search, patternsUI.filters);
   const confirmedSeededRef = useRef(false);
   const seenConfirmedIdsRef = useRef<Set<string>>(new Set());

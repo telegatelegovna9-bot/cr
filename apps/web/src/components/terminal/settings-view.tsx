@@ -37,9 +37,14 @@ function Toggle({ label, description, enabled, onChange }: {
 // ─── Settings View ───────────────────────────────────────────
 
 export function SettingsView() {
-  const { settingsOpen, toggleSettings } = useUIStore();
-  const { config: alertConfig, updateConfig: updateAlertConfig } = useAlertStore();
-  const { selectedExchange, selectedTimeframe, setSelectedExchange, setSelectedTimeframe } = useMarketStore();
+  const settingsOpen = useUIStore(state => state.settingsOpen);
+  const toggleSettings = useUIStore(state => state.toggleSettings);
+  const alertConfig = useAlertStore(state => state.config);
+  const updateAlertConfig = useAlertStore(state => state.updateConfig);
+  const selectedExchange = useMarketStore(state => state.selectedExchange);
+  const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
+  const setSelectedExchange = useMarketStore(state => state.setSelectedExchange);
+  const setSelectedTimeframe = useMarketStore(state => state.setSelectedTimeframe);
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {

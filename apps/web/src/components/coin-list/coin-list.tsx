@@ -147,7 +147,8 @@ function CoinChartModal({ symbol, exchange, marketType, onClose }: { symbol: str
 // ─── Toggle button (shown when sidebar is closed) ─────────────
 
 export function CoinListToggle() {
-  const { coinListOpen, toggleCoinList } = useUIStore();
+  const coinListOpen = useUIStore(state => state.coinListOpen);
+  const toggleCoinList = useUIStore(state => state.toggleCoinList);
   if (coinListOpen) return null;
   return (
     <button
@@ -163,8 +164,14 @@ export function CoinListToggle() {
 // ─── Main Coin List ───────────────────────────────────────────
 
 export function CoinList() {
-  const { selectedExchange, getTicker, getTickersArray, setSelectedSymbol, tickersLoaded } = useMarketStore();
-  const { coinListOpen, toggleCoinList, setSelectedCoin } = useUIStore();
+  const selectedExchange = useMarketStore(state => state.selectedExchange);
+  const getTicker = useMarketStore(state => state.getTicker);
+  const getTickersArray = useMarketStore(state => state.getTickersArray);
+  const setSelectedSymbol = useMarketStore(state => state.setSelectedSymbol);
+  const tickersLoaded = useMarketStore(state => state.tickersLoaded);
+  const coinListOpen = useUIStore(state => state.coinListOpen);
+  const toggleCoinList = useUIStore(state => state.toggleCoinList);
+  const setSelectedCoin = useUIStore(state => state.setSelectedCoin);
   const [search, setSearch] = useState('');
   const [marketType, setMarketType] = useState<MarketType>('spot');
   const [sort, setSort] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'volume', direction: 'desc' });

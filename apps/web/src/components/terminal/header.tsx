@@ -24,11 +24,16 @@ const VIEW_MODES: { id: ViewMode; label: string; icon: typeof BarChart3 }[] = [
 ];
 
 export function Header() {
-  const {
-    viewMode, setViewMode, showHeatmap, toggleHeatmap, toggleAlerts, unreadAlertCount,
-  } = useUIStore();
-  const { selectedExchange, setSelectedExchange } = useMarketStore();
-  const { connected, reconnecting } = useWSStore();
+  const viewMode = useUIStore(state => state.viewMode);
+  const setViewMode = useUIStore(state => state.setViewMode);
+  const showHeatmap = useUIStore(state => state.showHeatmap);
+  const toggleHeatmap = useUIStore(state => state.toggleHeatmap);
+  const toggleAlerts = useUIStore(state => state.toggleAlerts);
+  const unreadAlertCount = useUIStore(state => state.unreadAlertCount);
+  const selectedExchange = useMarketStore(state => state.selectedExchange);
+  const setSelectedExchange = useMarketStore(state => state.setSelectedExchange);
+  const connected = useWSStore(state => state.connected);
+  const reconnecting = useWSStore(state => state.reconnecting);
 
   return (
     <motion.header
