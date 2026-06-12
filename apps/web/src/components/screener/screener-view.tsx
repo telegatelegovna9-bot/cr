@@ -42,7 +42,7 @@ const SIZE_THRESHOLDS: Record<SizeFilter, number> = {
 
 export function ScreenerView() {
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
-  const [sizeFilter, setSizeFilter] = useState<SizeFilter>('500k');
+  const [sizeFilter, setSizeFilter] = useState<SizeFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [events, setEvents] = useState<HyperliquidFlowEvent[]>([]);
@@ -147,7 +147,7 @@ export function ScreenerView() {
                     : 'text-text-muted hover:text-text-secondary'
                 }`}
               >
-                {value === 'all' ? 'All size' : `>= $${value.toUpperCase()}`}
+                {value === 'all' ? 'All >= $25K' : `>= $${value.toUpperCase()}`}
               </button>
             ))}
           </div>
@@ -166,7 +166,7 @@ export function ScreenerView() {
             <div>
               <div className="text-sm font-semibold text-text-primary">Hyperliquid flow feed</div>
               <div className="text-[11px] text-text-muted">
-                Source: {provider === 'quicknode' ? 'QuickNode dataset' : 'backend mock provider'}
+                Source: {provider === 'quicknode' ? 'QuickNode dataset, live feed floor >= $25K' : 'backend mock provider'}
               </div>
             </div>
             <div className="text-[10px] uppercase tracking-wider text-text-muted flex items-center gap-2">

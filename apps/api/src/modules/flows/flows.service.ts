@@ -9,13 +9,16 @@ import type {
 @Injectable()
 export class FlowsService {
   private readonly logger = new Logger(FlowsService.name);
-  private lastFetchTime = 0;
-  private cachedItems: HyperliquidFlowItem[] = [];
-  private cachedMeta: any = null;
-  private lastMetaFetchTime = 0;
   private readonly CACHE_TTL = 30000; // 30 seconds for flows
   private readonly META_CACHE_TTL = 1800000; // 30 minutes for coin list
+  private readonly BUFFER_RETENTION_MS = 15 * 60 * 1000; // 15 minutes
+  private readonly MAX_BUFFER_ITEMS = 1000;
+  private readonly BASE_MIN_USD = Number(process.env.HYPERLIQUID_FLOWS_BASE_MIN_USD || 25_000);
   private readonly INFO_URL = 'https://api-ui.hyperliquid.xyz/info';
+  private lastFetchTime = 0;
+  private cachedItems: BufferedFlowItem[] = [];
+  private cachedMeta: any = null;
+  private lastMetaFetchTime = 0;
 
   async listHyperliquidFlows(params: {
     kind?: HyperliquidFlowKind;
@@ -45,9 +48,10 @@ export class FlowsService {
 
   private async getRealFlows(): Promise<HyperliquidFlowItem[]> {
     const now = Date.now();
-    
+
     // Always respect cooldown, even if we had an error before
     if (now - this.lastFetchTime < this.CACHE_TTL && this.cachedItems.length > 0) {
+      this.cachedItems = this.pruneBufferedItems(this.cachedItems, now);
       return this.cachedItems;
     }
 
@@ -109,11 +113,12 @@ export class FlowsService {
       const tradesResults = await Promise.all(tradePromises);
       const allTrades = tradesResults.flat();
 
-      const items: HyperliquidFlowItem[] = allTrades
-        .map((t): HyperliquidFlowItem => {
+      const items: BufferedFlowItem[] = allTrades
+        .map((t): BufferedFlowItem => {
           const usdValue = parseFloat(t.px) * parseFloat(t.sz);
+          const timestampMs = Number(t.time) || now;
           return {
-            id: `hl-t-${t.coin}-${t.time}-${t.hash || Math.random()}`,
+            id: this.buildTradeId(t),
             kind: 'spot-transfer',
             status: 'finished',
             side: t.side === 'B' ? 'buy' : 'sell',
@@ -123,14 +128,15 @@ export class FlowsService {
             usdValue,
             amount: parseFloat(t.sz),
             note: usdValue > 500000 ? `Whale movement in ${t.coin}` : `Significant ${t.coin} trade`,
-            timestampLabel: this.formatTimeAgo(t.time),
+            timestampLabel: this.formatTimeAgo(timestampMs),
             trustLabel: 'verified',
             priceLabel: `$${parseFloat(t.px).toLocaleString()}`,
+            timestampMs,
           };
         })
-        .filter(item => item.usdValue > 100000);
+        .filter(item => item.usdValue >= this.BASE_MIN_USD);
 
-      this.cachedItems = items.sort((a, b) => b.usdValue - a.usdValue);
+      this.cachedItems = this.mergeIntoBuffer(items, now);
       return this.cachedItems;
     } catch (error: any) {
       this.logger.error(`Flow fetch error: ${error.message}`);
@@ -169,6 +175,43 @@ export class FlowsService {
     return { provider: provider as any, items };
   }
 
+  private buildTradeId(trade: any): string {
+    return [
+      'hl-t',
+      trade.coin,
+      trade.time,
+      trade.side,
+      trade.px,
+      trade.sz,
+      trade.hash || 'nohash',
+    ].join('-');
+  }
+
+  private mergeIntoBuffer(nextItems: BufferedFlowItem[], now: number): BufferedFlowItem[] {
+    const merged = new Map<string, BufferedFlowItem>();
+
+    for (const item of this.cachedItems) {
+      merged.set(item.id, item);
+    }
+
+    for (const item of nextItems) {
+      merged.set(item.id, item);
+    }
+
+    const pruned = this.pruneBufferedItems(Array.from(merged.values()), now);
+    pruned.sort((a, b) => {
+      if (b.timestampMs !== a.timestampMs) return b.timestampMs - a.timestampMs;
+      return b.usdValue - a.usdValue;
+    });
+
+    return pruned.slice(0, this.MAX_BUFFER_ITEMS);
+  }
+
+  private pruneBufferedItems(items: BufferedFlowItem[], now: number): BufferedFlowItem[] {
+    const oldestAllowed = now - this.BUFFER_RETENTION_MS;
+    return items.filter((item) => item.timestampMs >= oldestAllowed);
+  }
+
   private formatTimeAgo(timestamp: number): string {
     const diff = Date.now() - timestamp;
     const seconds = Math.floor(diff / 1000);
@@ -179,3 +222,7 @@ export class FlowsService {
     return `${hours}h ago`;
   }
 }
+
+type BufferedFlowItem = HyperliquidFlowItem & {
+  timestampMs: number;
+};
