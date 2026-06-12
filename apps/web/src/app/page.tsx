@@ -17,9 +17,10 @@ import { useSignalMonitor } from '@/hooks/useSignalMonitor';
 import { marketApi } from '@/lib/api';
 
 export default function TerminalPage() {
-  const { viewMode } = useUIStore();
-  const { setTickers, setConnectedExchanges } = useMarketStore();
-  const { subscribe } = useWebSocket(); // This hook now uses relative URLs
+  const viewMode = useUIStore(state => state.viewMode);
+  const setTickers = useMarketStore(state => state.setTickers);
+  const setConnectedExchanges = useMarketStore(state => state.setConnectedExchanges);
+  useWebSocket();
   const [loading, setLoading] = useState(true);
 
   useSignalMonitor();

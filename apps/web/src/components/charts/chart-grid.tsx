@@ -16,6 +16,7 @@ import {
   BarChart2,
   Layers,
 } from 'lucide-react';
+
 const GRID_OPTIONS = [
   { size: 1 as const, label: '1', icon: Square },
   { size: 4 as const, label: '4', icon: Grid2x2 },
@@ -40,12 +41,13 @@ const SORT_OPTIONS: { id: SortMode; label: string; icon: typeof TrendingUp }[] =
 ];
 
 export function ChartGrid({ isViewActive = true }: { isViewActive?: boolean }) {
-  const { chartGridSize, setChartGridSize } = useUIStore();
-  const selectedExchange = useMarketStore(state => state.selectedExchange);
-  const tickers = useMarketStore(state => state.tickers);
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [marketType, setMarketType] = useState<'spot' | 'futures'>('spot');
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
+  const chartGridSize = useUIStore(state => state.chartGridSize);
+  const setChartGridSize = useUIStore(state => state.setChartGridSize);
+  const selectedExchange = useMarketStore(state => state.selectedExchange);
+  const tickers = useMarketStore(state => (sortMode === 'default' ? null : state.tickersList));
   const chartDataCache = useRef<Map<string, { data: any[]; timeframe: string }>>(new Map());
 
   // Clear cache when exchange or market type changes so modal gets fresh data
@@ -65,7 +67,7 @@ export function ChartGrid({ isViewActive = true }: { isViewActive?: boolean }) {
         : base;
     }
 
-    const filtered = Array.from(tickers.values()).filter(
+    const filtered = (tickers ?? []).filter(
       t => t.exchange === selectedExchange && t.marketType === marketType
     );
 

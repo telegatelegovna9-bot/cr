@@ -28,8 +28,17 @@ let sharedManager: ReturnType<typeof createSharedWebSocketManager> | null = null
 let lifecycleListenersAttached = false;
 
 function handleSocketMessage(event: { data: string }) {
+  let payload: { channel?: string; data?: any; event?: string };
+
   try {
-    const { channel, data, event: wsEvent } = JSON.parse(event.data);
+    payload = JSON.parse(event.data);
+  } catch (err) {
+    console.error('[WS] Failed to parse message:', err, event.data);
+    return;
+  }
+
+  try {
+    const { channel, data, event: wsEvent } = payload;
 
     if (wsEvent === 'subscribed' || wsEvent === 'unsubscribed') {
       return;
@@ -69,7 +78,7 @@ function handleSocketMessage(event: { data: string }) {
         break;
     }
   } catch (err) {
-    console.error('[WS] Message parse error:', err);
+    console.error('[WS] Message handler error:', err, payload);
   }
 }
 
