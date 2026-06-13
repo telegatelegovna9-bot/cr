@@ -16,6 +16,7 @@ import type {
 @Injectable()
 export class SignalsService implements OnModuleInit, OnModuleDestroy {
   private readonly guestPreferencesTtlSeconds = 90 * 24 * 60 * 60;
+  private readonly excludedAssets = new Set(['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'BNB', 'HYPE']);
   private pruneTimer: ReturnType<typeof setInterval> | null = null;
   private readonly defaultPreferences: SignalNotificationPreferences = {
     enabled: true,
@@ -51,6 +52,10 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
 
     const signals = this.aggregator.aggregate(events);
     for (const signal of signals) {
+      if (this.isExcludedAsset(signal.baseAsset)) {
+        continue;
+      }
+
       this.store.upsertSignal(signal);
       if (this.alerts.shouldAlert(signal)) {
         this.store.appendAlert(this.alerts.createAlert(signal));
@@ -161,5 +166,9 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
 
   private getGuestPreferencesKey(clientId: string): string {
     return `signals:prefs:${clientId}`;
+  }
+
+  private isExcludedAsset(baseAsset: string): boolean {
+    return this.excludedAssets.has(baseAsset.toUpperCase());
   }
 }
