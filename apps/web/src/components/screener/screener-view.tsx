@@ -70,6 +70,7 @@ export function ScreenerView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const seenSignalAlertIds = useRef<Set<string>>(new Set());
+  const initializedSignalAlerts = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +120,12 @@ export function ScreenerView() {
 
   useEffect(() => {
     if (!alertConfig.marketSignalsEnabled) return;
+
+    if (!initializedSignalAlerts.current) {
+      seenSignalAlertIds.current = new Set(alerts.map(alert => alert.id));
+      initializedSignalAlerts.current = true;
+      return;
+    }
 
     for (const alert of alerts) {
       if (seenSignalAlertIds.current.has(alert.id)) continue;

@@ -11,9 +11,9 @@ import type {
 export class SignalsStore {
   private readonly signalRetentionMs = 60 * 60 * 1000;
   private readonly alertRetentionMs = 24 * 60 * 60 * 1000;
-  private readonly maxSignals = 250;
+  private readonly maxSignals = 150;
   private readonly maxAlerts = 1000;
-  private readonly maxSignalsPerAsset = 2;
+  private readonly maxSignalsPerAsset = 1;
   private readonly signals = new Map<string, SignalEvent>();
   private readonly alerts = new Map<string, SignalAlert>();
   private readonly exchangeStats = new Map<SignalExchange, { events: number; lastSeenAt: number | null }>();

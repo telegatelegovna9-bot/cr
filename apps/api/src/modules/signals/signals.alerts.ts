@@ -3,15 +3,22 @@ import type { SignalAlert, SignalEvent } from './signals.types';
 
 @Injectable()
 export class SignalsAlertsService {
+  private readonly notificationCooldownMs = 5 * 60 * 1000;
+  private readonly lastAlertedAt = new Map<string, number>();
+
   shouldAlert(event: SignalEvent) {
-    return (
-      event.priorityScore >= 0.75 ||
-      event.eventType === 'block_trade' ||
-      event.eventType === 'cross_exchange_activity' ||
-      event.eventType === 'buy_cluster' ||
-      event.eventType === 'sell_cluster' ||
-      event.eventType === 'anomalous_activity'
-    );
+    if (!this.passesSeverityGate(event)) {
+      return false;
+    }
+
+    const key = this.getCooldownKey(event);
+    const lastTriggeredAt = this.lastAlertedAt.get(key) ?? 0;
+    if (event.timestamp - lastTriggeredAt < this.notificationCooldownMs) {
+      return false;
+    }
+
+    this.lastAlertedAt.set(key, event.timestamp);
+    return true;
   }
 
   createAlert(event: SignalEvent): SignalAlert {
@@ -23,5 +30,25 @@ export class SignalsAlertsService {
       title: event.summary,
       body: event.details,
     };
+  }
+
+  private passesSeverityGate(event: SignalEvent): boolean {
+    switch (event.eventType) {
+      case 'block_trade':
+        return event.usdValue >= 100_000;
+      case 'cross_exchange_activity':
+        return event.usdValue >= 200_000 && event.tradeCount >= 2;
+      case 'buy_cluster':
+      case 'sell_cluster':
+        return event.usdValue >= 250_000 && event.tradeCount >= 4;
+      case 'anomalous_activity':
+        return event.usdValue >= 150_000 && event.priorityScore >= 0.85;
+      default:
+        return false;
+    }
+  }
+
+  private getCooldownKey(event: SignalEvent): string {
+    return `${event.baseAsset}:${event.eventType}:${event.side}`;
   }
 }
