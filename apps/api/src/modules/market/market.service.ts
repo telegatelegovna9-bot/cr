@@ -12,11 +12,17 @@ import type {
 import {
   ALL_EXCHANGES,
   DEFAULT_SYMBOLS,
+  normalizeSymbol,
   timeframeToMs,
 } from '@crypto-screener/shared';
 import { DatabaseService } from '../../database/database.service';
 import { MarketGateway } from './market.gateway';
 import { AlertsService } from '../alerts/alerts.service';
+import { SignalsService } from '../signals/signals.service';
+import type {
+  NormalizedTradeEvent,
+  SignalExchange,
+} from '../signals/signals.types';
 
 export interface TickerWithMeta extends Ticker {
   volatility: number;
@@ -57,6 +63,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly db: DatabaseService,
     private readonly alertsService: AlertsService,
+    private readonly signalsService: SignalsService,
     @Inject(forwardRef(() => MarketGateway)) private readonly gateway: MarketGateway,
   ) {}
 
@@ -202,6 +209,45 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.gateway.broadcast('ticker', updatedTicker);
     }
     this.db.publish('trade', trade).catch(() => {});
+
+    const signalEvent = this.toSignalTradeEvent(trade);
+    if (signalEvent) {
+      this.signalsService.ingest([signalEvent]);
+    }
+  }
+
+  private toSignalTradeEvent(trade: Trade): NormalizedTradeEvent | null {
+    if (!this.isSupportedSignalExchange(trade.exchange)) {
+      return null;
+    }
+
+    const normalizedSymbol = normalizeSymbol(trade.symbol, trade.exchange);
+    const [baseAsset, quoteAsset = 'USD'] = normalizedSymbol.split('/');
+    if (!baseAsset) {
+      return null;
+    }
+
+    return {
+      id: `${trade.exchange}-${trade.symbol}-${trade.timestamp}-${trade.price}-${trade.quantity}`,
+      timestamp: trade.timestamp,
+      exchange: trade.exchange,
+      symbol: normalizedSymbol,
+      baseAsset,
+      quoteAsset,
+      side: trade.side,
+      price: trade.price,
+      quantity: trade.quantity,
+      usdValue: trade.price * trade.quantity,
+      isBlockTrade: false,
+    };
+  }
+
+  private isSupportedSignalExchange(exchange: ExchangeId): exchange is SignalExchange {
+    return exchange === 'hyperliquid'
+      || exchange === 'binance'
+      || exchange === 'bybit'
+      || exchange === 'okx'
+      || exchange === 'coinbase';
   }
 
   private handleOrderBook(ob: OrderBook) {

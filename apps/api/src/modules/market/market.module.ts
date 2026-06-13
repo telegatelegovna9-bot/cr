@@ -4,9 +4,10 @@ import { HistoryController } from './history.controller';
 import { MarketService } from './market.service';
 import { MarketGateway } from './market.gateway';
 import { AlertsModule } from '../alerts/alerts.module';
+import { SignalsModule } from '../signals/signals.module';
 
 @Module({
-  imports: [AlertsModule],
+  imports: [AlertsModule, SignalsModule],
   controllers: [MarketController, HistoryController],
   providers: [
     { provide: MarketService, useClass: MarketService },
