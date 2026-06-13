@@ -722,6 +722,10 @@ interface TriggeredAlert {
   };
   currentPrice: number;
   triggeredAt: number;
+  exchange?: string;
+  message?: string;
+  eventType?: string;
+  venues?: string[];
 }
 
 interface AlertStore {

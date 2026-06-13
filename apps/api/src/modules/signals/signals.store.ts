@@ -14,6 +14,8 @@ export class SignalsStore {
   private readonly maxSignals = 150;
   private readonly maxAlerts = 1000;
   private readonly maxSignalsPerAsset = 1;
+  private readonly maxMajorSignals = 4;
+  private readonly majorAssets = new Set(['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'BNB', 'HYPE']);
   private readonly signals = new Map<string, SignalEvent>();
   private readonly alerts = new Map<string, SignalAlert>();
   private readonly exchangeStats = new Map<SignalExchange, { events: number; lastSeenAt: number | null }>();
@@ -58,15 +60,27 @@ export class SignalsStore {
 
   listSignals(): SignalEvent[] {
     const sorted = Array.from(this.signals.values())
-      .sort((a, b) => b.priorityScore - a.priorityScore || b.timestamp - a.timestamp);
+      .sort((a, b) => this.feedScore(b) - this.feedScore(a) || b.timestamp - a.timestamp);
 
     const assetCounts = new Map<string, number>();
+    let majorSignals = 0;
     const feed: SignalEvent[] = [];
 
     for (const signal of sorted) {
+      if (this.isSuppressedMajorSignal(signal)) {
+        continue;
+      }
+
       const count = assetCounts.get(signal.baseAsset) ?? 0;
       if (count >= this.maxSignalsPerAsset) {
         continue;
+      }
+
+      if (this.isMajorAsset(signal.baseAsset)) {
+        if (majorSignals >= this.maxMajorSignals) {
+          continue;
+        }
+        majorSignals += 1;
       }
 
       assetCounts.set(signal.baseAsset, count + 1);
@@ -114,5 +128,31 @@ export class SignalsStore {
       supportedExchanges: ['hyperliquid', 'binance', 'bybit', 'okx', 'coinbase'],
       byExchange,
     };
+  }
+
+  private feedScore(signal: SignalEvent): number {
+    const agePenalty = Math.max(0, (Date.now() - signal.timestamp) / (15 * 60 * 1000));
+    const majorPenalty = this.isMajorAsset(signal.baseAsset)
+      ? signal.eventType === 'large_buy' || signal.eventType === 'large_sell'
+        ? 0.45
+        : 0.2
+      : 0;
+    return signal.priorityScore + signal.confidenceScore * 0.35 - agePenalty - majorPenalty;
+  }
+
+  private isMajorAsset(baseAsset: string): boolean {
+    return this.majorAssets.has(baseAsset.toUpperCase());
+  }
+
+  private isSuppressedMajorSignal(signal: SignalEvent): boolean {
+    if (!this.isMajorAsset(signal.baseAsset)) {
+      return false;
+    }
+
+    if (signal.eventType === 'large_buy' || signal.eventType === 'large_sell') {
+      return signal.priorityScore < 0.98 && signal.usdValue < 500_000;
+    }
+
+    return false;
   }
 }

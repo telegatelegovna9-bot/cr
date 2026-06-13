@@ -36,6 +36,14 @@ export interface SignalAlert {
   signalId: string;
   timestamp: number;
   minUsdThreshold: number;
+  symbol: string;
+  baseAsset: string;
+  exchange: SignalExchange;
+  eventType: SignalEventType;
+  side: SignalSide;
+  price: number;
+  usdValue: number;
+  exchangesInvolved: SignalExchange[];
   title: string;
   body: string;
 }

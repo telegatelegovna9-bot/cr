@@ -39,13 +39,17 @@ export function MarketSignalAlertBridge() {
             id: `signal-history-${alert.id}`,
             type: 'market_signal',
             priority: alert.minUsdThreshold >= 500_000 ? 'high' : 'medium',
-            symbol: 'MARKET',
-            exchange: 'binance',
+            symbol: alert.symbol,
+            exchange: alert.exchange as any,
             title: alert.title,
             message: alert.body,
             data: {
               signalId: alert.signalId,
               minUsdThreshold: alert.minUsdThreshold,
+              eventType: alert.eventType,
+              side: alert.side,
+              usdValue: alert.usdValue,
+              venues: alert.exchangesInvolved,
             },
             read: false,
             createdAt: alert.timestamp,
@@ -54,14 +58,18 @@ export function MarketSignalAlertBridge() {
           addTriggeredAlert({
             id: `signal-toast-${alert.id}`,
             alertId: alert.signalId,
-            symbol: 'MARKET',
+            symbol: alert.symbol,
             alert: {
               type: 'market_signal',
               condition: alert.title,
-              value: alert.minUsdThreshold,
+              value: alert.usdValue,
             },
-            currentPrice: 0,
+            currentPrice: alert.price,
             triggeredAt: alert.timestamp,
+            exchange: alert.exchange,
+            message: alert.body,
+            eventType: alert.eventType,
+            venues: alert.exchangesInvolved,
           });
         }
       } catch {
