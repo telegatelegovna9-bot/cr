@@ -19,6 +19,12 @@ import {
   loadPersistedMarketPreferences,
   savePersistedMarketPreferences,
 } from '@/lib/market-preferences';
+import {
+  DEFAULT_SIGNAL_PREFERENCES,
+  loadPersistedSignalPreferences,
+  savePersistedSignalPreferences,
+  type SignalNotificationThreshold,
+} from '@/lib/signals/preferences';
 import type { PatternFilters, PatternsUIState } from '@/lib/patterns/models';
 import {
   DEFAULT_PATTERNS_UI_STATE,
@@ -733,18 +739,39 @@ interface AlertStore {
   updateConfig: (config: Partial<AlertConfig>) => void;
 }
 
-export const useAlertStore = create<AlertStore>((set) => ({
-  alerts: [],
-  activeAlerts: [],
-  triggeredAlerts: [],
-  config: {
+function getInitialAlertConfig(): AlertConfig {
+  const persistedSignals =
+    typeof window === 'undefined'
+      ? DEFAULT_SIGNAL_PREFERENCES
+      : loadPersistedSignalPreferences(window.localStorage);
+
+  return {
     soundEnabled: true,
     browserNotifications: true,
     visualFlash: true,
     autoDismiss: true,
     autoDismissSeconds: 10,
     timeframes: ['1h', '4h', '1d'],
-  },
+    marketSignalsEnabled: persistedSignals.enabled,
+    marketSignalsMinUsd: persistedSignals.minUsd,
+  };
+}
+
+function persistAlertConfig(config: AlertConfig): AlertConfig {
+  if (typeof window !== 'undefined') {
+    savePersistedSignalPreferences(window.localStorage, {
+      enabled: config.marketSignalsEnabled,
+      minUsd: config.marketSignalsMinUsd as SignalNotificationThreshold,
+    });
+  }
+  return config;
+}
+
+export const useAlertStore = create<AlertStore>((set) => ({
+  alerts: [],
+  activeAlerts: [],
+  triggeredAlerts: [],
+  config: getInitialAlertConfig(),
 
   addAlert: (alert) => set(state => ({
     alerts: [alert, ...state.alerts],
@@ -764,6 +791,6 @@ export const useAlertStore = create<AlertStore>((set) => ({
   })),
   clearTriggered: () => set({ activeAlerts: [], triggeredAlerts: [] }),
   updateConfig: (config) => set(state => ({
-    config: { ...state.config, ...config },
+    config: persistAlertConfig({ ...state.config, ...config }),
   })),
 }));

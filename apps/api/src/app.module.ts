@@ -4,9 +4,9 @@ import { MarketModule } from './modules/market/market.module';
 import { ScreenerModule } from './modules/screener/screener.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { PatternsModule } from './modules/patterns/patterns.module';
-import { FlowsModule } from './modules/flows/flows.module';
 import { WebSocketModule } from './modules/websocket/websocket.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { SignalsModule } from './modules/signals/signals.module';
 import { WatchlistModule } from './modules/watchlist/watchlist.module';
 import { DatabaseModule } from './database/database.module';
 
@@ -19,7 +19,7 @@ import { DatabaseModule } from './database/database.module';
     ScreenerModule,
     AlertsModule,
     PatternsModule,
-    FlowsModule,
+    SignalsModule,
     WebSocketModule,
     WatchlistModule,
   ],

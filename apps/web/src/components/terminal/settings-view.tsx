@@ -11,6 +11,7 @@ import {
   Zap,
   Globe,
 } from 'lucide-react';
+import { SIGNAL_NOTIFICATION_THRESHOLDS } from '@/lib/signals/preferences';
 
 const EXCHANGES: ExchangeId[] = ['binance', 'bybit', 'okx', 'bitget', 'mexc'];
 const TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
@@ -124,6 +125,12 @@ export function SettingsView() {
 
           <div className="space-y-1 divide-y divide-border">
             <Toggle
+              label="Market Signal Notifications"
+              description="Receive alerts from the shared large-actions signal engine"
+              enabled={alertConfig.marketSignalsEnabled}
+              onChange={(v) => updateAlertConfig({ marketSignalsEnabled: v })}
+            />
+            <Toggle
               label="Sound Alerts"
               description="Play sound when alerts trigger"
               enabled={alertConfig.soundEnabled}
@@ -147,6 +154,26 @@ export function SettingsView() {
               enabled={alertConfig.autoDismiss}
               onChange={(v) => updateAlertConfig({ autoDismiss: v })}
             />
+          </div>
+
+          <div className="mt-4">
+            <label className="text-xs text-text-muted uppercase tracking-wider font-semibold mb-2 block">
+              Signal Notification Floor
+            </label>
+            <select
+              value={alertConfig.marketSignalsMinUsd}
+              onChange={(e) => updateAlertConfig({ marketSignalsMinUsd: Number(e.target.value) })}
+              className="select-premium w-full !rounded-xl"
+            >
+              {SIGNAL_NOTIFICATION_THRESHOLDS.map((threshold) => (
+                <option key={threshold} value={threshold} className="bg-bg-secondary">
+                  {threshold >= 1_000_000 ? `>= $${threshold / 1_000_000}M` : `>= $${threshold / 1_000}K`}
+                </option>
+              ))}
+            </select>
+            <div className="text-xs text-text-muted mt-2">
+              Lower floors show more alerts, higher floors keep only the strongest market actions.
+            </div>
           </div>
         </div>
 
