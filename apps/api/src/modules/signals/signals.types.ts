@@ -63,3 +63,38 @@ export interface SignalAlertsResponse {
   items: SignalAlert[];
   timestamp: number;
 }
+
+export interface SignalSummary {
+  totalSignals: number;
+  totalUsd: number;
+  buyUsd: number;
+  sellUsd: number;
+  blockTrades: number;
+  crossExchangeSignals: number;
+  anomalies: number;
+}
+
+export interface SignalSummaryResponse {
+  summary: SignalSummary;
+  timestamp: number;
+}
+
+export interface SignalHealth {
+  lastIngestedAt: number | null;
+  lastSignalAt: number | null;
+  totalEventsIngested: number;
+  totalSignalsStored: number;
+  totalAlertsStored: number;
+  supportedExchanges: SignalExchange[];
+  byExchange: Partial<Record<SignalExchange, { events: number; lastSeenAt: number | null }>>;
+}
+
+export interface SignalHealthResponse {
+  health: SignalHealth;
+  timestamp: number;
+}
+
+export interface SignalNotificationPreferences {
+  enabled: boolean;
+  minUsd: number;
+}

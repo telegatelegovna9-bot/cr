@@ -1,4 +1,5 @@
 export const SIGNAL_PREFERENCES_STORAGE_KEY = 'aionui.signal-preferences.v1';
+export const SIGNAL_CLIENT_ID_STORAGE_KEY = 'aionui.signal-client-id.v1';
 
 export const SIGNAL_NOTIFICATION_THRESHOLDS = [
   25_000,
@@ -53,4 +54,17 @@ export function savePersistedSignalPreferences(
   if (!storage) return state;
   storage.setItem(SIGNAL_PREFERENCES_STORAGE_KEY, JSON.stringify(state));
   return state;
+}
+
+export function getOrCreateSignalClientId(
+  storage: Pick<Storage, 'getItem' | 'setItem'> | null | undefined,
+): string {
+  if (!storage) return 'server-render';
+
+  const existing = storage.getItem(SIGNAL_CLIENT_ID_STORAGE_KEY);
+  if (existing) return existing;
+
+  const next = `signal-client-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+  storage.setItem(SIGNAL_CLIENT_ID_STORAGE_KEY, next);
+  return next;
 }

@@ -7,7 +7,10 @@ export class SignalsAlertsService {
     return (
       event.priorityScore >= 0.75 ||
       event.eventType === 'block_trade' ||
-      event.eventType === 'cross_exchange_activity'
+      event.eventType === 'cross_exchange_activity' ||
+      event.eventType === 'buy_cluster' ||
+      event.eventType === 'sell_cluster' ||
+      event.eventType === 'anomalous_activity'
     );
   }
 

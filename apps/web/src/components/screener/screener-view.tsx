@@ -14,8 +14,14 @@ import {
   TrendingUp,
   Zap,
 } from 'lucide-react';
-import { fetchSignalAlerts, fetchSignals } from '@/lib/signals/api';
 import {
+  fetchSignalAlerts,
+  fetchSignalHealth,
+  fetchSignals,
+  fetchSignalSummary,
+} from '@/lib/signals/api';
+import {
+  type SignalHealth,
   formatSignalPrice,
   formatSignalTime,
   formatSignalTradeCount,
@@ -25,6 +31,7 @@ import {
   type SignalAlert,
   type SignalEvent,
   type SignalEventType,
+  type SignalSummary,
 } from '@/lib/signals/models';
 
 type TypeFilter = 'all' | SignalEventType;
@@ -54,6 +61,8 @@ export function ScreenerView() {
   const [selectedId, setSelectedId] = useState('');
   const [signals, setSignals] = useState<SignalEvent[]>([]);
   const [alerts, setAlerts] = useState<SignalAlert[]>([]);
+  const [summary, setSummary] = useState<SignalSummary | null>(null);
+  const [health, setHealth] = useState<SignalHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,15 +76,19 @@ export function ScreenerView() {
           if (isInitial) setLoading(true);
         }
 
-        const [signalResponse, alertResponse] = await Promise.all([
+        const [signalResponse, alertResponse, summaryResponse, healthResponse] = await Promise.all([
           fetchSignals(),
           fetchSignalAlerts().catch(() => ({ items: [], timestamp: Date.now() })),
+          fetchSignalSummary().catch(() => ({ summary: null, timestamp: Date.now() })),
+          fetchSignalHealth().catch(() => ({ health: null, timestamp: Date.now() })),
         ]);
 
         if (cancelled) return;
 
         setSignals(signalResponse.items);
         setAlerts(alertResponse.items);
+        setSummary(summaryResponse.summary);
+        setHealth(healthResponse.health);
         setSelectedId((currentId) => {
           if (signalResponse.items.some(item => item.id === currentId)) return currentId;
           return signalResponse.items[0]?.id ?? '';
@@ -126,7 +139,7 @@ export function ScreenerView() {
     filteredSignals[0] ??
     null;
 
-  const summary = useMemo(() => {
+  const filteredSummary = useMemo(() => {
     const totalUsd = filteredSignals.reduce((sum, signal) => sum + signal.usdValue, 0);
     const buyUsd = filteredSignals
       .filter(signal => signal.side === 'buy')
@@ -186,10 +199,15 @@ export function ScreenerView() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
-        <SummaryCard label="Visible notional" value={formatSignalUsd(summary.totalUsd)} helper="Current filtered signal size" icon={Activity} />
-        <SummaryCard label="Buy pressure" value={formatSignalUsd(summary.buyUsd)} helper="Large buys and buy clusters" icon={TrendingUp} />
-        <SummaryCard label="Sell pressure" value={formatSignalUsd(summary.sellUsd)} helper="Large sells and sell clusters" icon={TrendingDown} />
-        <SummaryCard label="Cross-exchange" value={String(summary.crossExchangeCount)} helper="Signals confirmed on multiple venues" icon={ShieldAlert} />
+        <SummaryCard label="Visible notional" value={formatSignalUsd(filteredSummary.totalUsd)} helper="Current filtered signal size" icon={Activity} />
+        <SummaryCard label="Buy pressure" value={formatSignalUsd(filteredSummary.buyUsd)} helper="Large buys and buy clusters" icon={TrendingUp} />
+        <SummaryCard label="Sell pressure" value={formatSignalUsd(filteredSummary.sellUsd)} helper="Large sells and sell clusters" icon={TrendingDown} />
+        <SummaryCard
+          label="Cross-exchange"
+          value={String(filteredSummary.crossExchangeCount)}
+          helper={summary ? `${summary.crossExchangeSignals} total in shared retention` : 'Signals confirmed on multiple venues'}
+          icon={ShieldAlert}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(360px,460px)_minmax(0,1fr)] gap-3 flex-1 min-h-0">
@@ -203,6 +221,7 @@ export function ScreenerView() {
             </div>
             <div className="text-[10px] uppercase tracking-wider text-text-muted flex items-center gap-2">
               {loading && <Loader2 className="w-3 h-3 animate-spin" />}
+              {health?.lastIngestedAt ? `live ${formatSignalTime(health.lastIngestedAt)}` : 'waiting for ingest'}
               {filteredSignals.length} signals
             </div>
           </div>
@@ -338,6 +357,21 @@ export function ScreenerView() {
                     </div>
                   )}
                 </div>
+
+                {health ? (
+                  <div className="rounded-2xl border border-border bg-bg-primary/30 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className="w-4 h-4 text-accent-light" />
+                      <div className="text-xs uppercase tracking-wider text-text-muted">Signal health</div>
+                    </div>
+                    <div className="space-y-3 text-sm">
+                      <KeyValue label="Last ingest" value={health.lastIngestedAt ? formatSignalTime(health.lastIngestedAt) : 'No events yet'} />
+                      <KeyValue label="Total ingested events" value={String(health.totalEventsIngested)} />
+                      <KeyValue label="Stored signals" value={String(health.totalSignalsStored)} />
+                      <KeyValue label="Stored alerts" value={String(health.totalAlertsStored)} />
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </>
           ) : (

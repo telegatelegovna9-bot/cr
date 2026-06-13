@@ -103,7 +103,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     await this.exchangeManager.connectAll();
     await this.loadInitialTickers();
 
-    for (const symbol of DEFAULT_SYMBOLS.slice(0, 20)) {
+    for (const symbol of DEFAULT_SYMBOLS) {
       this.subscribeSymbol(symbol);
     }
   }

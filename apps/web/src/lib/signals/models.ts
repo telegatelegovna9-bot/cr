@@ -36,6 +36,31 @@ export interface SignalAlert {
   body: string;
 }
 
+export interface SignalSummary {
+  totalSignals: number;
+  totalUsd: number;
+  buyUsd: number;
+  sellUsd: number;
+  blockTrades: number;
+  crossExchangeSignals: number;
+  anomalies: number;
+}
+
+export interface SignalHealth {
+  lastIngestedAt: number | null;
+  lastSignalAt: number | null;
+  totalEventsIngested: number;
+  totalSignalsStored: number;
+  totalAlertsStored: number;
+  supportedExchanges: string[];
+  byExchange: Record<string, { events: number; lastSeenAt: number | null }>;
+}
+
+export interface SignalPreferences {
+  enabled: boolean;
+  minUsd: number;
+}
+
 export function formatSignalUsd(value: number): string {
   if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
