@@ -10,6 +10,7 @@ export class SignalsAggregator {
   private readonly clusterMinimumTrades = 3;
   private readonly clusterMinimumUsdValue = 150_000;
   private readonly recentTrades = new Map<string, NormalizedTradeEvent[]>();
+  private readonly majorAssets = new Set(['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'BNB', 'HYPE']);
 
   aggregate(events: NormalizedTradeEvent[]): SignalEvent[] {
     const signals: SignalEvent[] = [];
@@ -17,28 +18,52 @@ export class SignalsAggregator {
     for (const event of events) {
       this.rememberTrade(event);
 
-      if (event.usdValue >= this.minimumUsdValue) {
-        signals.push(this.toLargeSignal(event));
-      }
-
       const clusterSignal = this.toClusterSignal(event);
-      if (clusterSignal) {
-        signals.push(clusterSignal);
-      }
-
       const crossExchangeSignal = this.toCrossExchangeSignal(event);
-      if (crossExchangeSignal) {
-        signals.push(crossExchangeSignal);
-      }
-
       const anomalySignal = this.toAnomalySignal(event);
-      if (anomalySignal) {
-        signals.push(anomalySignal);
+      const strongerSignals = [clusterSignal, crossExchangeSignal, anomalySignal].filter(
+        (signal): signal is SignalEvent => signal !== null,
+      );
+
+      signals.push(...strongerSignals);
+
+      if (this.shouldEmitLargeSignal(event, strongerSignals.length > 0)) {
+        signals.push(this.toLargeSignal(event));
       }
     }
 
     return this.deduplicateSignals(signals)
       .sort((a, b) => b.timestamp - a.timestamp || b.priorityScore - a.priorityScore);
+  }
+
+  private shouldEmitLargeSignal(event: NormalizedTradeEvent, hasStrongerSignal: boolean): boolean {
+    if (hasStrongerSignal && !event.isBlockTrade) {
+      return false;
+    }
+
+    const baseline = this.getRecentTrades(event)
+      .filter(item => item.id !== event.id)
+      .map(item => item.usdValue);
+    const averageUsdValue =
+      baseline.length > 0
+        ? baseline.reduce((sum, value) => sum + value, 0) / baseline.length
+        : 0;
+
+    if (event.isBlockTrade) {
+      return event.usdValue >= 100_000;
+    }
+
+    if (this.isMajorAsset(event.baseAsset)) {
+      const minimumUsd = baseline.length >= 5
+        ? Math.max(250_000, averageUsdValue * 3)
+        : 250_000;
+      return event.usdValue >= minimumUsd;
+    }
+
+    const minimumUsd = baseline.length >= 5
+      ? Math.max(40_000, averageUsdValue * 1.8)
+      : Math.max(this.minimumUsdValue, 40_000);
+    return event.usdValue >= minimumUsd;
   }
 
   private toLargeSignal(event: NormalizedTradeEvent): SignalEvent {
@@ -74,11 +99,14 @@ export class SignalsAggregator {
 
   private toClusterSignal(event: NormalizedTradeEvent): SignalEvent | null {
     const key = `${event.baseAsset}:${event.side}`;
-    const recent = (this.recentTrades.get(key) ?? [])
+    const recent = this.getRecentTrades(event)
       .filter(item => event.timestamp - item.timestamp <= this.clusterWindowMs);
 
     const usdValue = recent.reduce((sum, item) => sum + item.usdValue, 0);
-    if (recent.length < this.clusterMinimumTrades || usdValue < this.clusterMinimumUsdValue) {
+    const minimumTrades = this.isMajorAsset(event.baseAsset) ? 5 : this.clusterMinimumTrades;
+    const minimumUsdValue = this.isMajorAsset(event.baseAsset) ? 500_000 : this.clusterMinimumUsdValue;
+
+    if (recent.length < minimumTrades || usdValue < minimumUsdValue) {
       return null;
     }
 
@@ -107,16 +135,18 @@ export class SignalsAggregator {
 
   private toCrossExchangeSignal(event: NormalizedTradeEvent): SignalEvent | null {
     const key = `${event.baseAsset}:${event.side}`;
-    const recent = (this.recentTrades.get(key) ?? [])
-      .filter(item => item.usdValue >= this.minimumUsdValue)
+    const recent = this.getRecentTrades(event)
+      .filter(item => this.shouldCountForCrossExchange(item))
       .filter(item => event.timestamp - item.timestamp <= this.crossExchangeWindowMs);
 
     const exchanges = Array.from(new Set(recent.map(item => item.exchange)));
-    if (exchanges.length < 2) {
+    const usdValue = recent.reduce((sum, item) => sum + item.usdValue, 0);
+    const minimumUsdValue = this.isMajorAsset(event.baseAsset) ? 400_000 : 150_000;
+
+    if (exchanges.length < 2 || recent.length < 3 || usdValue < minimumUsdValue) {
       return null;
     }
 
-    const usdValue = recent.reduce((sum, item) => sum + item.usdValue, 0);
     return {
       ...this.toLargeSignal(event),
       id: `cross-${key}-${Math.floor(event.timestamp / this.crossExchangeWindowMs)}`,
@@ -132,17 +162,24 @@ export class SignalsAggregator {
   }
 
   private toAnomalySignal(event: NormalizedTradeEvent): SignalEvent | null {
-    const key = `${event.baseAsset}:${event.side}`;
-    const baseline = (this.recentTrades.get(key) ?? [])
+    const baseline = this.getRecentTrades(event)
       .filter(item => item.id !== event.id)
       .map(item => item.usdValue);
 
-    if (event.usdValue < this.anomalyMinimumUsdValue || baseline.length < 5) {
+    if (baseline.length < 8) {
       return null;
     }
 
     const averageUsdValue = baseline.reduce((sum, value) => sum + value, 0) / baseline.length;
-    if (!Number.isFinite(averageUsdValue) || averageUsdValue <= 0 || event.usdValue < averageUsdValue * 3) {
+    const minimumUsdValue = this.isMajorAsset(event.baseAsset) ? 150_000 : this.anomalyMinimumUsdValue;
+    const requiredMultiplier = this.isMajorAsset(event.baseAsset) ? 4 : 2.5;
+
+    if (
+      event.usdValue < minimumUsdValue ||
+      !Number.isFinite(averageUsdValue) ||
+      averageUsdValue <= 0 ||
+      event.usdValue < averageUsdValue * requiredMultiplier
+    ) {
       return null;
     }
 
@@ -166,5 +203,17 @@ export class SignalsAggregator {
       }
     }
     return Array.from(byId.values());
+  }
+
+  private getRecentTrades(event: NormalizedTradeEvent): NormalizedTradeEvent[] {
+    return this.recentTrades.get(`${event.baseAsset}:${event.side}`) ?? [];
+  }
+
+  private isMajorAsset(baseAsset: string): boolean {
+    return this.majorAssets.has(baseAsset.toUpperCase());
+  }
+
+  private shouldCountForCrossExchange(event: NormalizedTradeEvent): boolean {
+    return event.usdValue >= (this.isMajorAsset(event.baseAsset) ? 100_000 : this.minimumUsdValue);
   }
 }
