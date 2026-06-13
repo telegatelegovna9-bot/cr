@@ -11,8 +11,9 @@ import type {
 export class SignalsStore {
   private readonly signalRetentionMs = 60 * 60 * 1000;
   private readonly alertRetentionMs = 24 * 60 * 60 * 1000;
-  private readonly maxSignals = 2000;
+  private readonly maxSignals = 250;
   private readonly maxAlerts = 1000;
+  private readonly maxSignalsPerAsset = 2;
   private readonly signals = new Map<string, SignalEvent>();
   private readonly alerts = new Map<string, SignalAlert>();
   private readonly exchangeStats = new Map<SignalExchange, { events: number; lastSeenAt: number | null }>();
@@ -56,9 +57,27 @@ export class SignalsStore {
   }
 
   listSignals(): SignalEvent[] {
-    return Array.from(this.signals.values())
-      .sort((a, b) => b.timestamp - a.timestamp || b.priorityScore - a.priorityScore)
-      .slice(0, this.maxSignals);
+    const sorted = Array.from(this.signals.values())
+      .sort((a, b) => b.priorityScore - a.priorityScore || b.timestamp - a.timestamp);
+
+    const assetCounts = new Map<string, number>();
+    const feed: SignalEvent[] = [];
+
+    for (const signal of sorted) {
+      const count = assetCounts.get(signal.baseAsset) ?? 0;
+      if (count >= this.maxSignalsPerAsset) {
+        continue;
+      }
+
+      assetCounts.set(signal.baseAsset, count + 1);
+      feed.push(signal);
+
+      if (feed.length >= this.maxSignals) {
+        break;
+      }
+    }
+
+    return feed.sort((a, b) => b.timestamp - a.timestamp || b.priorityScore - a.priorityScore);
   }
 
   listAlerts(): SignalAlert[] {
@@ -68,7 +87,7 @@ export class SignalsStore {
   }
 
   getSummary(): SignalSummary {
-    const items = this.listSignals();
+    const items = Array.from(this.signals.values());
     return {
       totalSignals: items.length,
       totalUsd: items.reduce((sum, item) => sum + item.usdValue, 0),

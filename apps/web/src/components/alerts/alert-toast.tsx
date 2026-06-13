@@ -42,6 +42,13 @@ export function AlertToast() {
   const { alertsOpen } = useUIStore();
 
   useEffect(() => {
+    if (!config.browserNotifications || typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      void Notification.requestPermission().catch(() => {});
+    }
+  }, [config.browserNotifications]);
+
+  useEffect(() => {
     if (!config.autoDismiss) return;
     const timers: NodeJS.Timeout[] = [];
     activeAlerts.forEach((alert) => {

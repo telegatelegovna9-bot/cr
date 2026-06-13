@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Activity,
@@ -33,6 +33,7 @@ import {
   type SignalEventType,
   type SignalSummary,
 } from '@/lib/signals/models';
+import { useAlertStore, useUIStore } from '@/stores';
 
 type TypeFilter = 'all' | SignalEventType;
 type SizeFilter = 'all' | '100k' | '250k' | '500k' | '1m';
@@ -55,6 +56,9 @@ const SIZE_THRESHOLDS: Record<SizeFilter, number> = {
 };
 
 export function ScreenerView() {
+  const addTriggeredAlert = useAlertStore(state => state.addTriggeredAlert);
+  const alertConfig = useAlertStore(state => state.config);
+  const addAlertHistory = useUIStore(state => state.addAlert);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [sizeFilter, setSizeFilter] = useState<SizeFilter>('100k');
   const [search, setSearch] = useState('');
@@ -65,6 +69,7 @@ export function ScreenerView() {
   const [health, setHealth] = useState<SignalHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const seenSignalAlertIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +116,44 @@ export function ScreenerView() {
       window.clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    if (!alertConfig.marketSignalsEnabled) return;
+
+    for (const alert of alerts) {
+      if (seenSignalAlertIds.current.has(alert.id)) continue;
+      seenSignalAlertIds.current.add(alert.id);
+
+      addAlertHistory({
+        id: `signal-history-${alert.id}`,
+        type: 'market_signal',
+        priority: alert.minUsdThreshold >= 500_000 ? 'high' : 'medium',
+        symbol: signals.find(signal => signal.id === alert.signalId)?.symbol ?? 'UNKNOWN',
+        exchange: (signals.find(signal => signal.id === alert.signalId)?.exchange ?? 'binance') as any,
+        title: alert.title,
+        message: alert.body,
+        data: {
+          signalId: alert.signalId,
+          minUsdThreshold: alert.minUsdThreshold,
+        },
+        read: false,
+        createdAt: alert.timestamp,
+      });
+
+      addTriggeredAlert({
+        id: `signal-toast-${alert.id}`,
+        alertId: alert.signalId,
+        symbol: signals.find(signal => signal.id === alert.signalId)?.symbol ?? 'UNKNOWN',
+        alert: {
+          type: 'market_signal',
+          condition: alert.title,
+          value: alert.minUsdThreshold,
+        },
+        currentPrice: signals.find(signal => signal.id === alert.signalId)?.price ?? 0,
+        triggeredAt: alert.timestamp,
+      });
+    }
+  }, [alerts, alertConfig.marketSignalsEnabled, addAlertHistory, addTriggeredAlert, signals]);
 
   const filteredSignals = useMemo(() => {
     const searchNeedle = search.trim().toLowerCase();

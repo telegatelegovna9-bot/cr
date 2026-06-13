@@ -186,7 +186,8 @@ export type AlertType =
   | 'price_cross'
   | 'pump'
   | 'dump'
-  | 'pattern_detected';
+  | 'pattern_detected'
+  | 'market_signal';
 
 export type AlertPriority = 'low' | 'medium' | 'high' | 'critical';
 
