@@ -18,6 +18,11 @@ interface OpenInterestSample {
   value: number;
 }
 
+interface TakerRatioSample {
+  timestamp: number;
+  value: number;
+}
+
 type SourceStatus = 'idle' | 'live' | 'stale';
 
 function instrumentKey(exchange: string, symbol: string, marketType: string): string {
@@ -29,6 +34,7 @@ export class ScreenerStore {
   private readonly tickerHistory = new Map<string, TickerSample[]>();
   private readonly latestTickers = new Map<string, Ticker>();
   private readonly openInterestHistory = new Map<string, OpenInterestSample[]>();
+  private readonly takerRatioHistory = new Map<string, TakerRatioSample[]>();
   private rows: ScreenerRow[] = [];
   private summary: ScreenerSummary = {
     totalRows: 0,
@@ -78,6 +84,21 @@ export class ScreenerStore {
     }
 
     this.openInterestHistory.set(key, samples);
+    this.markSource(exchange, timestamp);
+  }
+
+  recordTakerBuyRatio(exchange: string, symbol: string, value: number, timestamp = Date.now()): void {
+    const key = instrumentKey(exchange, symbol, 'futures');
+    const samples = this.takerRatioHistory.get(key) ?? [];
+    const nextSample: TakerRatioSample = { timestamp, value };
+
+    if (samples.length > 0 && samples[samples.length - 1].timestamp === timestamp) {
+      samples[samples.length - 1] = nextSample;
+    } else {
+      samples.push(nextSample);
+    }
+
+    this.takerRatioHistory.set(key, samples);
     this.markSource(exchange, timestamp);
   }
 
@@ -137,6 +158,10 @@ export class ScreenerStore {
     return this.openInterestHistory.get(instrumentKey(exchange, symbol, 'futures')) ?? [];
   }
 
+  getTakerRatioSamples(exchange: string, symbol: string): TakerRatioSample[] {
+    return this.takerRatioHistory.get(instrumentKey(exchange, symbol, 'futures')) ?? [];
+  }
+
   prune(now = Date.now()): void {
     if (now - this.lastPrunedAt < 60_000) return;
     this.lastPrunedAt = now;
@@ -152,6 +177,12 @@ export class ScreenerStore {
       const retained = samples.filter(sample => sample.timestamp >= cutoff);
       if (retained.length === 0) this.openInterestHistory.delete(key);
       else this.openInterestHistory.set(key, retained);
+    }
+
+    for (const [key, samples] of this.takerRatioHistory.entries()) {
+      const retained = samples.filter(sample => sample.timestamp >= cutoff);
+      if (retained.length === 0) this.takerRatioHistory.delete(key);
+      else this.takerRatioHistory.set(key, retained);
     }
   }
 

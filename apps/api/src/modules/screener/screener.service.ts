@@ -10,6 +10,7 @@ import {
   SCREENER_PREFERRED_EXCHANGES,
   SCREENER_SAMPLE_INTERVAL_MS,
   SCREENER_SUPPORTED_EXCHANGES,
+  SCREENER_TAKER_POLL_INTERVAL_MS,
   SCREENER_UNIVERSE_SYMBOLS,
 } from './screener.config';
 import { ScreenerEngine } from './screener.engine';
@@ -54,6 +55,7 @@ export class ScreenerService implements OnModuleInit {
     this.collectMarketSamples();
     this.recomputeSnapshot();
     await this.pollOpenInterest();
+    await this.pollTakerBuySellRatio();
     this.recomputeSnapshot();
   }
 
@@ -121,6 +123,31 @@ export class ScreenerService implements OnModuleInit {
           this.store.recordOpenInterest('binance', symbol, openInterest);
         } catch (error) {
           this.logger.debug(`Failed to poll open interest for ${symbol}`);
+        }
+      }),
+    );
+
+    this.store.prune();
+  }
+
+  @Interval(SCREENER_TAKER_POLL_INTERVAL_MS)
+  async pollTakerBuySellRatio(): Promise<void> {
+    await Promise.all(
+      SCREENER_UNIVERSE_SYMBOLS.map(async symbol => {
+        try {
+          const exchangeSymbol = toExchangeSymbol(symbol, 'binance');
+          const response = await fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${exchangeSymbol}&period=5m&limit=1`);
+          if (!response.ok) return;
+
+          const payload = await response.json() as Array<{ buySellRatio?: string; timestamp?: string | number }>;
+          const latest = payload[0];
+          const ratio = Number(latest?.buySellRatio);
+          if (!Number.isFinite(ratio)) return;
+
+          const timestamp = latest?.timestamp ? Number(latest.timestamp) : Date.now();
+          this.store.recordTakerBuyRatio('binance', symbol, ratio, timestamp);
+        } catch (error) {
+          this.logger.debug(`Failed to poll taker ratio for ${symbol}`);
         }
       }),
     );

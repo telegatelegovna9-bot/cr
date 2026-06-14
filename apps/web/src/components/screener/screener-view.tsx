@@ -349,8 +349,8 @@ export function ScreenerView() {
                             <MetricPill label={`Price ${changeWindow.toUpperCase()}`} value={formatScreenerPercent(changeValue)} tone={changeValue >= 0 ? 'positive' : 'negative'} />
                             <MetricPill label="Volume spike" value={`${row.volumeSpikeRatio.toFixed(2)}x`} />
                             <MetricPill label="OI change" value={formatScreenerPercent(row.openInterestChangePct)} />
+                            <MetricPill label="Taker ratio" value={row.takerBuyRatio !== null ? `${row.takerBuyRatio.toFixed(2)}x` : 'n/a'} />
                             <MetricPill label="Score" value={row.score.toFixed(0)} />
-                            <MetricPill label="Price" value={formatScreenerPrice(row.lastPrice)} />
                           </div>
                         </div>
 
@@ -409,6 +409,7 @@ export function ScreenerView() {
                     <DetailMetric label="Volume avg" value={formatScreenerNumber(selectedRow.volumeAvg)} />
                     <DetailMetric label="OI now" value={formatScreenerNumber(selectedRow.openInterestNow)} />
                     <DetailMetric label="OI change" value={formatScreenerPercent(selectedRow.openInterestChangePct)} />
+                    <DetailMetric label="Taker ratio" value={selectedRow.takerBuyRatio !== null ? `${selectedRow.takerBuyRatio.toFixed(2)}x` : 'n/a'} />
                   </div>
 
                   <div className="rounded-2xl border border-border bg-bg-primary/25 p-4">

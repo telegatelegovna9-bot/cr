@@ -5,6 +5,8 @@ import {
   SCREENER_MOMENTUM_MIN_PCT_1M,
   SCREENER_MOMENTUM_MIN_PCT_5M,
   SCREENER_OI_BUILD_MIN_PCT,
+  SCREENER_TAKER_IMBALANCE_HIGH,
+  SCREENER_TAKER_IMBALANCE_LOW,
   SCREENER_UNIVERSE_SYMBOLS,
   SCREENER_VOLUME_SPIKE_MIN_RATIO,
 } from './screener.config';
@@ -105,12 +107,15 @@ export class ScreenerEngine {
       openInterestNow !== null && openInterestBase?.value
         ? percentChange(openInterestBase.value, openInterestNow)
         : null;
+    const takerSamples = this.store.getTakerRatioSamples(ticker.exchange, ticker.symbol);
+    const takerBuyRatio = takerSamples.length > 0 ? takerSamples[takerSamples.length - 1].value : null;
 
     const { state, reasons } = this.classifyState({
       priceChange1m,
       priceChange5m,
       volumeSpikeRatio,
       openInterestChangePct,
+      takerBuyRatio,
     });
 
     const score = clamp(
@@ -118,6 +123,11 @@ export class ScreenerEngine {
       + Math.abs(priceChange5m) * 6
       + Math.max(0, volumeSpikeRatio - 1) * 18
       + Math.max(0, Math.abs(openInterestChangePct ?? 0)) * 2,
+      0,
+      100,
+    );
+    const takerAdjustedScore = clamp(
+      score + (takerBuyRatio !== null ? Math.abs(takerBuyRatio - 1) * 20 : 0),
       0,
       100,
     );
@@ -137,9 +147,9 @@ export class ScreenerEngine {
       volumeSpikeRatio,
       openInterestNow,
       openInterestChangePct,
-      takerBuyRatio: null,
+      takerBuyRatio,
       liquidationUsd: null,
-      score,
+      score: takerAdjustedScore,
       state,
       reasons,
       updatedAt: latest.timestamp,
@@ -151,6 +161,7 @@ export class ScreenerEngine {
     priceChange5m: number;
     volumeSpikeRatio: number;
     openInterestChangePct: number | null;
+    takerBuyRatio: number | null;
   }): { state: ScreenerState | null; reasons: string[] } {
     const reasons: string[] = [];
 
@@ -164,6 +175,38 @@ export class ScreenerEngine {
 
     if (input.openInterestChangePct !== null && Math.abs(input.openInterestChangePct) >= SCREENER_OI_BUILD_MIN_PCT) {
       reasons.push('Open interest is changing meaningfully relative to recent baseline');
+    }
+
+    if (input.takerBuyRatio !== null && input.takerBuyRatio >= SCREENER_TAKER_IMBALANCE_HIGH) {
+      reasons.push('Aggressive taker buying is dominating recent futures flow');
+    } else if (input.takerBuyRatio !== null && input.takerBuyRatio <= SCREENER_TAKER_IMBALANCE_LOW) {
+      reasons.push('Aggressive taker selling is dominating recent futures flow');
+    }
+
+    if (
+      input.takerBuyRatio !== null
+      && input.takerBuyRatio >= SCREENER_TAKER_IMBALANCE_HIGH
+      && input.priceChange5m > 0
+      && input.openInterestChangePct !== null
+      && input.openInterestChangePct >= SCREENER_OI_BUILD_MIN_PCT
+    ) {
+      return {
+        state: 'Short Squeeze Risk',
+        reasons,
+      };
+    }
+
+    if (
+      input.takerBuyRatio !== null
+      && input.takerBuyRatio <= SCREENER_TAKER_IMBALANCE_LOW
+      && input.priceChange5m < 0
+      && input.openInterestChangePct !== null
+      && input.openInterestChangePct <= -SCREENER_OI_BUILD_MIN_PCT
+    ) {
+      return {
+        state: 'Long Liquidation Risk',
+        reasons,
+      };
     }
 
     if (
