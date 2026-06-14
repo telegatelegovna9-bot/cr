@@ -1,12 +1,30 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { ScreenerService, ScreenerResult } from './screener.service';
+import { ScreenerService } from './screener.service';
 import type { ScreenerFilter, ScreenerSortField, ExchangeId } from '@crypto-screener/shared';
 
 @ApiTags('Screener')
 @Controller('screener')
 export class ScreenerController {
   constructor(private readonly screenerService: ScreenerService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get shared market screener rows' })
+  listRows() {
+    return this.screenerService.listRows();
+  }
+
+  @Get('summary')
+  @ApiOperation({ summary: 'Get shared market screener summary' })
+  summary() {
+    return this.screenerService.getSummary();
+  }
+
+  @Get('health')
+  @ApiOperation({ summary: 'Get shared market screener health' })
+  health() {
+    return this.screenerService.getHealth();
+  }
 
   @Post('scan')
   @ApiOperation({ summary: 'Run screener scan' })

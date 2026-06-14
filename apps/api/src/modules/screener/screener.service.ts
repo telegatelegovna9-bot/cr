@@ -2,6 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { MarketService } from '../market/market.service';
 import type { ScreenerFilter, ScreenerSortField, ExchangeId } from '@crypto-screener/shared';
 import { SCREENER_DEFAULT_PAGE_SIZE } from '@crypto-screener/shared';
+import type {
+  ScreenerFeedResponse,
+  ScreenerHealth,
+  ScreenerHealthResponse,
+  ScreenerRow,
+  ScreenerSummary,
+  ScreenerSummaryResponse,
+} from './screener.types';
 
 export interface ScreenerResult {
   symbol: string;
@@ -23,6 +31,49 @@ export interface ScreenerResult {
 @Injectable()
 export class ScreenerService {
   constructor(private readonly marketService: MarketService) {}
+
+  listRows(): ScreenerFeedResponse {
+    return {
+      items: [],
+      timestamp: Date.now(),
+    };
+  }
+
+  getSummary(): ScreenerSummaryResponse {
+    const summary: ScreenerSummary = {
+      totalRows: 0,
+      momentumCount: 0,
+      breakoutWatchCount: 0,
+      oiBuildCount: 0,
+      volumeExpansionCount: 0,
+      averageScore: 0,
+      universeSize: 0,
+    };
+
+    return {
+      summary,
+      timestamp: Date.now(),
+    };
+  }
+
+  getHealth(): ScreenerHealthResponse {
+    const health: ScreenerHealth = {
+      lastComputedAt: null,
+      universeSize: 0,
+      sources: {
+        binance: { lastSeenAt: null, status: 'idle' },
+        bybit: { lastSeenAt: null, status: 'idle' },
+        okx: { lastSeenAt: null, status: 'idle' },
+        coinbase: { lastSeenAt: null, status: 'idle' },
+        hyperliquid: { lastSeenAt: null, status: 'idle' },
+      },
+    };
+
+    return {
+      health,
+      timestamp: Date.now(),
+    };
+  }
 
   screen(params: {
     filters?: ScreenerFilter[];
