@@ -9,6 +9,8 @@ export type ScreenerState =
   | 'Short Squeeze Risk'
   | 'Long Liquidation Risk';
 
+export type ScreenerConviction = 'watch' | 'strong' | 'extreme';
+
 export interface ScreenerRow {
   id: string;
   symbol: string;
@@ -28,6 +30,7 @@ export interface ScreenerRow {
   takerBuyRatio: number | null;
   liquidationUsd: number | null;
   compressionBreakout: boolean;
+  conviction: ScreenerConviction;
   score: number;
   state: ScreenerState | null;
   reasons: string[];

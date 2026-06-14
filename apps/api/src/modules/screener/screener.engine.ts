@@ -11,7 +11,7 @@ import {
   SCREENER_VOLUME_SPIKE_MIN_RATIO,
 } from './screener.config';
 import { ScreenerStore } from './screener.store';
-import type { ScreenerRow, ScreenerState, ScreenerSummary } from './screener.types';
+import type { ScreenerConviction, ScreenerRow, ScreenerState, ScreenerSummary } from './screener.types';
 
 interface SamplePoint {
   timestamp: number;
@@ -55,6 +55,36 @@ function rangePct(samples: SamplePoint[], now: number, windowMs: number, latestP
   return ((high - low) / latestPrice) * 100;
 }
 
+function statePriority(state: ScreenerState | null): number {
+  switch (state) {
+    case 'Short Squeeze Risk':
+    case 'Long Liquidation Risk':
+      return 5;
+    case 'Breakout Watch':
+      return 4;
+    case 'OI Build':
+    case 'OI Unwind':
+      return 3;
+    case 'Volume Expansion':
+      return 2;
+    case 'Momentum':
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function convictionPriority(conviction: ScreenerConviction): number {
+  switch (conviction) {
+    case 'extreme':
+      return 3;
+    case 'strong':
+      return 2;
+    case 'watch':
+      return 1;
+  }
+}
+
 @Injectable()
 export class ScreenerEngine {
   constructor(private readonly store: ScreenerStore) {}
@@ -70,7 +100,13 @@ export class ScreenerEngine {
       if (row) rows.push(row);
     }
 
-    rows.sort((a, b) => b.score - a.score || b.updatedAt - a.updatedAt);
+    rows.sort(
+      (a, b) =>
+        statePriority(b.state) - statePriority(a.state)
+        || convictionPriority(b.conviction) - convictionPriority(a.conviction)
+        || b.score - a.score
+        || b.updatedAt - a.updatedAt,
+    );
 
     const summary: ScreenerSummary = {
       totalRows: rows.length,
@@ -158,10 +194,31 @@ export class ScreenerEngine {
       100,
     );
     const finalScore = clamp(
-      takerAdjustedScore + (compressionBreakout ? 15 : 0),
+      takerAdjustedScore
+      + (compressionBreakout ? 15 : 0)
+      + (liquidationUsd !== null && liquidationUsd > 0 ? 10 : 0),
       0,
       100,
     );
+
+    const conviction = this.classifyConviction({
+      state,
+      score: finalScore,
+      compressionBreakout,
+      liquidationUsd,
+    });
+
+    if (!this.isMeaningfulSetup({
+      state,
+      score: finalScore,
+      compressionBreakout,
+      volumeSpikeRatio,
+      priceChange5m,
+      openInterestChangePct,
+      liquidationUsd,
+    })) {
+      return null;
+    }
 
     return {
       id: `${ticker.exchange}:${marketType}:${ticker.symbol}`,
@@ -182,6 +239,7 @@ export class ScreenerEngine {
       takerBuyRatio,
       liquidationUsd,
       compressionBreakout,
+      conviction,
       score: finalScore,
       state,
       reasons,
@@ -340,5 +398,52 @@ export class ScreenerEngine {
     );
 
     return input.volumeNow * multiplier;
+  }
+
+  private classifyConviction(input: {
+    state: ScreenerState | null;
+    score: number;
+    compressionBreakout: boolean;
+    liquidationUsd: number | null;
+  }): ScreenerConviction {
+    if (
+      input.state === 'Short Squeeze Risk'
+      || input.state === 'Long Liquidation Risk'
+      || input.score >= 80
+      || (input.liquidationUsd !== null && input.liquidationUsd > 0)
+    ) {
+      return 'extreme';
+    }
+
+    if (
+      input.state === 'Breakout Watch'
+      || input.state === 'OI Build'
+      || input.state === 'OI Unwind'
+      || input.score >= 60
+      || input.compressionBreakout
+    ) {
+      return 'strong';
+    }
+
+    return 'watch';
+  }
+
+  private isMeaningfulSetup(input: {
+    state: ScreenerState | null;
+    score: number;
+    compressionBreakout: boolean;
+    volumeSpikeRatio: number;
+    priceChange5m: number;
+    openInterestChangePct: number | null;
+    liquidationUsd: number | null;
+  }): boolean {
+    if (input.state) return true;
+    if (input.compressionBreakout) return true;
+    if (input.score >= 55) return true;
+    if (input.volumeSpikeRatio >= 2) return true;
+    if (Math.abs(input.priceChange5m) >= 3.5) return true;
+    if (Math.abs(input.openInterestChangePct ?? 0) >= 3) return true;
+    if (input.liquidationUsd !== null && input.liquidationUsd > 0) return true;
+    return false;
   }
 }

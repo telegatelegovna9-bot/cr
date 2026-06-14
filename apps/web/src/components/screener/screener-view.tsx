@@ -161,7 +161,7 @@ export function ScreenerView() {
       .sort((a, b) => {
         const aChange = getChangeValue(a, changeWindow);
         const bChange = getChangeValue(b, changeWindow);
-        return b.score - a.score || Math.abs(bChange) - Math.abs(aChange);
+        return convictionPriority(b.conviction) - convictionPriority(a.conviction) || b.score - a.score || Math.abs(bChange) - Math.abs(aChange);
       });
   }, [changeWindow, marketFilter, scoreFilter, screenerRows, search]);
 
@@ -350,10 +350,11 @@ export function ScreenerView() {
                             <span className="px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider bg-bg-primary/50 text-text-muted border border-border">
                               {row.marketType}
                             </span>
+                            <ConvictionBadge conviction={row.conviction} />
                             {row.state && <ScreenerStateBadge state={row.state} />}
                           </div>
 
-                          <div className="mt-2 grid grid-cols-2 lg:grid-cols-5 gap-3 text-[11px]">
+                          <div className="mt-2 grid grid-cols-2 lg:grid-cols-6 gap-3 text-[11px]">
                             <MetricPill label={`Price ${changeWindow.toUpperCase()}`} value={formatScreenerPercent(changeValue)} tone={changeValue >= 0 ? 'positive' : 'negative'} />
                             <MetricPill label="Volume spike" value={`${row.volumeSpikeRatio.toFixed(2)}x`} />
                             <MetricPill label="Range 15m" value={formatScreenerPercent(row.range15mPct)} />
@@ -390,6 +391,7 @@ export function ScreenerView() {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="text-lg font-bold text-text-primary">{selectedRow.symbol}</div>
+                      <ConvictionBadge conviction={selectedRow.conviction} />
                       {selectedRow.state && <ScreenerStateBadge state={selectedRow.state} />}
                     </div>
                     <div className="mt-1 text-xs text-text-muted">
@@ -410,6 +412,7 @@ export function ScreenerView() {
                   <div className="grid grid-cols-2 gap-3">
                     <DetailMetric label="Last price" value={formatScreenerPrice(selectedRow.lastPrice)} />
                     <DetailMetric label="Score" value={selectedRow.score.toFixed(0)} />
+                    <DetailMetric label="Conviction" value={selectedRow.conviction.toUpperCase()} />
                     <DetailMetric label="Price 1m" value={formatScreenerPercent(selectedRow.priceChange1m)} />
                     <DetailMetric label="Price 5m" value={formatScreenerPercent(selectedRow.priceChange5m)} />
                     <DetailMetric label="Price 15m" value={formatScreenerPercent(selectedRow.priceChange15m)} />
@@ -602,12 +605,38 @@ function SignalTypeBadge({ eventType }: { eventType: SignalEvent['eventType'] })
   );
 }
 
+function ConvictionBadge({ conviction }: { conviction: ScreenerRow['conviction'] }) {
+  const tone =
+    conviction === 'extreme'
+      ? 'bg-rose-500/10 text-rose-300 border-rose-400/20'
+      : conviction === 'strong'
+        ? 'bg-amber-500/10 text-amber-300 border-amber-400/20'
+        : 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20';
+
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider border ${tone}`}>
+      {conviction}
+    </span>
+  );
+}
+
 function ScreenerStateBadge({ state }: { state: NonNullable<ScreenerRow['state']> }) {
   return (
     <span className="px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider bg-sky-500/10 text-sky-300 border border-sky-400/20">
       {state}
     </span>
   );
+}
+
+function convictionPriority(conviction: ScreenerRow['conviction']): number {
+  switch (conviction) {
+    case 'extreme':
+      return 3;
+    case 'strong':
+      return 2;
+    case 'watch':
+      return 1;
+  }
 }
 
 function getChangeValue(row: ScreenerRow, window: ChangeWindow): number {
