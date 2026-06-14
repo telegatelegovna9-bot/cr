@@ -38,6 +38,8 @@ export interface ScreenerSummary {
   breakoutWatchCount: number;
   oiBuildCount: number;
   volumeExpansionCount: number;
+  shortSqueezeRiskCount: number;
+  longLiquidationRiskCount: number;
   averageScore: number;
   universeSize: number;
 }

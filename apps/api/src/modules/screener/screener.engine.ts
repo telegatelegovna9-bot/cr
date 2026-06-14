@@ -69,6 +69,8 @@ export class ScreenerEngine {
       breakoutWatchCount: rows.filter(row => row.state === 'Breakout Watch').length,
       oiBuildCount: rows.filter(row => row.state === 'OI Build' || row.state === 'OI Unwind').length,
       volumeExpansionCount: rows.filter(row => row.state === 'Volume Expansion').length,
+      shortSqueezeRiskCount: rows.filter(row => row.state === 'Short Squeeze Risk').length,
+      longLiquidationRiskCount: rows.filter(row => row.state === 'Long Liquidation Risk').length,
       averageScore: rows.length > 0 ? rows.reduce((sum, row) => sum + row.score, 0) / rows.length : 0,
       universeSize: SCREENER_UNIVERSE_SYMBOLS.length,
     };
@@ -109,6 +111,12 @@ export class ScreenerEngine {
         : null;
     const takerSamples = this.store.getTakerRatioSamples(ticker.exchange, ticker.symbol);
     const takerBuyRatio = takerSamples.length > 0 ? takerSamples[takerSamples.length - 1].value : null;
+    const liquidationUsd = this.estimateLiquidationPressureUsd({
+      volumeNow,
+      priceChange5m,
+      openInterestChangePct,
+      takerBuyRatio,
+    });
 
     const { state, reasons } = this.classifyState({
       priceChange1m,
@@ -116,6 +124,7 @@ export class ScreenerEngine {
       volumeSpikeRatio,
       openInterestChangePct,
       takerBuyRatio,
+      liquidationUsd,
     });
 
     const score = clamp(
@@ -148,7 +157,7 @@ export class ScreenerEngine {
       openInterestNow,
       openInterestChangePct,
       takerBuyRatio,
-      liquidationUsd: null,
+      liquidationUsd,
       score: takerAdjustedScore,
       state,
       reasons,
@@ -162,6 +171,7 @@ export class ScreenerEngine {
     volumeSpikeRatio: number;
     openInterestChangePct: number | null;
     takerBuyRatio: number | null;
+    liquidationUsd: number | null;
   }): { state: ScreenerState | null; reasons: string[] } {
     const reasons: string[] = [];
 
@@ -181,6 +191,10 @@ export class ScreenerEngine {
       reasons.push('Aggressive taker buying is dominating recent futures flow');
     } else if (input.takerBuyRatio !== null && input.takerBuyRatio <= SCREENER_TAKER_IMBALANCE_LOW) {
       reasons.push('Aggressive taker selling is dominating recent futures flow');
+    }
+
+    if (input.liquidationUsd !== null && input.liquidationUsd > 0) {
+      reasons.push('Liquidation-style pressure proxy is elevated from price, OI, volume and taker flow');
     }
 
     if (
@@ -258,5 +272,34 @@ export class ScreenerEngine {
       state: null,
       reasons,
     };
+  }
+
+  private estimateLiquidationPressureUsd(input: {
+    volumeNow: number;
+    priceChange5m: number;
+    openInterestChangePct: number | null;
+    takerBuyRatio: number | null;
+  }): number | null {
+    if (input.openInterestChangePct === null || input.takerBuyRatio === null) return null;
+
+    const bearishFlush =
+      input.priceChange5m <= -4
+      && input.openInterestChangePct <= -3
+      && input.takerBuyRatio <= SCREENER_TAKER_IMBALANCE_LOW;
+
+    const bullishSqueeze =
+      input.priceChange5m >= 4
+      && input.openInterestChangePct <= -3
+      && input.takerBuyRatio >= SCREENER_TAKER_IMBALANCE_HIGH;
+
+    if (!bearishFlush && !bullishSqueeze) return null;
+
+    const multiplier = clamp(
+      Math.abs(input.priceChange5m) / 5 + Math.abs(input.openInterestChangePct) / 6 + Math.abs(input.takerBuyRatio - 1),
+      1,
+      4,
+    );
+
+    return input.volumeNow * multiplier;
   }
 }

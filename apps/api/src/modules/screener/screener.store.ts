@@ -42,6 +42,8 @@ export class ScreenerStore {
     breakoutWatchCount: 0,
     oiBuildCount: 0,
     volumeExpansionCount: 0,
+    shortSqueezeRiskCount: 0,
+    longLiquidationRiskCount: 0,
     averageScore: 0,
     universeSize: SCREENER_UNIVERSE_SYMBOLS.length,
   };

@@ -273,9 +273,13 @@ export function ScreenerView() {
           icon={ShieldAlert}
         />
         <SummaryCard
-          label="Live sources"
-          value={String(visibleSourceCount)}
-          helper={screenerHealth?.lastComputedAt ? `computed ${formatSignalTime(screenerHealth.lastComputedAt)}` : 'Waiting for first compute'}
+          label="Stress setups"
+          value={String(filteredRows.filter(row => row.state === 'Short Squeeze Risk' || row.state === 'Long Liquidation Risk').length)}
+          helper={
+            screenerSummary
+              ? `${screenerSummary.shortSqueezeRiskCount + screenerSummary.longLiquidationRiskCount} total squeeze/liquidation rows`
+              : 'High-pressure squeeze or liquidation-style states'
+          }
           icon={Bell}
         />
       </div>
@@ -350,6 +354,7 @@ export function ScreenerView() {
                             <MetricPill label="Volume spike" value={`${row.volumeSpikeRatio.toFixed(2)}x`} />
                             <MetricPill label="OI change" value={formatScreenerPercent(row.openInterestChangePct)} />
                             <MetricPill label="Taker ratio" value={row.takerBuyRatio !== null ? `${row.takerBuyRatio.toFixed(2)}x` : 'n/a'} />
+                            <MetricPill label="Liq proxy" value={formatScreenerNumber(row.liquidationUsd)} />
                             <MetricPill label="Score" value={row.score.toFixed(0)} />
                           </div>
                         </div>
@@ -410,6 +415,7 @@ export function ScreenerView() {
                     <DetailMetric label="OI now" value={formatScreenerNumber(selectedRow.openInterestNow)} />
                     <DetailMetric label="OI change" value={formatScreenerPercent(selectedRow.openInterestChangePct)} />
                     <DetailMetric label="Taker ratio" value={selectedRow.takerBuyRatio !== null ? `${selectedRow.takerBuyRatio.toFixed(2)}x` : 'n/a'} />
+                    <DetailMetric label="Liq proxy" value={formatScreenerNumber(selectedRow.liquidationUsd)} />
                   </div>
 
                   <div className="rounded-2xl border border-border bg-bg-primary/25 p-4">
