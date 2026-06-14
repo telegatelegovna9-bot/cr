@@ -73,6 +73,11 @@ function handleSocketMessage(event: { data: string }) {
         break;
       }
       case 'signal_alert': {
+        const signalConfig = useAlertStore.getState().config;
+        if (!signalConfig.marketSignalsEnabled || data.usdValue < signalConfig.marketSignalsMinUsd) {
+          break;
+        }
+
         useUIStore.getState().addAlert({
           id: `signal-history-${data.id}`,
           type: 'market_signal',
