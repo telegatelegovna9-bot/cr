@@ -110,8 +110,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     for (const symbol of DEFAULT_SYMBOLS) {
       this.subscribeSymbol(symbol);
     }
-
-    this.subscribeBackgroundSignalStreams();
   }
 
   onModuleDestroy() {
@@ -236,6 +234,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       return null;
     }
 
+    if (this.excludedSignalAssets.has(baseAsset.toUpperCase())) {
+      return null;
+    }
+
     return {
       id: `${trade.exchange}-${trade.symbol}-${trade.timestamp}-${trade.price}-${trade.quantity}`,
       timestamp: trade.timestamp,
@@ -257,12 +259,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       || exchange === 'bybit'
       || exchange === 'okx'
       || exchange === 'coinbase';
-  }
-
-  private subscribeBackgroundSignalStreams(): void {
-    for (const symbol of this.backgroundSignalSymbols) {
-      this.exchangeManager.subscribeTrades(symbol, this.signalExchanges);
-    }
   }
 
   private handleOrderBook(ob: OrderBook) {

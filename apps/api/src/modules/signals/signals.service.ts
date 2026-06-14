@@ -67,7 +67,6 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    this.store.prune();
     return createdAlerts;
   }
 
