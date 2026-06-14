@@ -196,11 +196,26 @@ function toManagedSubscription(
 export function useWebSocket() {
   const manager = getSharedManager();
   const connected = useWSStore(state => state.connected);
+  const signalConfig = useAlertStore(state => state.config);
 
   useEffect(() => {
     attachLifecycleListeners(manager);
     manager.connect();
   }, [manager]);
+
+  useEffect(() => {
+    const signalSubscription = toManagedSubscription('binance', 'spot', '__signals__', undefined, 'signal_alert');
+
+    if (!signalConfig.marketSignalsEnabled) {
+      manager.unsubscribe(signalSubscription);
+      return;
+    }
+
+    manager.subscribe(signalSubscription);
+    return () => {
+      manager.unsubscribe(signalSubscription);
+    };
+  }, [manager, signalConfig.marketSignalsEnabled]);
 
   return {
     subscribe: (
