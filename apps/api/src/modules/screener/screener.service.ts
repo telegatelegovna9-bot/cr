@@ -6,12 +6,15 @@ import { SCREENER_DEFAULT_PAGE_SIZE } from '@crypto-screener/shared';
 import { toExchangeSymbol } from '@crypto-screener/shared';
 import {
   SCREENER_COMPUTE_INTERVAL_MS,
+  SCREENER_FUTURES_UNIVERSE_SYMBOLS,
   SCREENER_OI_POLL_INTERVAL_MS,
   SCREENER_PREFERRED_EXCHANGES,
   SCREENER_SAMPLE_INTERVAL_MS,
+  SCREENER_SPOT_UNIVERSE_SYMBOLS,
   SCREENER_SUPPORTED_EXCHANGES,
   SCREENER_TAKER_POLL_INTERVAL_MS,
   SCREENER_UNIVERSE_SYMBOLS,
+  toScreenerFuturesSymbol,
 } from './screener.config';
 import { ScreenerEngine } from './screener.engine';
 import { ScreenerStore } from './screener.store';
@@ -52,6 +55,9 @@ export class ScreenerService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    for (const symbol of SCREENER_FUTURES_UNIVERSE_SYMBOLS) {
+      this.marketService.subscribeSymbol(symbol);
+    }
     this.collectMarketSamples();
     this.recomputeSnapshot();
     await this.pollOpenInterest();
@@ -83,7 +89,6 @@ export class ScreenerService implements OnModuleInit {
   @Interval(SCREENER_SAMPLE_INTERVAL_MS)
   collectMarketSamples(): void {
     const tickers = this.marketService.getTickers(undefined, SCREENER_UNIVERSE_SYMBOLS);
-    const selectedBySymbol = new Map<string, Ticker>();
 
     for (const symbol of SCREENER_UNIVERSE_SYMBOLS) {
       const candidates = tickers.filter(ticker =>
@@ -94,7 +99,6 @@ export class ScreenerService implements OnModuleInit {
       const selected = this.selectPreferredTicker(candidates);
       if (!selected) continue;
 
-      selectedBySymbol.set(symbol, selected);
       this.store.recordTicker(selected);
     }
 
@@ -110,7 +114,7 @@ export class ScreenerService implements OnModuleInit {
   @Interval(SCREENER_OI_POLL_INTERVAL_MS)
   async pollOpenInterest(): Promise<void> {
     await Promise.all(
-      SCREENER_UNIVERSE_SYMBOLS.map(async symbol => {
+      SCREENER_SPOT_UNIVERSE_SYMBOLS.map(async symbol => {
         try {
           const exchangeSymbol = toExchangeSymbol(symbol, 'binance');
           const response = await fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${exchangeSymbol}`);
@@ -120,7 +124,7 @@ export class ScreenerService implements OnModuleInit {
           const openInterest = Number(payload.openInterest);
           if (!Number.isFinite(openInterest)) return;
 
-          this.store.recordOpenInterest('binance', symbol, openInterest);
+          this.store.recordOpenInterest('binance', toScreenerFuturesSymbol(symbol), openInterest);
         } catch (error) {
           this.logger.debug(`Failed to poll open interest for ${symbol}`);
         }
@@ -133,7 +137,7 @@ export class ScreenerService implements OnModuleInit {
   @Interval(SCREENER_TAKER_POLL_INTERVAL_MS)
   async pollTakerBuySellRatio(): Promise<void> {
     await Promise.all(
-      SCREENER_UNIVERSE_SYMBOLS.map(async symbol => {
+      SCREENER_SPOT_UNIVERSE_SYMBOLS.map(async symbol => {
         try {
           const exchangeSymbol = toExchangeSymbol(symbol, 'binance');
           const response = await fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${exchangeSymbol}&period=5m&limit=1`);
@@ -145,7 +149,7 @@ export class ScreenerService implements OnModuleInit {
           if (!Number.isFinite(ratio)) return;
 
           const timestamp = latest?.timestamp ? Number(latest.timestamp) : Date.now();
-          this.store.recordTakerBuyRatio('binance', symbol, ratio, timestamp);
+          this.store.recordTakerBuyRatio('binance', toScreenerFuturesSymbol(symbol), ratio, timestamp);
         } catch (error) {
           this.logger.debug(`Failed to poll taker ratio for ${symbol}`);
         }

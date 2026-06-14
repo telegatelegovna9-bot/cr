@@ -1,7 +1,18 @@
 import type { ExchangeId } from '@crypto-screener/shared';
 import { DEFAULT_SYMBOLS } from '@crypto-screener/shared';
 
-export const SCREENER_UNIVERSE_SYMBOLS = DEFAULT_SYMBOLS;
+export function toScreenerFuturesSymbol(symbol: string): string {
+  const [base, quote] = symbol.split('/');
+  if (!base || !quote || symbol.includes(':')) return symbol;
+  return `${base}/${quote}:${quote}`;
+}
+
+export const SCREENER_SPOT_UNIVERSE_SYMBOLS = DEFAULT_SYMBOLS;
+export const SCREENER_FUTURES_UNIVERSE_SYMBOLS = DEFAULT_SYMBOLS.map(toScreenerFuturesSymbol);
+export const SCREENER_UNIVERSE_SYMBOLS = [
+  ...SCREENER_SPOT_UNIVERSE_SYMBOLS,
+  ...SCREENER_FUTURES_UNIVERSE_SYMBOLS,
+];
 
 export const SCREENER_PREFERRED_EXCHANGES: ExchangeId[] = [
   'binance',
