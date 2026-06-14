@@ -36,6 +36,12 @@ const EXCHANGE_HEALTH_KEY = 'exchange:health';
 export class MarketService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MarketService.name);
   private readonly MAX_CANDLE_CACHE = 20000;
+  private readonly excludedSignalAssets = new Set(['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'BNB', 'HYPE']);
+  private readonly signalExchanges: SignalExchange[] = ['hyperliquid', 'binance', 'bybit', 'okx', 'coinbase'];
+  private readonly backgroundSignalSymbols = DEFAULT_SYMBOLS.filter(symbol => {
+    const [baseAsset] = symbol.split('/');
+    return !!baseAsset && !this.excludedSignalAssets.has(baseAsset.toUpperCase());
+  });
   private exchangeManager!: ExchangeManager;
 
   private tickerCache = new Map<string, TickerWithMeta>();
@@ -47,7 +53,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private symbolSubscriptionRefs = new Map<string, number>();
   private subscribedCandles = new Map<string, { symbol: string; timeframe: Timeframe; exchange?: ExchangeId }>();
   private candleSubscriptionRefs = new Map<string, number>();
-  private tradeSubscriptionRefs = new Map<string, number>();
   private orderBookSubscriptionRefs = new Map<string, number>();
 
   private tickerThrottle = new Map<string, number>();
@@ -80,16 +85,15 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`✅ ${id} connected`);
       for (const symbol of this.subscribedSymbols) {
         this.exchangeManager.subscribeTicker(symbol, [id]);
-        if (this.getScopedRefCount(this.tradeSubscriptionRefs, symbol, id) > 0) {
-          this.exchangeManager.subscribeTrades(symbol, [id]);
-        }
       }
       for (const sub of this.subscribedCandles.values()) {
         if (!sub.exchange || sub.exchange === id) {
           this.exchangeManager.subscribeCandle(sub.symbol, sub.timeframe, [id]);
-          if (this.getScopedRefCount(this.tradeSubscriptionRefs, sub.symbol, id) > 0) {
-            this.exchangeManager.subscribeTrades(sub.symbol, [id]);
-          }
+        }
+      }
+      if (this.isSupportedSignalExchange(id)) {
+        for (const symbol of this.backgroundSignalSymbols) {
+          this.exchangeManager.subscribeTrades(symbol, [id]);
         }
       }
     });
@@ -106,6 +110,8 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     for (const symbol of DEFAULT_SYMBOLS) {
       this.subscribeSymbol(symbol);
     }
+
+    this.subscribeBackgroundSignalStreams();
   }
 
   onModuleDestroy() {
@@ -251,6 +257,12 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       || exchange === 'bybit'
       || exchange === 'okx'
       || exchange === 'coinbase';
+  }
+
+  private subscribeBackgroundSignalStreams(): void {
+    for (const symbol of this.backgroundSignalSymbols) {
+      this.exchangeManager.subscribeTrades(symbol, this.signalExchanges);
+    }
   }
 
   private handleOrderBook(ob: OrderBook) {
@@ -414,7 +426,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     if (currentRefs > 0) return;
     this.subscribedSymbols.add(symbol);
     this.exchangeManager.subscribeTicker(symbol);
-    this.incrementScopedRefs(this.tradeSubscriptionRefs, symbol);
   }
 
   unsubscribeSymbol(symbol: string): void {
@@ -423,7 +434,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.symbolSubscriptionRefs.delete(symbol);
       this.subscribedSymbols.delete(symbol);
       this.exchangeManager.unsubscribeTicker(symbol);
-      this.decrementScopedRefs(this.tradeSubscriptionRefs, symbol);
       return;
     }
     this.symbolSubscriptionRefs.set(symbol, currentRefs - 1);
@@ -436,7 +446,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     if (currentRefs > 0) return;
     this.subscribedCandles.set(key, { symbol, timeframe, exchange });
     this.exchangeManager.subscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
-    this.incrementScopedRefs(this.tradeSubscriptionRefs, symbol, exchange);
   }
 
   unsubscribeCandle(symbol: string, timeframe: Timeframe, exchange?: ExchangeId): void {
@@ -446,7 +455,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.candleSubscriptionRefs.delete(key);
       this.subscribedCandles.delete(key);
       this.exchangeManager.unsubscribeCandle(symbol, timeframe, exchange ? [exchange] : undefined);
-      this.decrementScopedRefs(this.tradeSubscriptionRefs, symbol, exchange);
       return;
     }
     this.candleSubscriptionRefs.set(key, currentRefs - 1);
@@ -466,10 +474,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
   private getScopedRefKey(symbol: string, exchange: ExchangeId): string {
     return `${symbol}|${exchange}`;
-  }
-
-  private getScopedRefCount(refs: Map<string, number>, symbol: string, exchange: ExchangeId): number {
-    return refs.get(this.getScopedRefKey(symbol, exchange)) || 0;
   }
 
   private incrementScopedRefs(
