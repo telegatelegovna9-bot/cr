@@ -269,7 +269,11 @@ export function ScreenerView() {
         <SummaryCard
           label="Breakout watch"
           value={String(filteredRows.filter(row => row.state === 'Breakout Watch').length)}
-          helper="Volume plus directional expansion"
+          helper={
+            screenerSummary
+              ? `${screenerSummary.compressionBreakoutCount} compression-expansion setups in snapshot`
+              : 'Volume plus directional expansion'
+          }
           icon={ShieldAlert}
         />
         <SummaryCard
@@ -352,10 +356,10 @@ export function ScreenerView() {
                           <div className="mt-2 grid grid-cols-2 lg:grid-cols-5 gap-3 text-[11px]">
                             <MetricPill label={`Price ${changeWindow.toUpperCase()}`} value={formatScreenerPercent(changeValue)} tone={changeValue >= 0 ? 'positive' : 'negative'} />
                             <MetricPill label="Volume spike" value={`${row.volumeSpikeRatio.toFixed(2)}x`} />
+                            <MetricPill label="Range 15m" value={formatScreenerPercent(row.range15mPct)} />
                             <MetricPill label="OI change" value={formatScreenerPercent(row.openInterestChangePct)} />
                             <MetricPill label="Taker ratio" value={row.takerBuyRatio !== null ? `${row.takerBuyRatio.toFixed(2)}x` : 'n/a'} />
                             <MetricPill label="Liq proxy" value={formatScreenerNumber(row.liquidationUsd)} />
-                            <MetricPill label="Score" value={row.score.toFixed(0)} />
                           </div>
                         </div>
 
@@ -409,6 +413,7 @@ export function ScreenerView() {
                     <DetailMetric label="Price 1m" value={formatScreenerPercent(selectedRow.priceChange1m)} />
                     <DetailMetric label="Price 5m" value={formatScreenerPercent(selectedRow.priceChange5m)} />
                     <DetailMetric label="Price 15m" value={formatScreenerPercent(selectedRow.priceChange15m)} />
+                    <DetailMetric label="Range 15m" value={formatScreenerPercent(selectedRow.range15mPct)} />
                     <DetailMetric label="Volume ratio" value={`${selectedRow.volumeSpikeRatio.toFixed(2)}x`} />
                     <DetailMetric label="Volume now" value={formatScreenerNumber(selectedRow.volumeNow)} />
                     <DetailMetric label="Volume avg" value={formatScreenerNumber(selectedRow.volumeAvg)} />

@@ -40,6 +40,7 @@ export class ScreenerStore {
     totalRows: 0,
     momentumCount: 0,
     breakoutWatchCount: 0,
+    compressionBreakoutCount: 0,
     oiBuildCount: 0,
     volumeExpansionCount: 0,
     shortSqueezeRiskCount: 0,

@@ -19,6 +19,7 @@ export interface ScreenerRow {
   priceChange1m: number;
   priceChange5m: number;
   priceChange15m: number;
+  range15mPct: number;
   volumeNow: number;
   volumeAvg: number;
   volumeSpikeRatio: number;
@@ -26,6 +27,7 @@ export interface ScreenerRow {
   openInterestChangePct: number | null;
   takerBuyRatio: number | null;
   liquidationUsd: number | null;
+  compressionBreakout: boolean;
   score: number;
   state: ScreenerState | null;
   reasons: string[];
@@ -36,6 +38,7 @@ export interface ScreenerSummary {
   totalRows: number;
   momentumCount: number;
   breakoutWatchCount: number;
+  compressionBreakoutCount: number;
   oiBuildCount: number;
   volumeExpansionCount: number;
   shortSqueezeRiskCount: number;

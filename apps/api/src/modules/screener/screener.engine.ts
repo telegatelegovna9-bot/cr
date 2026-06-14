@@ -46,6 +46,15 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function rangePct(samples: SamplePoint[], now: number, windowMs: number, latestPrice: number): number {
+  const relevant = samples.filter(sample => sample.timestamp >= now - windowMs);
+  if (relevant.length === 0 || !latestPrice) return 0;
+  const prices = relevant.map(sample => sample.price ?? latestPrice);
+  const high = Math.max(...prices);
+  const low = Math.min(...prices);
+  return ((high - low) / latestPrice) * 100;
+}
+
 @Injectable()
 export class ScreenerEngine {
   constructor(private readonly store: ScreenerStore) {}
@@ -67,6 +76,7 @@ export class ScreenerEngine {
       totalRows: rows.length,
       momentumCount: rows.filter(row => row.state === 'Momentum').length,
       breakoutWatchCount: rows.filter(row => row.state === 'Breakout Watch').length,
+      compressionBreakoutCount: rows.filter(row => row.compressionBreakout).length,
       oiBuildCount: rows.filter(row => row.state === 'OI Build' || row.state === 'OI Unwind').length,
       volumeExpansionCount: rows.filter(row => row.state === 'Volume Expansion').length,
       shortSqueezeRiskCount: rows.filter(row => row.state === 'Short Squeeze Risk').length,
@@ -91,6 +101,7 @@ export class ScreenerEngine {
     const priceChange1m = sample1m ? percentChange(sample1m.price ?? latest.price, latest.price) : 0;
     const priceChange5m = sample5m ? percentChange(sample5m.price ?? latest.price, latest.price) : 0;
     const priceChange15m = sample15m ? percentChange(sample15m.price ?? latest.price, latest.price) : 0;
+    const range15mPct = rangePct(samples, now, 15 * 60_000, latest.price);
 
     const volumeNow = quoteVolumeDelta(samples, now, 60_000);
     const previousMinuteDeltas = [2, 3, 4, 5]
@@ -117,14 +128,20 @@ export class ScreenerEngine {
       openInterestChangePct,
       takerBuyRatio,
     });
+    const compressionBreakout =
+      range15mPct <= 4
+      && Math.abs(priceChange5m) >= SCREENER_BREAKOUT_MIN_PCT
+      && volumeSpikeRatio >= SCREENER_VOLUME_SPIKE_MIN_RATIO;
 
     const { state, reasons } = this.classifyState({
       priceChange1m,
       priceChange5m,
+      range15mPct,
       volumeSpikeRatio,
       openInterestChangePct,
       takerBuyRatio,
       liquidationUsd,
+      compressionBreakout,
     });
 
     const score = clamp(
@@ -140,6 +157,11 @@ export class ScreenerEngine {
       0,
       100,
     );
+    const finalScore = clamp(
+      takerAdjustedScore + (compressionBreakout ? 15 : 0),
+      0,
+      100,
+    );
 
     return {
       id: `${ticker.exchange}:${marketType}:${ticker.symbol}`,
@@ -151,6 +173,7 @@ export class ScreenerEngine {
       priceChange1m,
       priceChange5m,
       priceChange15m,
+      range15mPct,
       volumeNow,
       volumeAvg,
       volumeSpikeRatio,
@@ -158,7 +181,8 @@ export class ScreenerEngine {
       openInterestChangePct,
       takerBuyRatio,
       liquidationUsd,
-      score: takerAdjustedScore,
+      compressionBreakout,
+      score: finalScore,
       state,
       reasons,
       updatedAt: latest.timestamp,
@@ -168,10 +192,12 @@ export class ScreenerEngine {
   private classifyState(input: {
     priceChange1m: number;
     priceChange5m: number;
+    range15mPct: number;
     volumeSpikeRatio: number;
     openInterestChangePct: number | null;
     takerBuyRatio: number | null;
     liquidationUsd: number | null;
+    compressionBreakout: boolean;
   }): { state: ScreenerState | null; reasons: string[] } {
     const reasons: string[] = [];
 
@@ -181,6 +207,12 @@ export class ScreenerEngine {
 
     if (input.volumeSpikeRatio >= SCREENER_VOLUME_SPIKE_MIN_RATIO) {
       reasons.push('Current rolling volume is well above recent baseline');
+    }
+
+    if (input.compressionBreakout) {
+      reasons.push('The move is breaking out after a relatively compressed 15-minute range');
+    } else if (input.range15mPct > 0 && input.range15mPct <= 4) {
+      reasons.push('Recent 15-minute range has been relatively compressed');
     }
 
     if (input.openInterestChangePct !== null && Math.abs(input.openInterestChangePct) >= SCREENER_OI_BUILD_MIN_PCT) {
@@ -195,6 +227,13 @@ export class ScreenerEngine {
 
     if (input.liquidationUsd !== null && input.liquidationUsd > 0) {
       reasons.push('Liquidation-style pressure proxy is elevated from price, OI, volume and taker flow');
+    }
+
+    if (input.compressionBreakout) {
+      return {
+        state: 'Breakout Watch',
+        reasons,
+      };
     }
 
     if (
