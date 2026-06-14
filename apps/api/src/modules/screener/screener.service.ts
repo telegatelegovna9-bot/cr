@@ -1,7 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Interval } from '@nestjs/schedule';
 import { MarketService } from '../market/market.service';
-import type { ScreenerFilter, ScreenerSortField, ExchangeId } from '@crypto-screener/shared';
+import type { ScreenerFilter, ScreenerSortField, ExchangeId, Ticker } from '@crypto-screener/shared';
 import { SCREENER_DEFAULT_PAGE_SIZE } from '@crypto-screener/shared';
+import { toExchangeSymbol } from '@crypto-screener/shared';
+import {
+  SCREENER_COMPUTE_INTERVAL_MS,
+  SCREENER_OI_POLL_INTERVAL_MS,
+  SCREENER_PREFERRED_EXCHANGES,
+  SCREENER_SAMPLE_INTERVAL_MS,
+  SCREENER_SUPPORTED_EXCHANGES,
+  SCREENER_UNIVERSE_SYMBOLS,
+} from './screener.config';
+import { ScreenerEngine } from './screener.engine';
+import { ScreenerStore } from './screener.store';
 import type {
   ScreenerFeedResponse,
   ScreenerHealth,
@@ -29,50 +41,91 @@ export interface ScreenerResult {
 }
 
 @Injectable()
-export class ScreenerService {
-  constructor(private readonly marketService: MarketService) {}
+export class ScreenerService implements OnModuleInit {
+  private readonly logger = new Logger(ScreenerService.name);
+
+  constructor(
+    private readonly marketService: MarketService,
+    private readonly store: ScreenerStore,
+    private readonly engine: ScreenerEngine,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    this.collectMarketSamples();
+    this.recomputeSnapshot();
+    await this.pollOpenInterest();
+    this.recomputeSnapshot();
+  }
 
   listRows(): ScreenerFeedResponse {
     return {
-      items: [],
+      items: this.store.getRows(),
       timestamp: Date.now(),
     };
   }
 
   getSummary(): ScreenerSummaryResponse {
-    const summary: ScreenerSummary = {
-      totalRows: 0,
-      momentumCount: 0,
-      breakoutWatchCount: 0,
-      oiBuildCount: 0,
-      volumeExpansionCount: 0,
-      averageScore: 0,
-      universeSize: 0,
-    };
-
     return {
-      summary,
+      summary: this.store.getSummary(),
       timestamp: Date.now(),
     };
   }
 
   getHealth(): ScreenerHealthResponse {
-    const health: ScreenerHealth = {
-      lastComputedAt: null,
-      universeSize: 0,
-      sources: {
-        binance: { lastSeenAt: null, status: 'idle' },
-        bybit: { lastSeenAt: null, status: 'idle' },
-        okx: { lastSeenAt: null, status: 'idle' },
-        coinbase: { lastSeenAt: null, status: 'idle' },
-        hyperliquid: { lastSeenAt: null, status: 'idle' },
-      },
-    };
-
     return {
-      health,
+      health: this.store.getHealth(),
       timestamp: Date.now(),
     };
+  }
+
+  @Interval(SCREENER_SAMPLE_INTERVAL_MS)
+  collectMarketSamples(): void {
+    const tickers = this.marketService.getTickers(undefined, SCREENER_UNIVERSE_SYMBOLS);
+    const selectedBySymbol = new Map<string, Ticker>();
+
+    for (const symbol of SCREENER_UNIVERSE_SYMBOLS) {
+      const candidates = tickers.filter(ticker =>
+        ticker.symbol === symbol
+        && SCREENER_SUPPORTED_EXCHANGES.has(ticker.exchange as ExchangeId),
+      );
+
+      const selected = this.selectPreferredTicker(candidates);
+      if (!selected) continue;
+
+      selectedBySymbol.set(symbol, selected);
+      this.store.recordTicker(selected);
+    }
+
+    this.store.prune();
+  }
+
+  @Interval(SCREENER_COMPUTE_INTERVAL_MS)
+  recomputeSnapshot(): void {
+    const { rows, summary } = this.engine.build();
+    this.store.setSnapshot(rows, summary);
+  }
+
+  @Interval(SCREENER_OI_POLL_INTERVAL_MS)
+  async pollOpenInterest(): Promise<void> {
+    await Promise.all(
+      SCREENER_UNIVERSE_SYMBOLS.map(async symbol => {
+        try {
+          const exchangeSymbol = toExchangeSymbol(symbol, 'binance');
+          const response = await fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${exchangeSymbol}`);
+          if (!response.ok) return;
+
+          const payload = await response.json() as { openInterest?: string };
+          const openInterest = Number(payload.openInterest);
+          if (!Number.isFinite(openInterest)) return;
+
+          this.store.recordOpenInterest('binance', symbol, openInterest);
+        } catch (error) {
+          this.logger.debug(`Failed to poll open interest for ${symbol}`);
+        }
+      }),
+    );
+
+    this.store.prune();
   }
 
   screen(params: {
@@ -127,6 +180,20 @@ export class ScreenerService {
     results = results.slice(start, start + pageSize);
 
     return { results, total };
+  }
+
+  private selectPreferredTicker(candidates: Ticker[]): Ticker | null {
+    for (const exchange of SCREENER_PREFERRED_EXCHANGES) {
+      const futuresTicker = candidates.find(ticker => ticker.exchange === exchange && (ticker.marketType ?? 'spot') === 'futures');
+      if (futuresTicker) return futuresTicker;
+    }
+
+    for (const exchange of SCREENER_PREFERRED_EXCHANGES) {
+      const spotTicker = candidates.find(ticker => ticker.exchange === exchange && (ticker.marketType ?? 'spot') === 'spot');
+      if (spotTicker) return spotTicker;
+    }
+
+    return candidates[0] ?? null;
   }
 
   private applyFilter(item: ScreenerResult, filter: ScreenerFilter): boolean {
