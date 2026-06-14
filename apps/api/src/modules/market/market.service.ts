@@ -212,7 +212,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
 
     const signalEvent = this.toSignalTradeEvent(trade);
     if (signalEvent) {
-      this.signalsService.ingest([signalEvent]);
+      const alerts = this.signalsService.ingest([signalEvent]);
+      for (const alert of alerts) {
+        this.gateway.broadcastGlobal('signal_alert', alert);
+      }
     }
   }
 

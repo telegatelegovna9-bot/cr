@@ -6,6 +6,7 @@ import { SignalsAlertsService } from './signals.alerts';
 import { SignalsStore } from './signals.store';
 import type {
   NormalizedTradeEvent,
+  SignalAlert,
   SignalAlertsResponse,
   SignalFeedResponse,
   SignalHealthResponse,
@@ -45,7 +46,9 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  ingest(events: NormalizedTradeEvent[]) {
+  ingest(events: NormalizedTradeEvent[]): SignalAlert[] {
+    const createdAlerts: SignalAlert[] = [];
+
     for (const event of events) {
       this.store.noteIngest(event.exchange, event.timestamp);
     }
@@ -58,11 +61,14 @@ export class SignalsService implements OnModuleInit, OnModuleDestroy {
 
       this.store.upsertSignal(signal);
       if (this.alerts.shouldAlert(signal)) {
-        this.store.appendAlert(this.alerts.createAlert(signal));
+        const alert = this.alerts.createAlert(signal);
+        this.store.appendAlert(alert);
+        createdAlerts.push(alert);
       }
     }
 
     this.store.prune();
+    return createdAlerts;
   }
 
   listSignals(): SignalFeedResponse {

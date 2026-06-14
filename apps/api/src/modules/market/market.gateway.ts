@@ -259,5 +259,16 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
     }
   }
+
+  broadcastGlobal(channel: string, data: any) {
+    if (!this.server) return;
+
+    const message = JSON.stringify({ channel, data });
+    this.server.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  }
 }
 

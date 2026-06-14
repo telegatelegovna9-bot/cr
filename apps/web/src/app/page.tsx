@@ -11,7 +11,6 @@ import { HeatmapView } from '@/components/terminal/heatmap-view';
 import { SettingsView } from '@/components/terminal/settings-view';
 import { PatternsView } from '@/components/patterns/patterns-view';
 import { AlertToast, AlertModal } from '@/components/alerts/alert-toast';
-import { MarketSignalAlertBridge } from '@/components/alerts/market-signal-alert-bridge';
 import { useUIStore, useMarketStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSignalMonitor } from '@/hooks/useSignalMonitor';
@@ -99,7 +98,6 @@ export default function TerminalPage() {
 
       <AlertToast />
       <AlertModal />
-      <MarketSignalAlertBridge />
     </div>
   );
 }

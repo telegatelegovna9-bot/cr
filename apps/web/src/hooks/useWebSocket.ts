@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react';
 import {
+  useAlertStore,
   useDrawingStore,
   useMarketStore,
   useOrderbookStore,
@@ -69,6 +70,45 @@ function handleSocketMessage(event: { data: string }) {
             });
           }
         }
+        break;
+      }
+      case 'signal_alert': {
+        useUIStore.getState().addAlert({
+          id: `signal-history-${data.id}`,
+          type: 'market_signal',
+          priority: data.minUsdThreshold >= 500_000 ? 'high' : 'medium',
+          symbol: data.symbol,
+          exchange: data.exchange,
+          title: data.title,
+          message: data.body,
+          data: {
+            signalId: data.signalId,
+            minUsdThreshold: data.minUsdThreshold,
+            eventType: data.eventType,
+            side: data.side,
+            usdValue: data.usdValue,
+            venues: data.exchangesInvolved,
+          },
+          read: false,
+          createdAt: data.timestamp,
+        });
+
+        useAlertStore.getState().addTriggeredAlert({
+          id: `signal-toast-${data.id}`,
+          alertId: data.signalId,
+          symbol: data.symbol,
+          alert: {
+            type: 'market_signal',
+            condition: data.title,
+            value: data.usdValue,
+          },
+          currentPrice: data.price,
+          triggeredAt: data.timestamp,
+          exchange: data.exchange,
+          message: data.body,
+          eventType: data.eventType,
+          venues: data.exchangesInvolved,
+        });
         break;
       }
       case 'pattern':
