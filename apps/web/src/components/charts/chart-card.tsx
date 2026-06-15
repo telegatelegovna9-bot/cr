@@ -63,7 +63,7 @@ const POST_BACKFILL_LEFT_BUFFER = LEFT_EDGE_LOAD_THRESHOLD + 2;
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 const chartHistoryCache = new Map<string, any[]>();
-const SPOT_RECOVERY_DEBUG = true;
+const SPOT_RECOVERY_DEBUG = false;
 
 function getChartHistoryCacheKey(
   exchange: string,

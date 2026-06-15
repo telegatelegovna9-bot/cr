@@ -102,6 +102,13 @@ function getNearestTimePoint(timestampMs: number, timePoints: number[]): number 
   return nearest;
 }
 
+function getNearestTimeIndex(timestampMs: number, timePoints: number[]): number | null {
+  const nearest = getNearestTimePoint(timestampMs, timePoints);
+  if (nearest == null) return null;
+  const index = timePoints.indexOf(nearest);
+  return index >= 0 ? index : null;
+}
+
 function projectTime(chart: IChartApi, timestampMs: number, timePoints: number[]): number | null {
   const exact = toNum(chart.timeScale().timeToCoordinate(Math.floor(timestampMs / 1000) as Time));
   if (exact != null) return exact;
@@ -241,18 +248,29 @@ export function PatternChartOverlay({
     const focusChart = (chart: IChartApi, force = false) => {
       const focusKey = `${pattern.id}:${overlayVersion}`;
       if (!force && focusedPatternRef.current === focusKey) return;
+
+      const timePoints = timePointsRef.current;
+      if (!timePoints.length) return;
+
       const span = Math.max(60_000, pattern.geometry.anchorTimeTo - pattern.geometry.anchorTimeFrom);
-      const leftPadding = Math.max(5 * 60_000, Math.floor(span * 0.25));
-      const rightPadding = Math.max(5 * 60_000, Math.floor(span * 0.4));
-      const visibleFrom = pattern.geometry.anchorTimeFrom - leftPadding;
-      const visibleTo = Math.max(
-        pattern.geometry.anchorTimeTo + rightPadding,
-        pattern.updatedAt + rightPadding,
-      );
-      chart.timeScale().setVisibleRange({
-        from: Math.floor(visibleFrom / 1000) as Time,
-        to: Math.floor(visibleTo / 1000) as Time,
-      });
+      const midpoint = pattern.geometry.anchorTimeFrom + span / 2;
+      const leftTarget = midpoint - span * 0.8;
+      const rightTarget = midpoint + span * 1.0;
+      const fromIndex = getNearestTimeIndex(leftTarget, timePoints);
+      const toIndex = getNearestTimeIndex(rightTarget, timePoints);
+      if (fromIndex == null || toIndex == null) return;
+
+      const left = Math.max(0, Math.min(fromIndex, toIndex) - 3);
+      const right = Math.max(left + 10, Math.max(fromIndex, toIndex) + 3);
+
+      try {
+        chart.timeScale().setVisibleLogicalRange({
+          from: left,
+          to: right,
+        });
+      } catch {
+        return;
+      }
       focusedPatternRef.current = focusKey;
     };
 
