@@ -262,7 +262,10 @@ class PatternPaneView implements ISeriesPrimitivePaneView {
       })
       .filter((pivot): pivot is ProjectedPivot => pivot !== null);
 
-    const lastPivot = this._pivots[this._pivots.length - 1] ?? null;
+    const lastPivot = this._pivots.reduce<ProjectedPivot | null>(
+      (latest, pivot) => (latest == null || pivot.x > latest.x ? pivot : latest),
+      null,
+    );
     this._label = lastPivot
       ? {
           x: lastPivot.x,

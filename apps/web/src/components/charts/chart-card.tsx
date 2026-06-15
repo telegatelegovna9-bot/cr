@@ -1115,6 +1115,9 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [paused, refreshLatestHistory]);
 
+  const activePatternOverlay = patternOverlay && patternOverlay.timeframe === timeframe ? patternOverlay : null;
+  const isPatternTimeframeMismatch = Boolean(patternOverlay && patternOverlay.timeframe !== timeframe);
+
   useEffect(() => {
     const series = candleSeriesRef.current;
     if (!series) return;
@@ -1126,19 +1129,19 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
       patternPrimitiveRef.current = primitive;
     }
 
-    primitive.setPattern(patternOverlay, timePointsRef.current);
-    if (!patternOverlay) {
+    primitive.setPattern(activePatternOverlay, timePointsRef.current);
+    if (!activePatternOverlay) {
       focusedPatternKeyRef.current = null;
       return;
     }
 
-    const focusKey = `${patternOverlay.id}:${patternOverlay.updatedAt}:${effectiveSymbol}:${marketType}:${timeframe}`;
+    const focusKey = `${activePatternOverlay.id}:${activePatternOverlay.updatedAt}:${effectiveSymbol}:${marketType}:${timeframe}`;
     if (focusedPatternKeyRef.current === focusKey || !chartRef.current) return;
 
-    if (focusPatternLogicalRange(chartRef.current, patternOverlay, timePointsRef.current)) {
+    if (focusPatternLogicalRange(chartRef.current, activePatternOverlay, timePointsRef.current)) {
       focusedPatternKeyRef.current = focusKey;
     }
-  }, [patternOverlay, effectiveSymbol, marketType, timeframe, lastBarTime]);
+  }, [activePatternOverlay, effectiveSymbol, marketType, timeframe, lastBarTime]);
 
   const livePrice = ticker?.lastPrice ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
@@ -1261,6 +1264,11 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
         {showHeatmap && <HeatmapSummary {...heatmapSummary} />}
+        {isPatternTimeframeMismatch && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 rounded-full border border-border bg-bg-primary/85 px-3 py-1 text-[10px] text-text-muted">
+            Overlay available on {patternOverlay?.timeframe}
+          </div>
+        )}
         <DrawingOverlay
           chart={chartRef.current}
           candleSeries={candleSeriesRef.current}

@@ -83,6 +83,22 @@ export function getSetupTimeframeConfig(timeframe: PatternTimeframe): SetupTimef
   }
 }
 
+export function getTimeframeDurationMs(timeframe: PatternTimeframe): number {
+  switch (timeframe) {
+    case '5m':
+      return 5 * 60_000;
+    case '15m':
+      return 15 * 60_000;
+    case '1h':
+      return 60 * 60_000;
+    case '4h':
+      return 4 * 60 * 60_000;
+    case '1d':
+    default:
+      return 24 * 60 * 60_000;
+  }
+}
+
 export function buildSetupId(
   symbol: string,
   timeframe: PatternTimeframe,

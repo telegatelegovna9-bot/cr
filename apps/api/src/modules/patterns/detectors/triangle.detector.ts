@@ -1,7 +1,7 @@
 import { clampQuality, computeATR, extractStructuralPivots } from './detector.utils';
 import type { PatternCandidate, DetectorCandle } from './detector.types';
 import type { PatternTimeframe, PatternGeometry } from '../patterns.types';
-import { buildSetupId } from './setup-helpers';
+import { buildSetupId, getTimeframeDurationMs } from './setup-helpers';
 
 function linearRegression(xValues: number[], yValues: number[]): { slope: number; intercept: number; r2: number } {
   const n = xValues.length;
@@ -49,6 +49,7 @@ export function detectTriangleSetups(
 
   const current = candles[candles.length - 1]!;
   const currentIdx = candles.length - 1;
+  const timeframeMs = getTimeframeDurationMs(timeframe);
 
   const highReg = linearRegression(highs.map(h => h.candleIndex), highs.map(h => h.price));
   const lowReg = linearRegression(lows.map(l => l.candleIndex), lows.map(l => l.price));
@@ -101,10 +102,22 @@ export function detectTriangleSetups(
   const patternDuration = lastPivotTime - fromTime;
   const extendedToTime = lastPivotTime + Math.max(patternDuration * 0.35, 5 * 60_000);
 
-  const upperFrom = { time: highs[0]!.time, price: highs[0]!.price };
-  const upperTo = { time: extendedToTime, price: highReg.intercept + highReg.slope * (apexIdx * 0.85) };
-  const lowerFrom = { time: lows[0]!.time, price: lows[0]!.price };
-  const lowerTo = { time: extendedToTime, price: lowReg.intercept + lowReg.slope * (apexIdx * 0.85) };
+  const highsByTime = [...highs].sort((a, b) => a.time - b.time);
+  const lowsByTime = [...lows].sort((a, b) => a.time - b.time);
+  const upperFrom = { time: highsByTime[0]!.time, price: highsByTime[0]!.price };
+  const upperLast = highsByTime[highsByTime.length - 1]!;
+  const lowerFrom = { time: lowsByTime[0]!.time, price: lowsByTime[0]!.price };
+  const lowerLast = lowsByTime[lowsByTime.length - 1]!;
+  const lineEndTime = Math.min(
+    extendedToTime,
+    Math.max(lastPivotTime + timeframeMs * 2, Math.floor(fromTime + Math.max(0, apexIdx) * timeframeMs)),
+  );
+  const upperBarsAhead = Math.max(1, Math.round((lineEndTime - upperLast.time) / timeframeMs));
+  const lowerBarsAhead = Math.max(1, Math.round((lineEndTime - lowerLast.time) / timeframeMs));
+  const projectedUpper = upperLast.price + highReg.slope * upperBarsAhead;
+  const projectedLower = lowerLast.price + lowReg.slope * lowerBarsAhead;
+  const upperTo = { time: lineEndTime, price: projectedUpper };
+  const lowerTo = { time: lineEndTime, price: projectedLower };
 
   const touchScore = Math.min(20, (highs.length + lows.length - 4) * 5);
   const fitScore = Math.min(15, Math.round(((highReg.r2 + lowReg.r2) / 2) * 15));
@@ -123,20 +136,14 @@ export function detectTriangleSetups(
     anchorTimeTo: extendedToTime,
     priceMin,
     priceMax,
-    pivots: [
-      ...highs.map(h => ({ time: h.time, price: h.price })),
-      ...lows.map(l => ({ time: l.time, price: l.price })),
-    ],
+    pivots: [...highsByTime, ...lowsByTime]
+      .map(p => ({ time: p.time, price: p.price }))
+      .sort((a, b) => a.time - b.time),
     lines: [
-      { kind: 'ray', points: [upperFrom, upperTo] as [{ time: number; price: number }, { time: number; price: number }] },
-      { kind: 'ray', points: [lowerFrom, lowerTo] as [{ time: number; price: number }, { time: number; price: number }] },
+      { kind: 'segment', points: [upperFrom, upperTo] as [{ time: number; price: number }, { time: number; price: number }] },
+      { kind: 'segment', points: [lowerFrom, lowerTo] as [{ time: number; price: number }, { time: number; price: number }] },
     ],
-    zones: [{
-      fromTime,
-      toTime: lastPivotTime,
-      low: projLow - atr * 0.1,
-      high: projHigh + atr * 0.1,
-    }],
+    zones: [],
   };
 
   return [{

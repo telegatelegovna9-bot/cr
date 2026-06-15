@@ -98,16 +98,18 @@ export function detectFlagSetups(
       ? breakoutLevel + poleSize
       : breakoutLevel - poleSize;
 
+    const pivots = [
+      { time: poleStartTime, price: poleStartCandle.close },
+      { time: poleEndTime, price: poleEndCandle.close },
+      { time: current.time, price: current.close },
+    ].sort((a, b) => a.time - b.time);
+
     const geometry: PatternGeometry = {
       anchorTimeFrom: poleStartTime,
       anchorTimeTo: current.time,
       priceMin: Math.min(poleStartCandle.low, flagLow) - atr * 0.3,
       priceMax: Math.max(poleEndCandle.high, flagHigh) + atr * 0.3,
-      pivots: [
-        { time: poleStartTime, price: poleStartCandle.close },
-        { time: poleEndTime, price: poleEndCandle.close },
-        { time: current.time, price: current.close },
-      ],
+      pivots,
       lines: [
         // Pole
         {
