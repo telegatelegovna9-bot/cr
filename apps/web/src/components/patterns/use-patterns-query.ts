@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchPatternsPage } from '@/lib/patterns/api';
 import type { PatternFilters, PatternListItem } from '@/lib/patterns/models';
 
-const PATTERNS_POLL_MS = 30_000;
+const PATTERNS_POLL_MS = 45_000;
 
 export function usePatternsQuery(search: string, filters: PatternFilters) {
   const [items, setItems] = useState<PatternListItem[]>([]);
@@ -46,6 +46,7 @@ export function usePatternsQuery(search: string, filters: PatternFilters) {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       setRefreshNonce(value => value + 1);
     }, PATTERNS_POLL_MS);
 

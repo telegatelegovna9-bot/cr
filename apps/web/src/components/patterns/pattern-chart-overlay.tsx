@@ -12,6 +12,11 @@ const PATTERN_STROKE_MAP = {
   retest: '#38bdf8',
   structure_break: '#e879f9',
   liquidity_sweep: '#fbbf24',
+  triangle: '#a78bfa',
+  wedge: '#fb7185',
+  flag: '#4ade80',
+  cascade: '#f97316',
+  fvg: '#fbbf24',
 } as const;
 
 interface ProjectedLine {
@@ -229,6 +234,8 @@ export function PatternChartOverlay({
     }
 
     let frameId: number | null = null;
+    let redrawRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let resizeObserver: ResizeObserver | null = null;
     let focusRetries = 0;
 
     const focusChart = (chart: IChartApi, force = false) => {
@@ -283,18 +290,36 @@ export function PatternChartOverlay({
       });
     };
 
-    const loop = () => {
-      redraw();
-      frameId = requestAnimationFrame(loop);
+    const scheduleRedraw = () => {
+      if (frameId != null) return;
+      frameId = requestAnimationFrame(() => {
+        frameId = null;
+        redraw();
+      });
     };
-    frameId = requestAnimationFrame(loop);
 
-    const resizeObserver = new ResizeObserver(redraw);
-    if (hostRef.current) resizeObserver.observe(hostRef.current);
+    const chart = chartRef.current;
+    const host = hostRef.current;
+    if (chart) {
+      chart.timeScale().subscribeVisibleTimeRangeChange(scheduleRedraw);
+      chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleRedraw);
+    }
+    if (host) {
+      resizeObserver = new ResizeObserver(() => scheduleRedraw());
+      resizeObserver.observe(host);
+    }
+
+    redraw();
+    redrawRetryTimer = setTimeout(() => scheduleRedraw(), 150);
 
     return () => {
       if (frameId != null) cancelAnimationFrame(frameId);
-      resizeObserver.disconnect();
+      if (redrawRetryTimer) clearTimeout(redrawRetryTimer);
+      if (chart) {
+        chart.timeScale().unsubscribeVisibleTimeRangeChange(scheduleRedraw);
+        chart.timeScale().unsubscribeVisibleLogicalRangeChange(scheduleRedraw);
+      }
+      resizeObserver?.disconnect();
       setProjection(null);
     };
   }, [pattern, chartRef, candleSeriesRef, hostRef, overlayVersion, timePointsRef]);

@@ -134,7 +134,7 @@ export class PatternsScanner implements OnModuleInit {
       symbol,
       timeframe,
       'binance',
-      PATTERN_CANDLE_LIMIT,
+      this.getCandleLimit(timeframe),
     );
 
     if (candles.length < 60) {
@@ -208,5 +208,22 @@ export class PatternsScanner implements OnModuleInit {
     }
 
     return minuteTimeframes;
+  }
+
+  private getCandleLimit(timeframe: PatternTimeframe): number {
+    switch (timeframe) {
+      case '5m':
+        return PATTERN_CANDLE_LIMIT;
+      case '15m':
+        return 240;
+      case '1h':
+        return 180;
+      case '4h':
+        return 120;
+      case '1d':
+        return 90;
+      default:
+        return PATTERN_CANDLE_LIMIT;
+    }
   }
 }

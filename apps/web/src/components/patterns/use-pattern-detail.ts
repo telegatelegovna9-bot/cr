@@ -13,6 +13,9 @@ export function usePatternDetail(patternId: string | null, refreshKey: number) {
       setItem(null);
       return;
     }
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
 
     let cancelled = false;
     setItem(previous => (previous?.id === patternId ? previous : null));
