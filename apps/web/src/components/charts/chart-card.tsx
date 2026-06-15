@@ -15,7 +15,7 @@ import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
 import type { PatternDetail } from '@/lib/patterns/models';
-import { PatternChartOverlay } from '@/components/patterns/pattern-chart-overlay';
+import { PatternPrimitive, focusPatternLogicalRange } from '@/lib/patterns/pattern-primitive';
 import { HeatmapControls } from './heatmap-controls';
 import { HeatmapSummary } from './heatmap-summary';
 import { DrawingToolbar } from './drawing-toolbar';
@@ -177,6 +177,8 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const dataLoadedRef = useRef(false);
   const initialHistoryBackfillTriedRef = useRef(false);
   const historyRefreshInFlightRef = useRef(false);
+  const patternPrimitiveRef = useRef<PatternPrimitive | null>(null);
+  const focusedPatternKeyRef = useRef<string | null>(null);
 
   const syncOverlayTimePoints = (raw: any[]) => {
     timePointsRef.current = raw
@@ -1043,6 +1045,10 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
       if (readyTimer) { clearTimeout(readyTimer); readyTimer = null; }
       if (loadingHistoryTimerRef.current) { clearTimeout(loadingHistoryTimerRef.current); loadingHistoryTimerRef.current = null; }
       if (chartRef.current) {
+        if (patternPrimitiveRef.current && candleSeriesRef.current) {
+          candleSeriesRef.current.detachPrimitive(patternPrimitiveRef.current);
+        }
+        patternPrimitiveRef.current = null;
         chartRef.current.remove();
         chartRef.current = null;
         candleSeriesRef.current = null;
@@ -1108,6 +1114,31 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [paused, refreshLatestHistory]);
+
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+
+    let primitive = patternPrimitiveRef.current;
+    if (!primitive) {
+      primitive = new PatternPrimitive();
+      series.attachPrimitive(primitive);
+      patternPrimitiveRef.current = primitive;
+    }
+
+    primitive.setPattern(patternOverlay, timePointsRef.current);
+    if (!patternOverlay) {
+      focusedPatternKeyRef.current = null;
+      return;
+    }
+
+    const focusKey = `${patternOverlay.id}:${patternOverlay.updatedAt}:${effectiveSymbol}:${marketType}:${timeframe}`;
+    if (focusedPatternKeyRef.current === focusKey || !chartRef.current) return;
+
+    if (focusPatternLogicalRange(chartRef.current, patternOverlay, timePointsRef.current)) {
+      focusedPatternKeyRef.current = focusKey;
+    }
+  }, [patternOverlay, effectiveSymbol, marketType, timeframe, lastBarTime]);
 
   const livePrice = ticker?.lastPrice ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
@@ -1230,16 +1261,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
         {showHeatmap && <HeatmapSummary {...heatmapSummary} />}
-        {patternOverlay && (
-          <PatternChartOverlay
-            pattern={patternOverlay}
-            chartRef={chartRef}
-            candleSeriesRef={candleSeriesRef}
-            hostRef={containerRef}
-            timePointsRef={timePointsRef}
-            overlayVersion={`${effectiveSymbol}:${marketType}:${timeframe}:${lastBarTime ?? 0}:${patternOverlay.updatedAt}`}
-          />
-        )}
         <DrawingOverlay
           chart={chartRef.current}
           candleSeries={candleSeriesRef.current}
