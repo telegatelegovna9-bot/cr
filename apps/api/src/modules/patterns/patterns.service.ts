@@ -8,13 +8,9 @@ import {
 import { mapCandidateToPersistenceRow, mapPatternRow } from './patterns.mapper';
 import type { PatternCandidate } from './detectors/detector.types';
 import type { PatternKind, PersistedPatternPayload } from './patterns.types';
+import { ALL_PATTERN_KINDS } from './patterns.types';
 
-const ACTIVE_SETUP_KINDS: PatternKind[] = [
-  'breakout',
-  'retest',
-  'structure_break',
-  'liquidity_sweep',
-];
+const ACTIVE_SETUP_KINDS: PatternKind[] = ALL_PATTERN_KINDS;
 
 @Injectable()
 export class PatternsService {

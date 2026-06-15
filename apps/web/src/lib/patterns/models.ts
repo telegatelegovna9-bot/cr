@@ -1,11 +1,16 @@
-export type PatternKind = 
+export type PatternKind =
   | 'breakout'
   | 'retest'
   | 'structure_break'
-  | 'liquidity_sweep';
+  | 'liquidity_sweep'
+  | 'triangle'
+  | 'wedge'
+  | 'flag'
+  | 'cascade'
+  | 'fvg';
 
 export type PatternStatus = 'forming' | 'confirmed' | 'finished';
-export type PatternTimeframe = '5m' | '15m' | '1h';
+export type PatternTimeframe = '5m' | '15m' | '1h' | '4h' | '1d';
 
 export interface PatternPoint {
   time: number;

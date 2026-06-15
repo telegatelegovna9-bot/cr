@@ -47,7 +47,6 @@ export function getSetupTimeframeConfig(timeframe: PatternTimeframe): SetupTimef
         breakoutTravelAtr: 2.1,
       };
     case '1h':
-    default:
       return {
         pivotMultiplier: 1.45,
         minTouches: 3,
@@ -57,6 +56,29 @@ export function getSetupTimeframeConfig(timeframe: PatternTimeframe): SetupTimef
         maxCompressionAtr: 3.2,
         minVolumeFactor: 1,
         breakoutTravelAtr: 2.6,
+      };
+    case '4h':
+      return {
+        pivotMultiplier: 1.35,
+        minTouches: 2,
+        minLevelAgeBars: 6,
+        levelLookbackPivots: 10,
+        compressionBars: 5,
+        maxCompressionAtr: 3.5,
+        minVolumeFactor: 1,
+        breakoutTravelAtr: 3.0,
+      };
+    case '1d':
+    default:
+      return {
+        pivotMultiplier: 1.25,
+        minTouches: 2,
+        minLevelAgeBars: 4,
+        levelLookbackPivots: 8,
+        compressionBars: 4,
+        maxCompressionAtr: 4.0,
+        minVolumeFactor: 1,
+        breakoutTravelAtr: 3.5,
       };
   }
 }
@@ -95,6 +117,12 @@ export function getAverageVolume(candles: DetectorCandle[], length = 20): number
   const recent = candles.slice(-length);
   if (recent.length === 0) return 0;
   return recent.reduce((sum, candle) => sum + candle.volume, 0) / recent.length;
+}
+
+export function getBodyRatio(candle: DetectorCandle): number {
+  const range = candle.high - candle.low;
+  if (range <= 0) return 0;
+  return Math.abs(candle.close - candle.open) / range;
 }
 
 export function buildHorizontalGeometry(args: {

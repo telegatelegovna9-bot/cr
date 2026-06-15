@@ -45,7 +45,7 @@ export function usePatternsQuery(search: string, filters: PatternFilters) {
   useEffect(() => {
     const timer = window.setInterval(() => {
       setRefreshNonce(value => value + 1);
-    }, 45_000);
+    }, 15_000);
 
     return () => window.clearInterval(timer);
   }, []);

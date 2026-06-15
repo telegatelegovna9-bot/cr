@@ -20,6 +20,11 @@ import { detectBreakoutSetups } from './detectors/breakout.detector';
 import { detectRetestSetups } from './detectors/retest.detector';
 import { detectStructureBreakSetups } from './detectors/structure-break.detector';
 import { detectLiquiditySweepSetups } from './detectors/liquidity-sweep.detector';
+import { detectTriangleSetups } from './detectors/triangle.detector';
+import { detectWedgeSetups } from './detectors/wedge.detector';
+import { detectFlagSetups } from './detectors/flag.detector';
+import { detectCascadeSetups } from './detectors/cascade.detector';
+import { detectFvgSetups } from './detectors/fvg.detector';
 import { PatternsService } from './patterns.service';
 import {
   getEligibleBinanceFuturesTickers,
@@ -61,18 +66,18 @@ export class PatternsScanner implements OnModuleInit {
       this.logger.log(
         `Patterns scan started via ${source} for ${symbols.length}/${totalUniverse} symbols (batch ${activeBatch})`,
       );
-      
+
       const symbolTimeframeTasks = symbols.flatMap(symbol =>
         PATTERN_SCAN_TIMEFRAMES.map(timeframe => async () =>
-          this.scanSymbolTimeframe(symbol, timeframe as any),
+          this.scanSymbolTimeframe(symbol, timeframe as PatternTimeframe),
         ),
       );
-      
+
       const taskResults = await runWithConcurrencyLimit(
         symbolTimeframeTasks,
         PATTERN_SCAN_CONCURRENCY,
       );
-      
+
       const candidates: PatternCandidate[] = [];
       let rawCandidateCount = 0;
 
@@ -80,7 +85,6 @@ export class PatternsScanner implements OnModuleInit {
         if (!detected) continue;
         rawCandidateCount += detected.length;
         for (const candidate of detected) {
-          // Strict overlap check
           const duplicate = candidates.find(existing =>
             patternsOverlapTooMuch(existing, candidate) && existing.quality >= candidate.quality,
           );
@@ -98,6 +102,7 @@ export class PatternsScanner implements OnModuleInit {
           return b.quality - a.quality;
         })
         .slice(0, PATTERN_MAX_ACTIVE_RESULTS);
+
       const scanNow = Date.now();
       await this.patternsService.upsertScannerSnapshot(activeCandidates, scanNow);
       await this.patternsService.reconcileScannerSnapshot(
@@ -140,6 +145,11 @@ export class PatternsScanner implements OnModuleInit {
       ...detectRetestSetups(symbol, timeframe, candles),
       ...detectStructureBreakSetups(symbol, timeframe, candles),
       ...detectLiquiditySweepSetups(symbol, timeframe, candles),
+      ...detectTriangleSetups(symbol, timeframe, candles),
+      ...detectWedgeSetups(symbol, timeframe, candles),
+      ...detectFlagSetups(symbol, timeframe, candles),
+      ...detectCascadeSetups(symbol, timeframe, candles),
+      ...detectFvgSetups(symbol, timeframe, candles),
     ];
 
     const actionableCandidates: PatternCandidate[] = [];
@@ -160,7 +170,7 @@ export class PatternsScanner implements OnModuleInit {
         if (a.status !== b.status) return a.status === 'forming' ? -1 : 1;
         return b.quality - a.quality;
       })
-      .slice(0, 1);
+      .slice(0, 3); // up from 1 — allow multiple pattern types per symbol/TF
   }
 
   private getBinanceFuturesSymbolsForCurrentBatch(): {

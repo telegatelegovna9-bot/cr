@@ -2,9 +2,15 @@ export type PatternKind =
   | 'breakout'
   | 'retest'
   | 'structure_break'
-  | 'liquidity_sweep';
+  | 'liquidity_sweep'
+  | 'triangle'
+  | 'wedge'
+  | 'flag'
+  | 'cascade'
+  | 'fvg';
+
 export type PatternStatus = 'forming' | 'confirmed' | 'finished';
-export type PatternTimeframe = '5m' | '15m' | '1h';
+export type PatternTimeframe = '5m' | '15m' | '1h' | '4h' | '1d';
 
 export interface PatternPoint {
   time: number;
@@ -49,5 +55,17 @@ export interface PersistedPatternPayload {
   expiresAt: number | null;
 }
 
-export const PATTERN_SCAN_TIMEFRAMES: PatternTimeframe[] = ['5m', '15m', '1h'];
+export const PATTERN_SCAN_TIMEFRAMES: PatternTimeframe[] = ['5m', '15m', '1h', '4h', '1d'];
 export const PATTERN_FINISHED_RETENTION_MINUTES = 15;
+
+export const ALL_PATTERN_KINDS: PatternKind[] = [
+  'breakout',
+  'retest',
+  'structure_break',
+  'liquidity_sweep',
+  'triangle',
+  'wedge',
+  'flag',
+  'cascade',
+  'fvg',
+];

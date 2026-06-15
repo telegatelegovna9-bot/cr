@@ -15,11 +15,11 @@ import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
 import type { PatternDetail } from '@/lib/patterns/models';
+import { PatternPrimitive, getPatternColor } from '@/lib/patterns/pattern-primitive';
 import { HeatmapControls } from './heatmap-controls';
 import { HeatmapSummary } from './heatmap-summary';
 import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingOverlay } from './drawing-overlay';
-import { PatternChartOverlay } from '@/components/patterns/pattern-chart-overlay';
 import {
   detectGap,
   detectMissingCandleRange,
@@ -282,6 +282,9 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const heatmapDirtyRef = useRef(false);
   const wasViewActiveRef = useRef(isViewActive);
   const wasWsConnectedRef = useRef(wsConnected);
+  const patternPrimitiveRef = useRef<PatternPrimitive | null>(null);
+  const pendingPatternRef = useRef<{ pattern: PatternDetail | null; color: string } | null>(null);
+  const lastFocusedPatternIdRef = useRef<string | null>(null);
 
   const refreshLatestHistory = useCallback(async () => {
     if (historyRefreshInFlightRef.current) return;
@@ -897,6 +900,16 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
       });
       candleSeriesRef.current = candleSeries;
 
+      // Attach pattern primitive — handles TF changes, pan, zoom correctly
+      const primitive = new PatternPrimitive();
+      patternPrimitiveRef.current = primitive;
+      // Apply pending pattern set before series was ready
+      if (pendingPatternRef.current) {
+        primitive.setPattern(pendingPatternRef.current.pattern, pendingPatternRef.current.color);
+        pendingPatternRef.current = null;
+      }
+      (candleSeries as any).attachPrimitive(primitive);
+
       const volumeSeries = chart.addHistogramSeries({
         priceFormat: { type: 'volume' },
         priceScaleId: 'volume',
@@ -1098,6 +1111,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       if (readyTimer) { clearTimeout(readyTimer); readyTimer = null; }
       if (loadingHistoryTimerRef.current) { clearTimeout(loadingHistoryTimerRef.current); loadingHistoryTimerRef.current = null; }
+      patternPrimitiveRef.current = null;
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
@@ -1164,6 +1178,41 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [paused, refreshLatestHistory]);
+
+  // ─── Pattern Primitive — update on patternOverlay change ───
+  useEffect(() => {
+    const color = patternOverlay ? getPatternColor(patternOverlay.kind) : '#34d399';
+    const primitive = patternPrimitiveRef.current;
+
+    if (primitive) {
+      primitive.setPattern(patternOverlay ?? null, color);
+    } else {
+      // Series not yet created — store pending so it gets applied on attach
+      pendingPatternRef.current = { pattern: patternOverlay ?? null, color };
+    }
+
+    // Auto-focus: zoom chart to show the pattern when pattern ID changes
+    if (patternOverlay && patternOverlay.id !== lastFocusedPatternIdRef.current) {
+      lastFocusedPatternIdRef.current = patternOverlay.id;
+      const chart = chartRef.current;
+      if (chart) {
+        const g = patternOverlay.geometry;
+        const span = Math.max(60_000, g.anchorTimeTo - g.anchorTimeFrom);
+        const leftPad = Math.max(5 * 60_000, Math.floor(span * 0.30));
+        const rightPad = Math.max(5 * 60_000, Math.floor(span * 0.45));
+        try {
+          chart.timeScale().setVisibleRange({
+            from: Math.floor((g.anchorTimeFrom - leftPad) / 1000) as Time,
+            to: Math.floor((g.anchorTimeTo + rightPad) / 1000) as Time,
+          });
+        } catch { /* chart may be transitioning */ }
+      }
+    }
+
+    if (!patternOverlay) {
+      lastFocusedPatternIdRef.current = null;
+    }
+  }, [patternOverlay]);
 
   const livePrice = ticker?.lastPrice ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;
@@ -1286,17 +1335,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
         {showHeatmap && <HeatmapSummary {...heatmapSummary} />}
-        {patternOverlay && (
-          <PatternChartOverlay
-            pattern={patternOverlay}
-            chartRef={chartRef}
-            candleSeriesRef={candleSeriesRef}
-            hostRef={containerRef}
-            timePointsRef={timePointsRef}
-            overlayVersion={`${effectiveSymbol}:${marketType}:${timeframe}`}
-          />
-        )}
-        
         <DrawingOverlay
           chart={chartRef.current}
           candleSeries={candleSeriesRef.current}
