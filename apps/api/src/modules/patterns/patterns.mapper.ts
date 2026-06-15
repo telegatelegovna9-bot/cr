@@ -1,6 +1,7 @@
 import type { QueryResultRow } from 'pg';
 import type { PatternCandidate } from './detectors/detector.types';
 import { PATTERN_FINISHED_RETENTION_MS } from './patterns.constants';
+import { normalizePatternGeometry } from './geometry-normalizer';
 import type { PersistedPatternPayload } from './patterns.types';
 
 type PersistedPatternRow = QueryResultRow & {
@@ -34,7 +35,7 @@ export function mapCandidateToPersistenceRow(
     kind: candidate.kind,
     status: candidate.status,
     quality: candidate.quality,
-    geometry: candidate.geometry,
+    geometry: normalizePatternGeometry(candidate.kind, candidate.geometry),
     detectedAt: now,
     updatedAt: now,
     finishedAt,
@@ -52,7 +53,7 @@ export function mapPatternRow(row: PersistedPatternRow): PersistedPatternPayload
     kind: row.kind,
     status: row.status,
     quality: row.quality,
-    geometry: row.geometry,
+    geometry: normalizePatternGeometry(row.kind, row.geometry),
     detectedAt: Number(row.detected_at),
     updatedAt: Number(row.updated_at),
     finishedAt: row.finished_at === null ? null : Number(row.finished_at),
