@@ -219,6 +219,8 @@ export class PatternPrimitive {
 
   private readonly _paneViews = [new PatternPaneView(this)];
   private _requestUpdate: (() => void) | undefined;
+  private _timeRangeListener: (() => void) | null = null;
+  private _logicalRangeListener: (() => void) | null = null;
 
   updateAllViews(): void {
     for (const view of this._paneViews) {
@@ -234,6 +236,11 @@ export class PatternPrimitive {
     this.chart = params.chart;
     this.series = params.series;
     this._requestUpdate = params.requestUpdate;
+    const timeScale = params.chart.timeScale();
+    this._timeRangeListener = () => this._requestUpdate?.();
+    this._logicalRangeListener = () => this._requestUpdate?.();
+    timeScale.subscribeVisibleTimeRangeChange(this._timeRangeListener);
+    timeScale.subscribeVisibleLogicalRangeChange(this._logicalRangeListener);
     // Apply any pattern that was set before attachment
     if (this.pattern) {
       this._requestUpdate();
@@ -241,9 +248,20 @@ export class PatternPrimitive {
   }
 
   detached(): void {
+    if (this.chart) {
+      const timeScale = this.chart.timeScale();
+      if (this._timeRangeListener) {
+        timeScale.unsubscribeVisibleTimeRangeChange(this._timeRangeListener);
+      }
+      if (this._logicalRangeListener) {
+        timeScale.unsubscribeVisibleLogicalRangeChange(this._logicalRangeListener);
+      }
+    }
     this.chart = null;
     this.series = null;
     this._requestUpdate = undefined;
+    this._timeRangeListener = null;
+    this._logicalRangeListener = null;
   }
 
   setPattern(pattern: PatternDetail | null, color?: string): void {

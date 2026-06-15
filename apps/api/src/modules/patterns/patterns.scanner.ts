@@ -9,7 +9,7 @@ import {
   PATTERN_SCAN_CONCURRENCY,
   PATTERN_MAX_ACTIVE_RESULTS,
 } from './patterns.constants';
-import { type PatternTimeframe, PATTERN_SCAN_TIMEFRAMES } from './patterns.types';
+import { type PatternTimeframe } from './patterns.types';
 import { type PatternCandidate } from './detectors/detector.types';
 import {
   patternsOverlapTooMuch,
@@ -63,12 +63,13 @@ export class PatternsScanner implements OnModuleInit {
 
     try {
       const { symbols, totalUniverse, activeBatch } = this.getBinanceFuturesSymbolsForCurrentBatch();
+      const timeframes = this.getTimeframesForCurrentScan();
       this.logger.log(
-        `Patterns scan started via ${source} for ${symbols.length}/${totalUniverse} symbols (batch ${activeBatch})`,
+        `Patterns scan started via ${source} for ${symbols.length}/${totalUniverse} symbols (batch ${activeBatch}, tf ${timeframes.join(',')})`,
       );
 
       const symbolTimeframeTasks = symbols.flatMap(symbol =>
-        PATTERN_SCAN_TIMEFRAMES.map(timeframe => async () =>
+        timeframes.map(timeframe => async () =>
           this.scanSymbolTimeframe(symbol, timeframe as PatternTimeframe),
         ),
       );
@@ -191,5 +192,21 @@ export class PatternsScanner implements OnModuleInit {
       totalUniverse: universe.length,
       activeBatch: activeBatch + 1,
     };
+  }
+
+  private getTimeframesForCurrentScan(): PatternTimeframe[] {
+    const minuteTimeframes: PatternTimeframe[] = ['5m', '15m', '1h'];
+    const include4h = this.batchIndex % 5 === 0;
+    const include1d = this.batchIndex % 15 === 0;
+
+    if (include1d) {
+      return [...minuteTimeframes, '4h', '1d'];
+    }
+
+    if (include4h) {
+      return [...minuteTimeframes, '4h'];
+    }
+
+    return minuteTimeframes;
   }
 }
