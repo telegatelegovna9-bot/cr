@@ -63,8 +63,6 @@ const POST_BACKFILL_LEFT_BUFFER = LEFT_EDGE_LOAD_THRESHOLD + 2;
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 const chartHistoryCache = new Map<string, any[]>();
-const SPOT_RECOVERY_DEBUG = false;
-
 function getChartHistoryCacheKey(
   exchange: string,
   marketType: 'spot' | 'futures',
@@ -78,11 +76,6 @@ function getRawCandleTime(candle: any): number | null {
   if (!candle) return null;
   const time = candle.time ?? candle.timestamp;
   return typeof time === 'number' && Number.isFinite(time) ? time : null;
-}
-
-function logSpotRecovery(event: string, payload: Record<string, unknown>) {
-  if (!SPOT_RECOVERY_DEBUG) return;
-  console.log(`[SpotRecovery] ${event}`, payload);
 }
 
 async function fetchChartHistorySlice(params: {
@@ -289,10 +282,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
     historyRefreshInFlightRef.current = true;
     try {
-      const shouldDebugSpot =
-        exchangeRef.current === 'binance' &&
-        marketTypeRef.current === 'spot';
-
       const fetchCandles = async (endTime?: number) => {
         return fetchChartHistorySlice({
           exchange: exchangeRef.current,
@@ -304,60 +293,18 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
         });
       };
 
-      if (shouldDebugSpot) {
-        const localFirst = getRawCandleTime(allRawRef.current[0]);
-        const localLast = getRawCandleTime(allRawRef.current[allRawRef.current.length - 1]);
-        logSpotRecovery('refresh:start', {
-          symbol: effectiveSymbolRef.current,
-          timeframe: timeframeRef.current,
-          localCount: allRawRef.current.length,
-          localFirst,
-          localLast,
-          reasonViewActive: isViewActive,
-        });
-      }
-
       let latest = await fetchCandles();
       if (!latest.length) return;
-
-      if (shouldDebugSpot) {
-        logSpotRecovery('refresh:fetched-latest', {
-          symbol: effectiveSymbolRef.current,
-          timeframe: timeframeRef.current,
-          fetchedCount: latest.length,
-          fetchedFirst: getRawCandleTime(latest[0]),
-          fetchedLast: getRawCandleTime(latest[latest.length - 1]),
-        });
-      }
 
       if (shouldBackfillInitialHistory(latest, INITIAL_HISTORY_LIMIT)) {
         const endTime = getInitialHistoryBackfillEndTime(latest);
         if (endTime != null) {
           const older = await fetchCandles(endTime);
-          if (shouldDebugSpot) {
-            logSpotRecovery('refresh:fetched-older', {
-              symbol: effectiveSymbolRef.current,
-              timeframe: timeframeRef.current,
-              fetchedCount: older.length,
-              fetchedFirst: getRawCandleTime(older[0]),
-              fetchedLast: getRawCandleTime(older[older.length - 1]),
-              endTime,
-            });
-          }
           if (older.length) latest = mergeChartHistory(older, latest);
         }
       }
 
       const merged = mergeChartHistory(allRawRef.current, latest).slice(-MAX_CHART_CANDLES);
-      if (shouldDebugSpot) {
-        logSpotRecovery('refresh:merged', {
-          symbol: effectiveSymbolRef.current,
-          timeframe: timeframeRef.current,
-          mergedCount: merged.length,
-          mergedFirst: getRawCandleTime(merged[0]),
-          mergedLast: getRawCandleTime(merged[merged.length - 1]),
-        });
-      }
       allRawRef.current = merged;
       syncOverlayTimePoints(merged);
       syncHistoryCache(merged);
@@ -645,15 +592,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
     const lastKnownCandle = allRawRef.current[allRawRef.current.length - 1];
     const missingRange = detectMissingCandleRange(lastKnownCandle, latestCandle, timeframeRef.current);
-    if (exchange === 'binance' && marketType === 'spot') {
-      logSpotRecovery('live:incoming-candle', {
-        symbol: effectiveSymbol,
-        timeframe,
-        incomingTime: timestamp,
-        localLastTime: getRawCandleTime(lastKnownCandle),
-        missingBuckets: missingRange?.missingBuckets ?? 0,
-      });
-    }
     if (missingRange) {
       void refreshLatestHistory();
       return;
@@ -719,10 +657,12 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
             if (firstTime) oldestTimeRef.current = firstTime / 1000;
             const lastTime = allRawRef.current[allRawRef.current.length - 1]?.time || allRawRef.current[allRawRef.current.length - 1]?.timestamp;
             if (lastTime) setLastBarTime(Math.floor(lastTime / 1000));
-            chartRef.current?.timeScale().setVisibleLogicalRange({
-              from: Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES),
-              to: candles.length + 3,
-            });
+            try {
+              chartRef.current?.timeScale().setVisibleLogicalRange({
+                from: Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES),
+                to: candles.length + 3,
+              });
+            } catch { /* chart transitioning */ }
             initialRangeSetRef.current = true;
           })
           .catch(() => {})
@@ -925,7 +865,9 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
           const from = Math.max(0, candles.length - INITIAL_VISIBLE_CANDLES);
           const to = candles.length + 3;
-          chart.timeScale().setVisibleLogicalRange({ from, to });
+          try {
+            chart.timeScale().setVisibleLogicalRange({ from, to });
+          } catch { /* chart transitioning */ }
           initialRangeSetRef.current = true;
 
           const lastRaw = raw[raw.length - 1];
@@ -1066,10 +1008,12 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
                 ? POST_BACKFILL_LEFT_BUFFER
                 : previousRange.from + addedBars;
               suppressNextRangeChangeRef.current = true;
-              chart.timeScale().setVisibleLogicalRange({
-                from: targetFrom,
-                to: targetFrom + visibleBars,
-              });
+              try {
+                chart.timeScale().setVisibleLogicalRange({
+                  from: targetFrom,
+                  to: targetFrom + visibleBars,
+                });
+              } catch { /* chart transitioning */ }
             }
           }
         } catch { /* silent */ }
