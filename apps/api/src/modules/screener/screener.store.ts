@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { Ticker } from '@crypto-screener/shared';
 import {
+  SCREENER_FUTURES_DETECTOR_EXCHANGES,
   SCREENER_PREFERRED_EXCHANGES,
   SCREENER_RETENTION_MS,
+  SCREENER_SPOT_DETECTOR_EXCHANGES,
   SCREENER_UNIVERSE_SYMBOLS,
 } from './screener.config';
 import type { ScreenerHealth, ScreenerRow, ScreenerSummary } from './screener.types';
@@ -27,6 +29,33 @@ type SourceStatus = 'idle' | 'live' | 'stale';
 
 function instrumentKey(exchange: string, symbol: string, marketType: string): string {
   return `${exchange}:${marketType}:${symbol}`;
+}
+
+function nearestTickerSampleAtOrBefore(samples: TickerSample[], targetTs: number): TickerSample | null {
+  for (let index = samples.length - 1; index >= 0; index -= 1) {
+    if (samples[index].timestamp <= targetTs) return samples[index];
+  }
+
+  return null;
+}
+
+function upsertSortedSample<T extends { timestamp: number }>(samples: T[], nextSample: T): T[] {
+  const nextSamples = [...samples];
+  const existingIndex = nextSamples.findIndex(sample => sample.timestamp === nextSample.timestamp);
+
+  if (existingIndex >= 0) {
+    nextSamples[existingIndex] = nextSample;
+    return nextSamples;
+  }
+
+  const insertIndex = nextSamples.findIndex(sample => sample.timestamp > nextSample.timestamp);
+  if (insertIndex === -1) {
+    nextSamples.push(nextSample);
+    return nextSamples;
+  }
+
+  nextSamples.splice(insertIndex, 0, nextSample);
+  return nextSamples;
 }
 
 @Injectable()
@@ -56,7 +85,14 @@ export class ScreenerStore {
 
   recordTicker(ticker: Ticker, timestamp = Date.now()): void {
     const key = instrumentKey(ticker.exchange, ticker.symbol, ticker.marketType ?? 'spot');
-    this.latestTickers.set(key, ticker);
+    const storedTicker: Ticker = {
+      ...ticker,
+      timestamp,
+    };
+    const currentLatest = this.latestTickers.get(key);
+    if (!currentLatest || currentLatest.timestamp <= timestamp) {
+      this.latestTickers.set(key, storedTicker);
+    }
 
     const samples = this.tickerHistory.get(key) ?? [];
     const nextSample: TickerSample = {
@@ -65,13 +101,7 @@ export class ScreenerStore {
       quoteVolume24h: ticker.quoteVolume24h ?? 0,
     };
 
-    if (samples.length > 0 && samples[samples.length - 1].timestamp === timestamp) {
-      samples[samples.length - 1] = nextSample;
-    } else {
-      samples.push(nextSample);
-    }
-
-    this.tickerHistory.set(key, samples);
+    this.tickerHistory.set(key, upsertSortedSample(samples, nextSample));
     this.markSource(ticker.exchange, timestamp);
   }
 
@@ -80,13 +110,7 @@ export class ScreenerStore {
     const samples = this.openInterestHistory.get(key) ?? [];
     const nextSample: OpenInterestSample = { timestamp, value };
 
-    if (samples.length > 0 && samples[samples.length - 1].timestamp === timestamp) {
-      samples[samples.length - 1] = nextSample;
-    } else {
-      samples.push(nextSample);
-    }
-
-    this.openInterestHistory.set(key, samples);
+    this.openInterestHistory.set(key, upsertSortedSample(samples, nextSample));
     this.markSource(exchange, timestamp);
   }
 
@@ -95,13 +119,7 @@ export class ScreenerStore {
     const samples = this.takerRatioHistory.get(key) ?? [];
     const nextSample: TakerRatioSample = { timestamp, value };
 
-    if (samples.length > 0 && samples[samples.length - 1].timestamp === timestamp) {
-      samples[samples.length - 1] = nextSample;
-    } else {
-      samples.push(nextSample);
-    }
-
-    this.takerRatioHistory.set(key, samples);
+    this.takerRatioHistory.set(key, upsertSortedSample(samples, nextSample));
     this.markSource(exchange, timestamp);
   }
 
@@ -123,7 +141,7 @@ export class ScreenerStore {
     const sources = Object.fromEntries(
       Object.entries(this.sources).map(([exchange, data]) => {
         const status: SourceStatus =
-          !data.lastSeenAt
+          data.lastSeenAt === null
             ? 'idle'
             : now - data.lastSeenAt <= 2 * 60_000
               ? 'live'
@@ -153,8 +171,69 @@ export class ScreenerStore {
     return null;
   }
 
+  getLatestTickersForSymbol(symbol: string, marketType: 'spot' | 'futures'): Ticker[] {
+    const exchanges =
+      marketType === 'futures'
+        ? SCREENER_FUTURES_DETECTOR_EXCHANGES
+        : SCREENER_SPOT_DETECTOR_EXCHANGES;
+
+    return exchanges
+      .map(exchange => this.latestTickers.get(instrumentKey(exchange, symbol, marketType)) ?? null)
+      .filter((ticker): ticker is Ticker => ticker !== null);
+  }
+
+  getRelativePriceDeviation(symbol: string, marketType: 'spot' | 'futures'): {
+    medianPrice: number;
+    byExchange: Array<{ exchange: string; price: number; deviationBps: number }>;
+  } {
+    const tickers = this.getLatestTickersForSymbol(symbol, marketType);
+    const prices = tickers.map(ticker => ticker.lastPrice).sort((a, b) => a - b);
+    let medianPrice = 0;
+    if (prices.length > 0) {
+      const midpoint = Math.floor(prices.length / 2);
+      medianPrice =
+        prices.length % 2 === 0
+          ? (prices[midpoint - 1] + prices[midpoint]) / 2
+          : prices[midpoint];
+    }
+
+    return {
+      medianPrice,
+      byExchange: tickers.map(ticker => ({
+        exchange: ticker.exchange,
+        price: ticker.lastPrice,
+        deviationBps: medianPrice > 0 ? ((ticker.lastPrice - medianPrice) / medianPrice) * 10_000 : 0,
+      })),
+    };
+  }
+
   getTickerSamples(exchange: string, symbol: string, marketType: string): TickerSample[] {
     return this.tickerHistory.get(instrumentKey(exchange, symbol, marketType)) ?? [];
+  }
+
+  getRangeCompression(exchange: string, symbol: string, marketType: string, windowMs: number): number {
+    const samples = this.getTickerSamples(exchange, symbol, marketType);
+    const latest = samples[samples.length - 1];
+    if (!latest) return 0;
+
+    const relevant = samples.filter(sample => sample.timestamp >= latest.timestamp - windowMs);
+    if (relevant.length === 0 || latest.price === 0) return 0;
+
+    const prices = relevant.map(sample => sample.price);
+    const high = Math.max(...prices);
+    const low = Math.min(...prices);
+    return ((high - low) / latest.price) * 100;
+  }
+
+  getRollingQuoteVolumeDelta(exchange: string, symbol: string, marketType: string, windowMs: number): number {
+    const samples = this.getTickerSamples(exchange, symbol, marketType);
+    const latest = samples[samples.length - 1];
+    if (!latest) return 0;
+
+    const previous = nearestTickerSampleAtOrBefore(samples, latest.timestamp - windowMs);
+    if (!previous) return 0;
+
+    return Math.max(0, latest.quoteVolume24h - previous.quoteVolume24h);
   }
 
   getOpenInterestSamples(exchange: string, symbol: string): OpenInterestSample[] {
@@ -191,6 +270,11 @@ export class ScreenerStore {
 
   private markSource(exchange: string, timestamp: number): void {
     if (!(exchange in this.sources)) return;
+    const current = this.sources[exchange];
+    if (current.lastSeenAt !== null && current.lastSeenAt > timestamp) {
+      return;
+    }
+
     this.sources[exchange] = {
       lastSeenAt: timestamp,
       status: 'live',
