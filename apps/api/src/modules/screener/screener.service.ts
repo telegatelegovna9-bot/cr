@@ -17,14 +17,12 @@ import {
   toScreenerFuturesSymbol,
 } from './screener.config';
 import { ScreenerEngine } from './screener.engine';
+import { ScreenerReadModel } from './screener.read-model';
+import type { ScreenerCompatibleSummaryResponse } from './screener.read-model';
 import { ScreenerStore } from './screener.store';
 import type {
   ScreenerFeedResponse,
-  ScreenerHealth,
   ScreenerHealthResponse,
-  ScreenerRow,
-  ScreenerSummary,
-  ScreenerSummaryResponse,
 } from './screener.types';
 
 export interface ScreenerResult {
@@ -47,11 +45,13 @@ export interface ScreenerResult {
 @Injectable()
 export class ScreenerService implements OnModuleInit {
   private readonly logger = new Logger(ScreenerService.name);
+  private latestSnapshot: ReturnType<ScreenerEngine['build']> | null = null;
 
   constructor(
     private readonly marketService: MarketService,
     private readonly store: ScreenerStore,
     private readonly engine: ScreenerEngine,
+    private readonly readModel: ScreenerReadModel,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -72,11 +72,8 @@ export class ScreenerService implements OnModuleInit {
     };
   }
 
-  getSummary(): ScreenerSummaryResponse {
-    return {
-      summary: this.store.getSummary(),
-      timestamp: Date.now(),
-    };
+  getSummary(): ScreenerCompatibleSummaryResponse {
+    return this.readModel.toSummaryResponse(this.getSnapshot());
   }
 
   getHealth(): ScreenerHealthResponse {
@@ -107,8 +104,26 @@ export class ScreenerService implements OnModuleInit {
 
   @Interval(SCREENER_COMPUTE_INTERVAL_MS)
   recomputeSnapshot(): void {
-    const { rows, summary } = this.engine.build();
+    const snapshot = this.engine.build();
+    const { rows, summary } = snapshot;
+    this.latestSnapshot = snapshot;
     this.store.setSnapshot(rows, summary);
+  }
+
+  listBestSetups() {
+    return this.readModel.toBestSetupsResponse(this.getSnapshot());
+  }
+
+  listSpotEvents() {
+    return this.readModel.toSpotResponse(this.getSnapshot());
+  }
+
+  listFuturesEvents() {
+    return this.readModel.toFuturesResponse(this.getSnapshot());
+  }
+
+  getDetail(id: string) {
+    return this.readModel.toDetailResponse(this.getSnapshot(), id);
   }
 
   @Interval(SCREENER_OI_POLL_INTERVAL_MS)
@@ -225,6 +240,16 @@ export class ScreenerService implements OnModuleInit {
     }
 
     return candidates[0] ?? null;
+  }
+
+  private getSnapshot(): ReturnType<ScreenerEngine['build']> {
+    if (this.latestSnapshot) {
+      return this.latestSnapshot;
+    }
+
+    const snapshot = this.engine.build();
+    this.latestSnapshot = snapshot;
+    return snapshot;
   }
 
   private applyFilter(item: ScreenerResult, filter: ScreenerFilter): boolean {

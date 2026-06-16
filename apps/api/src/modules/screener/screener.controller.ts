@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Param, Post, Body, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { ScreenerService } from './screener.service';
 import type { ScreenerFilter, ScreenerSortField, ExchangeId } from '@crypto-screener/shared';
@@ -15,9 +15,33 @@ export class ScreenerController {
   }
 
   @Get('summary')
-  @ApiOperation({ summary: 'Get shared market screener summary' })
+  @ApiOperation({ summary: 'Get shared market screener row summary with setup event counts' })
   summary() {
     return this.screenerService.getSummary();
+  }
+
+  @Get('best-setups')
+  @ApiOperation({ summary: 'Get curated screener best setups' })
+  bestSetups() {
+    return this.screenerService.listBestSetups();
+  }
+
+  @Get('spot')
+  @ApiOperation({ summary: 'Get screener spot setup events' })
+  spot() {
+    return this.screenerService.listSpotEvents();
+  }
+
+  @Get('futures')
+  @ApiOperation({ summary: 'Get screener futures setup events' })
+  futures() {
+    return this.screenerService.listFuturesEvents();
+  }
+
+  @Get('detail/:id')
+  @ApiOperation({ summary: 'Get screener setup event detail' })
+  detail(@Param('id') id: string) {
+    return this.screenerService.getDetail(id);
   }
 
   @Get('health')
