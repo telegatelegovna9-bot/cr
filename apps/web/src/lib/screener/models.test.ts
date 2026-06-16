@@ -2,12 +2,28 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  getScreenerDetailEndpoint,
+  getScreenerEndpoint,
   parseScreenerMode,
   type ScreenerEvent,
   type ScreenerMode,
-} from './models';
+} from './models.ts';
 
 // Keep this file focused on the web-facing mode parser and shared screener event contract.
+test('getScreenerEndpoint resolves the mode-specific screener feed path', () => {
+  assert.equal(getScreenerEndpoint('best-setups'), '/api/screener/best-setups');
+  assert.equal(getScreenerEndpoint('spot'), '/api/screener/spot');
+  assert.equal(getScreenerEndpoint('futures'), '/api/screener/futures');
+});
+
+test('getScreenerDetailEndpoint encodes event ids for detail requests', () => {
+  assert.equal(getScreenerDetailEndpoint('btc-spot-breakout'), '/api/screener/detail/btc-spot-breakout');
+  assert.equal(
+    getScreenerDetailEndpoint('btc/spot breakout'),
+    '/api/screener/detail/btc%2Fspot%20breakout',
+  );
+});
+
 test('parseScreenerMode falls back to best-setups for unknown values', () => {
   assert.equal(parseScreenerMode('noise'), 'best-setups');
   assert.equal(parseScreenerMode(' futures '), 'futures');

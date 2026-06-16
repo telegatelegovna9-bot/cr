@@ -1,4 +1,12 @@
-import type { ScreenerHealth, ScreenerRow, ScreenerSummary } from './models';
+import type {
+  ScreenerCompatibleSummaryResponse,
+  ScreenerEventDetailResponse,
+  ScreenerEventListResponse,
+  ScreenerHealth,
+  ScreenerRow,
+  ScreenerSummary,
+} from './models';
+import { getScreenerDetailEndpoint, getScreenerEndpoint, type ScreenerMode } from './models';
 
 const getApiBase = () => {
   if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
@@ -8,32 +16,36 @@ const getApiBase = () => {
 
 const API_BASE = getApiBase();
 
-export async function fetchScreener(): Promise<{ items: ScreenerRow[]; timestamp: number }> {
-  const response = await fetch(`${API_BASE}/api/screener`);
+async function fetchScreenerJson<T>(path: string, errorLabel: string): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`);
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch screener rows: ${response.status}`);
+    throw new Error(`Failed to fetch ${errorLabel}: ${response.status}`);
   }
 
   return response.json();
+}
+
+export async function fetchScreener(): Promise<{ items: ScreenerRow[]; timestamp: number }> {
+  return fetchScreenerJson('/api/screener', 'screener rows');
+}
+
+export async function fetchScreenerFeed(mode: ScreenerMode = 'best-setups'): Promise<ScreenerEventListResponse> {
+  return fetchScreenerJson(getScreenerEndpoint(mode), `${mode} screener feed`);
+}
+
+export async function fetchScreenerDetail(id: string): Promise<ScreenerEventDetailResponse> {
+  return fetchScreenerJson(getScreenerDetailEndpoint(id), 'screener detail');
 }
 
 export async function fetchScreenerSummary(): Promise<{ summary: ScreenerSummary; timestamp: number }> {
-  const response = await fetch(`${API_BASE}/api/screener/summary`);
+  return fetchScreenerJson('/api/screener/summary', 'screener summary');
+}
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch screener summary: ${response.status}`);
-  }
-
-  return response.json();
+export async function fetchCompatibleScreenerSummary(): Promise<ScreenerCompatibleSummaryResponse> {
+  return fetchScreenerJson('/api/screener/summary', 'compatible screener summary');
 }
 
 export async function fetchScreenerHealth(): Promise<{ health: ScreenerHealth; timestamp: number }> {
-  const response = await fetch(`${API_BASE}/api/screener/health`);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch screener health: ${response.status}`);
-  }
-
-  return response.json();
+  return fetchScreenerJson('/api/screener/health', 'screener health');
 }
