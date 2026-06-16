@@ -243,6 +243,41 @@ export type ScreenerSortField =
   | 'funding'
   | 'openInterest';
 
+export type ScreenerMode = 'best-setups' | 'spot' | 'futures';
+
+export type ScreenerStrengthTier = 'watching' | 'actionable' | 'high-risk' | 'event-live';
+
+export type ScreenerPromotionTier = 'ignore' | 'watch' | 'actionable' | 'rare';
+
+export type ScreenerDetectorType =
+  | 'spot-breakout-pressure'
+  | 'spot-cross-exchange'
+  | 'futures-oi-build'
+  | 'futures-squeeze-risk';
+
+export interface ScreenerEvent {
+  id: string;
+  symbol: string;
+  marketMode: Exclude<ScreenerMode, 'best-setups'>;
+  detectorType: ScreenerDetectorType;
+  promotionTier: ScreenerPromotionTier;
+  strengthTier: ScreenerStrengthTier;
+  headline: string;
+  reason: string;
+  riskNote: string;
+  primaryExchange: string;
+  chartTimeframe: Extract<Timeframe, '1m' | '5m' | '15m'>;
+  supportingMetrics: Record<string, number | string | null>;
+  confirms: string[];
+  invalidates: string[];
+  updatedAt: number;
+}
+
+export interface ScreenerEventsResponse {
+  items: ScreenerEvent[];
+  timestamp: number;
+}
+
 // ============================================================
 // WEBSOCKET TYPES
 // ============================================================

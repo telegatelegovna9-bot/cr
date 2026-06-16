@@ -1,3 +1,13 @@
+export type {
+  ScreenerDetectorType,
+  ScreenerEvent,
+  ScreenerEventsResponse,
+  ScreenerMode,
+  ScreenerPromotionTier,
+  ScreenerStrengthTier,
+} from '@crypto-screener/shared';
+
+// Temporary compatibility for untouched row-based producers/consumers outside Task 1.
 export type ScreenerMarketType = 'spot' | 'futures';
 
 export type ScreenerState =

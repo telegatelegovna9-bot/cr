@@ -1,3 +1,29 @@
+import type {
+  ScreenerDetectorType,
+  ScreenerEvent,
+  ScreenerEventsResponse,
+  ScreenerMode,
+  ScreenerPromotionTier,
+  ScreenerStrengthTier,
+} from '@crypto-screener/shared';
+
+export type {
+  ScreenerDetectorType,
+  ScreenerEvent,
+  ScreenerEventsResponse,
+  ScreenerMode,
+  ScreenerPromotionTier,
+  ScreenerStrengthTier,
+};
+
+export function parseScreenerMode(value: string): ScreenerMode {
+  const normalizedValue = value.trim();
+  return normalizedValue === 'spot' || normalizedValue === 'futures' || normalizedValue === 'best-setups'
+    ? normalizedValue
+    : 'best-setups';
+}
+
+// Temporary compatibility for untouched row-based UI code outside Task 1.
 export type ScreenerMarketType = 'spot' | 'futures';
 
 export type ScreenerState =
