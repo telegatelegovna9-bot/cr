@@ -14,6 +14,10 @@ export class WebSocketService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     this.subscriber = this.db.createSubscriber();
+    if (!this.subscriber) {
+      this.logger.warn('Redis Pub/Sub unavailable, WebSocket relay disabled');
+      return;
+    }
     
     // Subscribe to Redis channels for relay
     this.subscriber.subscribe('ticker', 'candle', 'orderbook', 'trade', 'alert', 'pattern');

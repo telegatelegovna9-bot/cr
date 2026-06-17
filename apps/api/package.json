@@ -5,8 +5,8 @@
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
-    "start": "node dist/main",
-    "start:prod": "node dist/main",
+    "start": "node start.cjs",
+    "start:prod": "node start.cjs",
     "test": "node test-runner.cjs",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "db:migrate": "ts-node src/database/migrate.ts",

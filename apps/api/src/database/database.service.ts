@@ -4,65 +4,90 @@ import Redis from 'ioredis';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
-  private pool!: Pool;
-  private redis!: Redis;
+  private pool: Pool | null = null;
+  private redis: Redis | null = null;
 
   async onModuleInit() {
-    // PostgreSQL
-    this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-    });
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+    if (databaseUrl) {
+      this.pool = new Pool({
+        connectionString: databaseUrl,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      });
+    } else {
+      console.warn('[DatabaseService] DATABASE_URL not set, running without PostgreSQL');
+    }
 
-    // Redis
-    this.redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-      maxRetriesPerRequest: 3,
-      retryStrategy: (times) => Math.min(times * 500, 5000),
-    });
+    const redisUrl = process.env.REDIS_URL?.trim();
+    if (redisUrl) {
+      this.redis = this.createRedisClient(redisUrl);
+    }
 
-    // Run migrations
-    await this.runMigrations();
+    if (this.pool) {
+      await this.runMigrations();
+    }
     console.log('✅ Database connected and migrated');
   }
 
   async onModuleDestroy() {
-    await this.pool.end();
-    this.redis.disconnect();
+    await this.pool?.end();
+    this.redis?.disconnect();
   }
 
   async query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
+    if (!this.pool) {
+      throw new Error('Database unavailable');
+    }
     return this.pool.query<T>(text, params);
   }
 
-  getRedis(): Redis {
+  getRedis(): Redis | null {
     return this.redis;
   }
 
   // Cache helpers
   async cacheGet<T>(key: string): Promise<T | null> {
+    if (!this.redis) return null;
     const data = await this.redis.get(key);
     return data ? JSON.parse(data) : null;
   }
 
   async cacheSet(key: string, value: unknown, ttlSeconds = 60): Promise<void> {
+    if (!this.redis) return;
     await this.redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
   }
 
   async cacheDel(key: string): Promise<void> {
+    if (!this.redis) return;
     await this.redis.del(key);
   }
 
   // Pub/Sub helpers
   async publish(channel: string, message: unknown): Promise<void> {
+    if (!this.redis) return;
     await this.redis.publish(channel, JSON.stringify(message));
   }
 
-  createSubscriber(): Redis {
-    return new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  createSubscriber(): Redis | null {
+    const redisUrl = process.env.REDIS_URL?.trim();
+    if (!redisUrl) return null;
+
+    return new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
     });
+  }
+
+  private createRedisClient(redisUrl: string): Redis {
+    const client = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      retryStrategy: times => Math.min(times * 500, 5000),
+    });
+    client.on('error', error => {
+      console.warn(`[DatabaseService] Redis error: ${error.message}`);
+    });
+    return client;
   }
 
   private async runMigrations() {

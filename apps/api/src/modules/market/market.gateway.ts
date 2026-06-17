@@ -49,6 +49,11 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Listen for global alerts from Redis
     const subscriber = this.db.createSubscriber();
+    if (!subscriber) {
+      this.logger.warn('Redis alert relay unavailable');
+      return;
+    }
+
     subscriber.subscribe('alert');
     subscriber.on('message', (channel, message) => {
       if (channel === 'alert') {
