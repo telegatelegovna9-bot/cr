@@ -3,7 +3,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { marketApi, screenerApi, alertsApi, patternsApi } from '@/lib/api';
+import { marketApi, alertsApi } from '@/lib/api';
 
 export function useTickers(exchange?: string) {
   return useQuery({
@@ -69,14 +69,6 @@ export function useExchanges() {
   });
 }
 
-export function useScreener(filters: unknown) {
-  return useQuery({
-    queryKey: ['screener', filters],
-    queryFn: () => screenerApi.scan(filters),
-    select: (data) => ({ results: data.results, total: data.total }),
-  });
-}
-
 export function useAlerts(params?: { type?: string; symbol?: string }) {
   return useQuery({
     queryKey: ['alerts', params],
@@ -91,15 +83,6 @@ export function useRecentAlerts(limit = 50) {
     queryKey: ['recent-alerts', limit],
     queryFn: () => alertsApi.getRecent(limit),
     refetchInterval: 3000,
-    select: (data) => data.data,
-  });
-}
-
-export function usePatterns(params?: { symbol?: string; type?: string }) {
-  return useQuery({
-    queryKey: ['patterns', params],
-    queryFn: () => patternsApi.getPatterns(params),
-    refetchInterval: 30000,
     select: (data) => data.data,
   });
 }

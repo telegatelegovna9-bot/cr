@@ -67,22 +67,6 @@ export const marketApi = {
     fetchApi<{ success: boolean; data: { all: string[]; connected: string[] } }>('/market/exchanges'),
 };
 
-// Screener API
-export const screenerApi = {
-  scan: (body: unknown) =>
-    fetchApi<{ success: boolean; results: any[]; total: number }>('/screener/scan', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-
-  quick: (preset: string, exchange?: string) => {
-    const params = new URLSearchParams();
-    params.set('preset', preset);
-    if (exchange) params.set('exchange', exchange);
-    return fetchApi<{ success: boolean; results: any[]; total: number }>(`/screener/quick?${params}`);
-  },
-};
-
 // Alerts API
 export const alertsApi = {
   getAlerts: (params?: { type?: string; symbol?: string; limit?: number }) => {
@@ -113,49 +97,6 @@ export const alertsApi = {
 
   unregisterSignal: (id: string) =>
     fetchApi<{ success: boolean }>(`/alerts/signals/${id}`, { method: 'DELETE' }),
-};
-
-// Patterns API
-export const patternsApi = {
-  getPatterns: async (params?: {
-    search?: string;
-    kinds?: string;
-    timeframes?: string;
-    statuses?: string;
-    cursor?: number;
-    symbol?: string;
-    type?: string;
-    timeframe?: string;
-    status?: string;
-  }) => {
-    const searchParams = new URLSearchParams();
-
-    const search = params?.search ?? params?.symbol;
-    const kinds = params?.kinds ?? params?.type;
-    const timeframes = params?.timeframes ?? params?.timeframe;
-    const statuses = params?.statuses ?? params?.status;
-
-    if (search) searchParams.set('search', search);
-    if (kinds) searchParams.set('kinds', kinds);
-    if (timeframes) searchParams.set('timeframes', timeframes);
-    if (statuses) searchParams.set('statuses', statuses);
-    if (params?.cursor !== undefined) searchParams.set('cursor', String(params.cursor));
-
-    const response = await fetchApi<{
-      success: boolean;
-      items: any[];
-      hasMore: boolean;
-      nextCursor: number | null;
-    }>(`/api/patterns?${searchParams}`);
-
-    return {
-      ...response,
-      data: response.items,
-    };
-  },
-
-  getPattern: (id: string) =>
-    fetchApi<{ success: boolean; data: any | null }>(`/api/patterns/${id}`),
 };
 
 // Auth API

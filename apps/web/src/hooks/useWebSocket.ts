@@ -116,9 +116,6 @@ function handleSocketMessage(event: { data: string }) {
         });
         break;
       }
-      case 'pattern':
-        useUIStore.getState().addPattern(data);
-        break;
       default:
         break;
     }

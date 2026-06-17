@@ -20,7 +20,7 @@ export class WebSocketService implements OnModuleInit, OnModuleDestroy {
     }
     
     // Subscribe to Redis channels for relay
-    this.subscriber.subscribe('ticker', 'candle', 'orderbook', 'trade', 'alert', 'pattern');
+    this.subscriber.subscribe('ticker', 'candle', 'orderbook', 'trade', 'alert');
     
     this.subscriber.on('message', (channel: string, message: string) => {
       try {

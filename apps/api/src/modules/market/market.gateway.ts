@@ -43,7 +43,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Inject(forwardRef(() => MarketService)) private readonly marketService: MarketService,
   ) {
     // Initialize channel maps
-    ['ticker', 'candle', 'orderbook', 'trade', 'alert', 'pattern', 'signal_alert'].forEach(ch => {
+    ['ticker', 'candle', 'orderbook', 'trade', 'alert', 'signal_alert'].forEach(ch => {
       this.channelSubscriptions.set(ch, new Map());
     });
 

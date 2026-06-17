@@ -25,14 +25,6 @@ import {
   savePersistedSignalPreferences,
   type SignalNotificationThreshold,
 } from '@/lib/signals/preferences';
-import type { PatternFilters, PatternsUIState } from '@/lib/patterns/models';
-import {
-  DEFAULT_PATTERNS_UI_STATE,
-} from '@/lib/patterns/models';
-import {
-  loadPersistedPatternsUIState,
-  savePersistedPatternsUIState,
-} from '@/lib/patterns/persistence';
 import type {
   AnyDrawing,
   DrawingOperationEvent,
@@ -224,17 +216,6 @@ function persistSelectedTimeframe(timeframe: Timeframe): Timeframe {
   if (typeof window === 'undefined') return timeframe;
   savePersistedMarketPreferences(window.localStorage, { selectedTimeframe: timeframe });
   return timeframe;
-}
-
-function getInitialPatternsUIState(): PatternsUIState {
-  if (typeof window === 'undefined') return DEFAULT_PATTERNS_UI_STATE;
-  return loadPersistedPatternsUIState(window.localStorage);
-}
-
-function persistPatternsUIState(patternsUI: PatternsUIState): PatternsUIState {
-  if (typeof window === 'undefined') return patternsUI;
-  savePersistedPatternsUIState(window.localStorage, patternsUI);
-  return patternsUI;
 }
 
 interface DrawingStore {
@@ -483,10 +464,8 @@ interface UIStore {
   settingsOpen: boolean;
   alerts: Alert[];
   unreadAlertCount: number;
-  patterns: any[];
   heatmapSettings: HeatmapSettings;
   personalGrid: PersonalGridState;
-  patternsUI: PatternsUIState;
 
   setViewMode: (mode: ViewMode) => void;
   toggleSidebar: () => void;
@@ -500,12 +479,7 @@ interface UIStore {
   markAlertRead: (id: string) => void;
   markAllAlertsRead: () => void;
   setAlerts: (alerts: Alert[]) => void;
-  setPatterns: (patterns: any[]) => void;
-  addPattern: (pattern: any) => void;
   setHeatmapSettings: (patch: Partial<HeatmapSettings>) => void;
-  setPatternsSearch: (search: string) => void;
-  setPatternsFilters: (filters: PatternFilters) => void;
-  setSelectedPatternId: (patternId: string | null) => void;
   setPersonalGridLayout: (layout: PersonalGridLayout) => void;
   setPersonalGridSlot: (
     slotId: string,
@@ -529,10 +503,8 @@ export const useUIStore = create<UIStore>((set) => ({
   settingsOpen: true,
   alerts: [],
   unreadAlertCount: 0,
-  patterns: [],
   heatmapSettings: DEFAULT_HEATMAP_SETTINGS,
   personalGrid: getInitialPersonalGridState(),
-  patternsUI: getInitialPatternsUIState(),
 
   setViewMode: (mode) => set({ viewMode: mode }),
   toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
@@ -545,27 +517,6 @@ export const useUIStore = create<UIStore>((set) => ({
   setHeatmapSettings: (patch) => set(state => ({
     heatmapSettings: { ...state.heatmapSettings, ...patch },
   })),
-  setPatternsSearch: (search) =>
-    set(state => ({
-      patternsUI: persistPatternsUIState({
-        ...state.patternsUI,
-        search,
-      }),
-    })),
-  setPatternsFilters: (filters) =>
-    set(state => ({
-      patternsUI: persistPatternsUIState({
-        ...state.patternsUI,
-        filters,
-      }),
-    })),
-  setSelectedPatternId: (patternId) =>
-    set(state => ({
-      patternsUI: persistPatternsUIState({
-        ...state.patternsUI,
-        selectedPatternId: patternId,
-      }),
-    })),
 
   addAlert: (alert) => set(state => ({
     alerts: [alert, ...state.alerts].slice(0, 200),
@@ -583,10 +534,6 @@ export const useUIStore = create<UIStore>((set) => ({
     alerts,
     unreadAlertCount: alerts.filter(a => !a.read).length,
   }),
-  setPatterns: (patterns) => set({ patterns }),
-  addPattern: (pattern) => set(state => ({
-    patterns: [pattern, ...state.patterns].slice(0, 200),
-  })),
   setPersonalGridLayout: (layout) =>
     set(state => ({
       personalGrid: persistPersonalGridState({
