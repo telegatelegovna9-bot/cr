@@ -1,8 +1,10 @@
 import type { ScreenerEvent } from '@crypto-screener/shared';
 import {
   SCREENER_BREAKOUT_MIN_PCT,
+  SCREENER_BREAKOUT_WATCH_MIN_PCT,
   SCREENER_BREAKOUT_RETENTION_MS,
   SCREENER_VOLUME_SPIKE_MIN_RATIO,
+  SCREENER_VOLUME_SPIKE_WATCH_RATIO,
 } from '../screener.config';
 
 export interface SpotBreakoutPressureDetectorInput {
@@ -22,13 +24,25 @@ export interface SpotBreakoutPressureDetectorInput {
 export class SpotBreakoutPressureDetector {
   detect(input: SpotBreakoutPressureDetectorInput): ScreenerEvent[] {
     if (!input.breakoutDirection || input.breakoutReferencePrice === null) return [];
-    if (input.compressionPct > SCREENER_BREAKOUT_MIN_PCT) return [];
-    if (Math.abs(input.priceChange5m) < SCREENER_BREAKOUT_MIN_PCT) return [];
-    if (input.volumeSpikeRatio < SCREENER_VOLUME_SPIKE_MIN_RATIO) return [];
-    if (input.breakoutRetentionMs < SCREENER_BREAKOUT_RETENTION_MS) return [];
+
+    const strongBreakout =
+      input.compressionPct <= SCREENER_BREAKOUT_MIN_PCT
+      && Math.abs(input.priceChange5m) >= SCREENER_BREAKOUT_MIN_PCT
+      && input.volumeSpikeRatio >= SCREENER_VOLUME_SPIKE_MIN_RATIO
+      && input.breakoutRetentionMs >= SCREENER_BREAKOUT_RETENTION_MS;
+
+    const watchBreakout =
+      input.compressionPct <= SCREENER_BREAKOUT_MIN_PCT + 1.5
+      && Math.abs(input.priceChange5m) >= SCREENER_BREAKOUT_WATCH_MIN_PCT
+      && input.volumeSpikeRatio >= SCREENER_VOLUME_SPIKE_WATCH_RATIO
+      && input.breakoutRetentionMs >= 30_000;
+
+    if (!strongBreakout && !watchBreakout) return [];
 
     const promotionTier =
-      input.volumeSpikeRatio >= SCREENER_VOLUME_SPIKE_MIN_RATIO + 1
+      !strongBreakout
+        ? 'watch'
+        : input.volumeSpikeRatio >= SCREENER_VOLUME_SPIKE_MIN_RATIO + 1
         ? 'rare'
         : 'actionable';
     const directionLabel = input.breakoutDirection === 'up' ? 'upside' : 'downside';
@@ -45,7 +59,12 @@ export class SpotBreakoutPressureDetector {
         marketMode: 'spot',
         detectorType: 'spot-breakout-pressure',
         promotionTier,
-        strengthTier: promotionTier === 'rare' ? 'event-live' : 'actionable',
+        strengthTier:
+          promotionTier === 'rare'
+            ? 'event-live'
+            : promotionTier === 'actionable'
+              ? 'actionable'
+              : 'watching',
         headline: `${input.symbol} breakout pressure on ${input.primaryExchange}`,
         reason: `${directionLabel} break is holding after compression with ${input.volumeSpikeRatio.toFixed(1)}x rolling volume.`,
         riskNote: `Needs to hold ${holdLabel} ${input.breakoutReferencePrice.toFixed(4)} or the breakout can fade quickly.`,

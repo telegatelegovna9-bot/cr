@@ -1,5 +1,8 @@
 import type { ScreenerEvent } from '@crypto-screener/shared';
-import { SCREENER_OI_BUILD_MIN_PCT } from '../screener.config';
+import {
+  SCREENER_OI_BUILD_MIN_PCT,
+  SCREENER_OI_BUILD_WATCH_PCT,
+} from '../screener.config';
 
 export interface FuturesOiBuildDetectorInput {
   symbol: string;
@@ -15,11 +18,20 @@ export interface FuturesOiBuildDetectorInput {
 export class FuturesOiBuildDetector {
   detect(input: FuturesOiBuildDetectorInput): ScreenerEvent[] {
     if (input.openInterestNow === null || input.openInterestChangePct === null) return [];
-    if (input.openInterestChangePct < SCREENER_OI_BUILD_MIN_PCT) return [];
-    if (Math.abs(input.priceChange5m) < 1) return [];
+
+    const strongBuild =
+      input.openInterestChangePct >= SCREENER_OI_BUILD_MIN_PCT
+      && Math.abs(input.priceChange5m) >= 1;
+    const watchBuild =
+      input.openInterestChangePct >= SCREENER_OI_BUILD_WATCH_PCT
+      && Math.abs(input.priceChange5m) >= 0.5;
+
+    if (!strongBuild && !watchBuild) return [];
 
     const promotionTier =
-      input.openInterestChangePct >= SCREENER_OI_BUILD_MIN_PCT * 2 && input.volumeSpikeRatio >= 2
+      !strongBuild
+        ? 'watch'
+        : input.openInterestChangePct >= SCREENER_OI_BUILD_MIN_PCT * 2 && input.volumeSpikeRatio >= 2
         ? 'rare'
         : 'actionable';
     const directionLabel = input.priceChange5m >= 0 ? 'long build pressure' : 'short build pressure';
@@ -31,7 +43,12 @@ export class FuturesOiBuildDetector {
         marketMode: 'futures',
         detectorType: 'futures-oi-build',
         promotionTier,
-        strengthTier: promotionTier === 'rare' ? 'event-live' : 'actionable',
+        strengthTier:
+          promotionTier === 'rare'
+            ? 'event-live'
+            : promotionTier === 'actionable'
+              ? 'actionable'
+              : 'watching',
         headline: `${input.symbol} futures OI build`,
         reason: `Open interest is up ${input.openInterestChangePct.toFixed(1)}% while price is showing ${directionLabel}.`,
         riskNote: 'If open interest stalls or reverses, the build can unwind quickly.',

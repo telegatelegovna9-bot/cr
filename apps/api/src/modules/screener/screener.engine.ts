@@ -236,10 +236,13 @@ export class ScreenerEngine {
       ...spotContexts.flatMap(context => this.detectSpotEvents(context)),
       ...futuresContexts.flatMap(context => this.detectFuturesEvents(context)),
     ];
-    const bestSetups = this.mergeBestSetupDuplicates(
-      candidates.filter(event => event.promotionTier === 'rare' || event.promotionTier === 'actionable'),
-    )
-      .filter(event => event.promotionTier === 'rare' || event.promotionTier === 'actionable')
+    const promotedCandidates = candidates.filter(
+      event => event.promotionTier === 'rare' || event.promotionTier === 'actionable',
+    );
+    const bestSetupSource = promotedCandidates.length > 0
+      ? promotedCandidates
+      : candidates.filter(event => event.promotionTier === 'watch');
+    const bestSetups = this.mergeBestSetupDuplicates(bestSetupSource)
       .sort(comparePromotedEvents)
       .slice(0, SCREENER_BEST_SETUPS_LIMIT);
 

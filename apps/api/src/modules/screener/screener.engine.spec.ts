@@ -297,6 +297,70 @@ function makeEngineWithFuturesSqueezeFixture() {
   return { engine, now };
 }
 
+function makeEngineWithWatchOnlyFixture() {
+  const store = new ScreenerStore();
+  const engine = new ScreenerEngine(store);
+  const now = 10_000_000;
+  const symbol = 'LINK/USDT';
+
+  const binanceSeries = [
+    { timestamp: now - 6 * 60_000, lastPrice: 100.0, quoteVolume24h: 100_000 },
+    { timestamp: now - 5 * 60_000, lastPrice: 100.4, quoteVolume24h: 102_000 },
+    { timestamp: now - 4 * 60_000, lastPrice: 99.8, quoteVolume24h: 104_000 },
+    { timestamp: now - 3 * 60_000, lastPrice: 100.1, quoteVolume24h: 106_000 },
+    { timestamp: now - 90_000, lastPrice: 101.6, quoteVolume24h: 110_000 },
+    { timestamp: now - 45_000, lastPrice: 101.8, quoteVolume24h: 113_000 },
+    { timestamp: now, lastPrice: 102.0, quoteVolume24h: 116_000 },
+  ];
+  const okxSeries = [
+    { timestamp: now - 30_000, lastPrice: 101.7, quoteVolume24h: 80_000 },
+  ];
+  const bybitSeries = [
+    { timestamp: now, lastPrice: 101.55, quoteVolume24h: 78_000 },
+  ];
+
+  for (const sample of binanceSeries) {
+    store.recordTicker(
+      makeTicker({
+        exchange: 'binance',
+        marketType: 'spot',
+        symbol,
+        lastPrice: sample.lastPrice,
+        quoteVolume24h: sample.quoteVolume24h,
+      }),
+      sample.timestamp,
+    );
+  }
+
+  for (const sample of okxSeries) {
+    store.recordTicker(
+      makeTicker({
+        exchange: 'okx',
+        marketType: 'spot',
+        symbol,
+        lastPrice: sample.lastPrice,
+        quoteVolume24h: sample.quoteVolume24h,
+      }),
+      sample.timestamp,
+    );
+  }
+
+  for (const sample of bybitSeries) {
+    store.recordTicker(
+      makeTicker({
+        exchange: 'bybit',
+        marketType: 'spot',
+        symbol,
+        lastPrice: sample.lastPrice,
+        quoteVolume24h: sample.quoteVolume24h,
+      }),
+      sample.timestamp,
+    );
+  }
+
+  return { engine, now };
+}
+
 function makeEngineWithStaleFuturesContextFixture() {
   const store = new ScreenerStore();
   const engine = new ScreenerEngine(store);
@@ -498,6 +562,25 @@ async function runTest() {
   }
 
   {
+    const event = new SpotBreakoutPressureDetector().detect({
+      symbol: 'BTC/USDT',
+      primaryExchange: 'binance',
+      lastPrice: 101.9,
+      updatedAt: 1_000,
+      priceChange5m: 1.9,
+      volumeSpikeRatio: 1.5,
+      volumeNow: 8_000,
+      compressionPct: 2.3,
+      breakoutRetentionMs: 45_000,
+      breakoutDirection: 'up',
+      breakoutReferencePrice: 100.8,
+    })[0];
+
+    assert.equal(event?.promotionTier, 'watch');
+    assert.equal(event?.strengthTier, 'watching');
+  }
+
+  {
     const { engine, now } = makeEngineWithBreakoutFixture();
     const snapshot = engine.build(now) as unknown as EventSnapshot;
 
@@ -576,6 +659,15 @@ async function runTest() {
       ),
       true,
     );
+  }
+
+  {
+    const { engine, now } = makeEngineWithWatchOnlyFixture();
+    const snapshot = engine.build(now) as unknown as EventSnapshot;
+
+    assert.equal(snapshot.bestSetups.length > 0, true);
+    assert.equal(snapshot.bestSetups.every(event => event.promotionTier === 'watch'), true);
+    assert.equal(snapshot.spotEvents.some(event => event.symbol === 'LINK/USDT'), true);
   }
 
   {
