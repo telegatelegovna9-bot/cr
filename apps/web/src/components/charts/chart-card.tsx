@@ -24,6 +24,7 @@ import {
   detectMissingCandleRange,
   getInitialHistoryBackfillEndTime,
   mergeChartHistory,
+  preserveViewportAfterPrepend,
   shouldRefreshLatestHistoryOnResume,
   shouldBackfillInitialHistory,
 } from './chart-history';
@@ -57,7 +58,6 @@ const SCROLL_HISTORY_BATCH_LIMIT = 300;
 const MAX_SCROLL_HISTORY_BATCHES = 3;
 const MAX_CHART_CANDLES = 20000;
 const LEFT_EDGE_LOAD_THRESHOLD = 30;
-const POST_BACKFILL_LEFT_BUFFER = LEFT_EDGE_LOAD_THRESHOLD + 2;
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 const chartHistoryCache = new Map<string, any[]>();
@@ -984,19 +984,19 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
             const firstMergedTime = allRawRef.current[0]?.time || allRawRef.current[0]?.timestamp;
             if (firstMergedTime) oldestTimeRef.current = firstMergedTime / 1000;
             if (previousRange) {
-              const addedBars = candles.length - previousLength;
-              const visibleBars = Math.max(10, previousRange.to - previousRange.from);
-              const userWasAtLeftEdge = previousRange.from <= LEFT_EDGE_LOAD_THRESHOLD;
-              const targetFrom = userWasAtLeftEdge
-                ? POST_BACKFILL_LEFT_BUFFER
-                : previousRange.from + addedBars;
-              suppressNextRangeChangeRef.current = true;
-              try {
-                chart.timeScale().setVisibleLogicalRange({
-                  from: targetFrom,
-                  to: targetFrom + visibleBars,
-                });
-              } catch { /* chart transitioning */ }
+              const nextRange = preserveViewportAfterPrepend(
+                previousRange,
+                candles.length - previousLength,
+              );
+              if (nextRange) {
+                suppressNextRangeChangeRef.current = true;
+                try {
+                  chart.timeScale().setVisibleLogicalRange({
+                    from: nextRange.from,
+                    to: nextRange.to,
+                  });
+                } catch { /* chart transitioning */ }
+              }
             }
           }
         } catch { /* silent */ }

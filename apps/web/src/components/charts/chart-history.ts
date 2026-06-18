@@ -3,6 +3,11 @@ type RawCandle = {
   timestamp?: number;
 };
 
+type LogicalRange = {
+  from: number;
+  to: number;
+};
+
 function candleTime(candle: RawCandle): number | null {
   const time = candle.time ?? candle.timestamp;
   return typeof time === 'number' && Number.isFinite(time) ? time : null;
@@ -119,6 +124,25 @@ export function shouldStartFreshHistorySession(params: {
   if (previousExchange !== exchange) return true;
 
   return false;
+}
+
+export function preserveViewportAfterPrepend(
+  previousRange: LogicalRange | null | undefined,
+  addedBars: number,
+): LogicalRange | null {
+  if (!previousRange) return null;
+  if (!Number.isFinite(previousRange.from) || !Number.isFinite(previousRange.to)) return null;
+  if (!Number.isFinite(addedBars) || addedBars <= 0) {
+    return {
+      from: previousRange.from,
+      to: previousRange.to,
+    };
+  }
+
+  return {
+    from: previousRange.from + addedBars,
+    to: previousRange.to + addedBars,
+  };
 }
 
 function getTimeframeDurationMs(timeframe: string): number {

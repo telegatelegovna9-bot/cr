@@ -4,8 +4,9 @@ import {
   detectMissingCandleRange,
   getInitialHistoryBackfillEndTime,
   mergeChartHistory,
+  preserveViewportAfterPrepend,
   shouldBackfillInitialHistory,
-} from './chart-history';
+} from './chart-history.ts';
 
 test('requests initial backfill when only a live candle was seeded', () => {
   const liveOnly = [{ time: 1_000_000, open: 1, high: 2, low: 1, close: 2, volume: 10 }];
@@ -62,5 +63,29 @@ test('detects missing candle range when incoming candle jumps forward by multipl
     startTime: 1_020_000,
     endTime: 1_139_999,
     missingBuckets: 2,
+  });
+});
+
+test('preserves exact viewport after prepending candles during left-edge backfill', () => {
+  const nextRange = preserveViewportAfterPrepend(
+    { from: 8.25, to: 108.25 },
+    300,
+  );
+
+  assert.deepEqual(nextRange, {
+    from: 308.25,
+    to: 408.25,
+  });
+});
+
+test('keeps existing viewport when prepend added no candles', () => {
+  const nextRange = preserveViewportAfterPrepend(
+    { from: 12, to: 112 },
+    0,
+  );
+
+  assert.deepEqual(nextRange, {
+    from: 12,
+    to: 112,
   });
 });
