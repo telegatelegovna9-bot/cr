@@ -135,7 +135,11 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
 
   getTicker: (symbol, exchange, marketType) => {
     if (marketType) {
-      return get().tickers.get(`${exchange}:${marketType}:${symbol}`);
+      const exact = get().tickers.get(`${exchange}:${marketType}:${symbol}`);
+      if (exact) return exact;
+      return get().tickersList.find(
+        ticker => ticker.exchange === exchange && ticker.marketType === marketType && ticker.symbol === symbol,
+      );
     }
     return get().tickersList.find(ticker => ticker.exchange === exchange && ticker.symbol === symbol);
   },
