@@ -12,6 +12,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { formatPrice, getChartPriceFormat } from '@/lib/format';
 import { formatDisplaySymbol, formatMarketTypeLabel, getDisplayBaseSymbol } from '@/lib/display-symbol';
 import { findPreferredOrderbook } from '@/lib/orderbook-identity';
+import { getHeatmapPriceStep, resolveHeatmapReferencePrice } from '@/lib/heatmap-price';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
@@ -230,7 +231,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const chartGridSize = useUIStore(state => state.chartGridSize);
   const ticker = useMarketStore(state => {
     for (const candidate of symbolLookupCandidates) {
-      const nextTicker = state.getTicker(candidate, exchange);
+      const nextTicker = state.getTicker(candidate, exchange, marketType);
       if (nextTicker) return nextTicker;
     }
     return undefined;
@@ -323,7 +324,10 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const heatmapSettingsRef = useRef(heatmapSettings);
   heatmapSettingsRef.current = heatmapSettings;
   const heatmapPriceRef = useRef(0);
-  heatmapPriceRef.current = ticker?.lastPrice ?? currentPrice ?? 0;
+  heatmapPriceRef.current = resolveHeatmapReferencePrice({
+    tickerPrice: ticker?.lastPrice,
+    candlePrice: currentPrice,
+  });
 
   // ─── Heatmap: LiquidityEngine + canvas overlay ──────────────────
   const orderbook = useOrderbookStore(state => {
@@ -336,20 +340,24 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     if (!showHeatmap || !orderbook) return;
 
     if (!heatmapEngineRef.current) {
-      const engine = new LiquidityEngine();
-      const px = heatmapPriceRef.current || 1;
-      const step = px > 10000 ? 10 : px > 1000 ? 1 : px > 100 ? 0.1 : px > 1 ? 0.01 : 0.0001;
-      engine.setPriceStep(step);
-      heatmapEngineRef.current = engine;
+      heatmapEngineRef.current = new LiquidityEngine();
     }
+
+    const referencePrice = resolveHeatmapReferencePrice({
+      tickerPrice: ticker?.lastPrice,
+      candlePrice: currentPrice,
+      orderbook,
+    });
+    heatmapPriceRef.current = referencePrice;
+    heatmapEngineRef.current.setPriceStep(getHeatmapPriceStep(referencePrice));
 
     heatmapEngineRef.current.addUpdate(
       orderbook.bids,
       orderbook.asks,
-      heatmapPriceRef.current,
+      referencePrice,
     );
     heatmapDirtyRef.current = true;
-  }, [orderbook, showHeatmap]); // no ticker/currentPrice — read from ref
+  }, [currentPrice, orderbook, showHeatmap, ticker?.lastPrice]);
 
   // Clear engine when heatmap is toggled off; init canvas size when turned on
   useEffect(() => {

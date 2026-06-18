@@ -221,8 +221,8 @@ export function CoinList() {
     });
 
     filtered.sort((a, b) => {
-      const ta = getTicker(a, selectedExchange);
-      const tb = getTicker(b, selectedExchange);
+        const ta = getTicker(a, selectedExchange, marketType);
+        const tb = getTicker(b, selectedExchange, marketType);
       const getVal = (sym: string, t: any) => {
         switch (sort.key) {
           case 'symbol':  return sym;
@@ -338,7 +338,7 @@ export function CoinList() {
           {sortedSymbols.map((symbol) => {
             const base = symbol.split('/')[0];
             const meta = getCoinMeta(base);
-            const ticker = getTicker(symbol, selectedExchange);
+              const ticker = getTicker(symbol, selectedExchange, marketType);
             const isPositive = (ticker?.priceChangePercent24h ?? 0) >= 0;
             const prevPrice = prevPrices.get(symbol);
             const priceChanged = ticker && prevPrice && ticker.lastPrice !== prevPrice;

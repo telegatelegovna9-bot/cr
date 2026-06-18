@@ -39,6 +39,10 @@ function candleMapKey(candle: { exchange: string; marketType?: string; symbol: s
   return `${candle.exchange}:${candle.marketType ?? 'spot'}:${candle.symbol}:${candle.timeframe}`;
 }
 
+function tickerMapKey(ticker: { exchange: string; marketType?: string; symbol: string }): string {
+  return `${ticker.exchange}:${ticker.marketType ?? 'spot'}:${ticker.symbol}`;
+}
+
 interface MarketStore {
   tickers: Map<string, Ticker>;
   tickersList: Ticker[];
@@ -59,7 +63,7 @@ interface MarketStore {
   setSelectedTimeframe: (timeframe: Timeframe) => void;
   setConnectedExchanges: (exchanges: ExchangeId[]) => void;
   setSelectedCoin: (coin: string | null) => void;
-  getTicker: (symbol: string, exchange: string) => Ticker | undefined;
+  getTicker: (symbol: string, exchange: string, marketType?: 'spot' | 'futures') => Ticker | undefined;
   getTickersArray: () => Ticker[];
 }
 
@@ -76,14 +80,14 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
 
   setTickers: (tickers) => {
     const map = new Map<string, Ticker>();
-    tickers.forEach(t => map.set(`${t.exchange}:${t.symbol}`, t));
+    tickers.forEach(t => map.set(tickerMapKey(t), t));
     set({ tickers: map, tickersList: tickers, tickersLoaded: true });
   },
 
-  updateTicker: (ticker) => {
+    updateTicker: (ticker) => {
     set(state => {
       const newMap = new Map(state.tickers);
-      newMap.set(`${ticker.exchange}:${ticker.symbol}`, ticker);
+      newMap.set(tickerMapKey(ticker), ticker);
       const nextList = [...state.tickersList];
       const listIndex = nextList.findIndex(
         current =>
@@ -129,7 +133,12 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
   setConnectedExchanges: (exchanges) => set({ connectedExchanges: exchanges }),
   setSelectedCoin: (coin) => set({ selectedCoin: coin }),
 
-  getTicker: (symbol, exchange) => get().tickers.get(`${exchange}:${symbol}`),
+  getTicker: (symbol, exchange, marketType) => {
+    if (marketType) {
+      return get().tickers.get(`${exchange}:${marketType}:${symbol}`);
+    }
+    return get().tickersList.find(ticker => ticker.exchange === exchange && ticker.symbol === symbol);
+  },
   getTickersArray: () => get().tickersList,
 }));
 
