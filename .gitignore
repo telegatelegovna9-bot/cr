@@ -38,3 +38,6 @@ coverage/
 # Temporary
 tmp/
 temp/
+.tmp/
+.firecrawl/
+.understand-anything/
