@@ -5,7 +5,6 @@
 import { useEffect } from 'react';
 import {
   useAlertStore,
-  useDrawingStore,
   useMarketStore,
   useOrderbookStore,
   useUIStore,
@@ -57,63 +56,6 @@ function handleSocketMessage(event: { data: string }) {
         break;
       case 'alert': {
         useUIStore.getState().addAlert(data);
-        if (data.data?.signalId) {
-          const drawingStore = useDrawingStore.getState();
-          const drawing = drawingStore.byId[data.data.signalId];
-          if (drawing?.kind === 'signal_level') {
-            drawingStore.upsertDrawing({
-              ...drawing,
-              triggered: true,
-              triggeredAt: data.createdAt || Date.now(),
-              armed: false,
-              updatedAt: Date.now(),
-            });
-          }
-        }
-        break;
-      }
-      case 'signal_alert': {
-        const signalConfig = useAlertStore.getState().config;
-        if (!signalConfig.marketSignalsEnabled || data.usdValue < signalConfig.marketSignalsMinUsd) {
-          break;
-        }
-
-        useUIStore.getState().addAlert({
-          id: `signal-history-${data.id}`,
-          type: 'market_signal',
-          priority: data.minUsdThreshold >= 500_000 ? 'high' : 'medium',
-          symbol: data.symbol,
-          exchange: data.exchange,
-          title: data.title,
-          message: data.body,
-          data: {
-            signalId: data.signalId,
-            minUsdThreshold: data.minUsdThreshold,
-            eventType: data.eventType,
-            side: data.side,
-            usdValue: data.usdValue,
-            venues: data.exchangesInvolved,
-          },
-          read: false,
-          createdAt: data.timestamp,
-        });
-
-        useAlertStore.getState().addTriggeredAlert({
-          id: `signal-toast-${data.id}`,
-          alertId: data.signalId,
-          symbol: data.symbol,
-          alert: {
-            type: 'market_signal',
-            condition: data.title,
-            value: data.usdValue,
-          },
-          currentPrice: data.price,
-          triggeredAt: data.timestamp,
-          exchange: data.exchange,
-          message: data.body,
-          eventType: data.eventType,
-          venues: data.exchangesInvolved,
-        });
         break;
       }
       default:
@@ -193,26 +135,11 @@ function toManagedSubscription(
 export function useWebSocket() {
   const manager = getSharedManager();
   const connected = useWSStore(state => state.connected);
-  const signalConfig = useAlertStore(state => state.config);
 
   useEffect(() => {
     attachLifecycleListeners(manager);
     manager.connect();
   }, [manager]);
-
-  useEffect(() => {
-    const signalSubscription = toManagedSubscription('binance', 'spot', '__signals__', undefined, 'signal_alert');
-
-    if (!signalConfig.marketSignalsEnabled) {
-      manager.unsubscribe(signalSubscription);
-      return;
-    }
-
-    manager.subscribe(signalSubscription);
-    return () => {
-      manager.unsubscribe(signalSubscription);
-    };
-  }, [manager, signalConfig.marketSignalsEnabled]);
 
   return {
     subscribe: (

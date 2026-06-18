@@ -21,7 +21,6 @@ const ALERT_ICONS: Record<string, string> = {
   price_cross: 'PX',
   pump: 'PMP',
   dump: 'DMP',
-  market_signal: 'SIG',
 };
 
 const ALERT_TYPES: { id: AlertType | 'all'; label: string }[] = [
@@ -32,7 +31,6 @@ const ALERT_TYPES: { id: AlertType | 'all'; label: string }[] = [
   { id: 'breakout', label: 'Breakouts' },
   { id: 'pump', label: 'Pumps' },
   { id: 'dump', label: 'Dumps' },
-  { id: 'market_signal', label: 'Signals' },
 ];
 
 export function AlertsPanel() {

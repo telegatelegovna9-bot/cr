@@ -32,10 +32,6 @@ function createService() {
     checkPriceSignals: () => undefined,
   };
 
-  const signalsService = {
-    ingest: () => undefined,
-  };
-
   const gateway = {
     broadcast: () => undefined,
   };
@@ -43,7 +39,6 @@ function createService() {
   const service = new MarketService(
     db as never,
     alertsService as never,
-    signalsService as never,
     gateway as never,
   );
   (service as any).exchangeManager = exchangeManager;

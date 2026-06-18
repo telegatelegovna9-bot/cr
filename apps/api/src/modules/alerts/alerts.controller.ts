@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { AlertsService, PriceSignal } from './alerts.service';
+import { AlertsService } from './alerts.service';
 import type { AlertType } from '@crypto-screener/shared';
 
 @ApiTags('Alerts')
@@ -30,20 +30,6 @@ export class AlertsController {
       offset: offset ? parseInt(offset) : 0,
     });
     return { success: true, ...result, timestamp: Date.now() };
-  }
-
-  @Post('signals')
-  @ApiOperation({ summary: 'Register a price signal' })
-  registerSignal(@Body() signal: PriceSignal) {
-    this.alertsService.registerSignal(signal);
-    return { success: true, timestamp: Date.now() };
-  }
-
-  @Delete('signals/:id')
-  @ApiOperation({ summary: 'Unregister a price signal' })
-  unregisterSignal(@Param('id') id: string) {
-    this.alertsService.unregisterSignal(id);
-    return { success: true, timestamp: Date.now() };
   }
 
   @Get('recent')

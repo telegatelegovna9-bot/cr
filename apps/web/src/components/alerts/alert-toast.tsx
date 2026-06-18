@@ -26,11 +26,6 @@ function getAlertColor(type: string) {
   return { bg: 'bg-accent/10', border: 'border-accent/20', text: 'text-accent-light', icon: 'AL' };
 }
 
-function formatMarketSignalType(type?: string): string {
-  if (!type) return 'Market signal';
-  return type.replace(/_/g, ' ');
-}
-
 function timeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
   if (seconds < 60) return `${seconds}s ago`;
@@ -81,13 +76,8 @@ export function AlertToast() {
       }
 
       if (config.browserNotifications && 'Notification' in window && Notification.permission === 'granted') {
-        const marketSignalBody =
-          alert.alert.type === 'market_signal'
-            ? `${formatMarketSignalType(alert.eventType)} on ${(alert.exchange ?? '').toUpperCase()} · $${formatPrice(alert.alert.value)} · ${alert.message ?? ''}`
-            : `Price: $${formatPrice(alert.currentPrice)} (${alert.alert.condition} $${formatPrice(alert.alert.value)})`;
-
         new Notification(`${formatDisplaySymbol(alert.symbol)} Alert`, {
-          body: marketSignalBody.trim(),
+          body: `Price: $${formatPrice(alert.currentPrice)} (${alert.alert.condition} $${formatPrice(alert.alert.value)})`,
           icon: '/favicon.ico',
         });
       }
@@ -127,49 +117,14 @@ export function AlertToast() {
               </div>
 
               <div className="flex items-center gap-4 text-xs">
-                {alert.alert.type === 'market_signal' ? (
-                  <div className="space-y-1.5 w-full">
-                    <div className="flex items-center gap-4 text-xs">
-                      <div>
-                        <span className="text-text-muted">Exchange: </span>
-                        <span className="font-bold text-text-primary uppercase">{alert.exchange ?? 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-text-muted">Type: </span>
-                        <span className="font-bold text-text-primary">{formatMarketSignalType(alert.eventType)}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs">
-                      <div>
-                        <span className="text-text-muted">Price: </span>
-                        <span className="font-bold font-mono text-text-primary">${formatPrice(alert.currentPrice)}</span>
-                      </div>
-                      <div>
-                        <span className="text-text-muted">Size: </span>
-                        <span className="font-bold font-mono text-text-primary">${formatPrice(alert.alert.value)}</span>
-                      </div>
-                    </div>
-                    {alert.venues && alert.venues.length > 1 ? (
-                      <div className="text-[11px] text-text-muted">
-                        Venues: {alert.venues.map(venue => venue.toUpperCase()).join(', ')}
-                      </div>
-                    ) : null}
-                    {alert.message ? (
-                      <div className="text-[11px] text-text-secondary leading-relaxed">{alert.message}</div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <span className="text-text-muted">Current: </span>
-                      <span className="font-bold font-mono text-text-primary">${formatPrice(alert.currentPrice)}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-muted">Target: </span>
-                      <span className="font-bold font-mono text-text-primary">${formatPrice(alert.alert.value)}</span>
-                    </div>
-                  </>
-                )}
+                <div>
+                  <span className="text-text-muted">Current: </span>
+                  <span className="font-bold font-mono text-text-primary">${formatPrice(alert.currentPrice)}</span>
+                </div>
+                <div>
+                  <span className="text-text-muted">Target: </span>
+                  <span className="font-bold font-mono text-text-primary">${formatPrice(alert.alert.value)}</span>
+                </div>
               </div>
 
               <div className="flex items-center justify-between mt-3">

@@ -12,6 +12,10 @@ const EMPTY_PERSISTED_DRAWINGS_STATE: PersistedDrawingsState = {
   drawings: [],
 };
 
+function filterLegacySignalLevels(drawings: AnyDrawing[]): AnyDrawing[] {
+  return drawings.filter(drawing => drawing.kind !== 'signal_level');
+}
+
 function isDrawingArray(value: unknown): value is AnyDrawing[] {
   if (!Array.isArray(value)) return false;
   return value.every(item => typeof item === 'object' && item !== null);
@@ -29,7 +33,7 @@ export function loadPersistedDrawings(storage: Pick<Storage, 'getItem'>): Persis
 
     return {
       version: 1,
-      drawings: parsed.drawings,
+      drawings: filterLegacySignalLevels(parsed.drawings),
     };
   } catch {
     return EMPTY_PERSISTED_DRAWINGS_STATE;
@@ -42,7 +46,7 @@ export function savePersistedDrawings(
 ): PersistedDrawingsState {
   const payload: PersistedDrawingsState = {
     version: 1,
-    drawings,
+    drawings: filterLegacySignalLevels(drawings),
   };
 
   storage.setItem(DRAWINGS_STORAGE_KEY, JSON.stringify(payload));

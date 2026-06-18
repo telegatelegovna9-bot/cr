@@ -19,12 +19,6 @@ import {
   loadPersistedMarketPreferences,
   savePersistedMarketPreferences,
 } from '@/lib/market-preferences';
-import {
-  DEFAULT_SIGNAL_PREFERENCES,
-  loadPersistedSignalPreferences,
-  savePersistedSignalPreferences,
-  type SignalNotificationThreshold,
-} from '@/lib/signals/preferences';
 import type {
   AnyDrawing,
   DrawingOperationEvent,
@@ -695,11 +689,6 @@ interface AlertStore {
 }
 
 function getInitialAlertConfig(): AlertConfig {
-  const persistedSignals =
-    typeof window === 'undefined'
-      ? DEFAULT_SIGNAL_PREFERENCES
-      : loadPersistedSignalPreferences(window.localStorage);
-
   return {
     soundEnabled: true,
     browserNotifications: true,
@@ -707,18 +696,10 @@ function getInitialAlertConfig(): AlertConfig {
     autoDismiss: true,
     autoDismissSeconds: 10,
     timeframes: ['1h', '4h', '1d'],
-    marketSignalsEnabled: persistedSignals.enabled,
-    marketSignalsMinUsd: persistedSignals.minUsd,
   };
 }
 
 function persistAlertConfig(config: AlertConfig): AlertConfig {
-  if (typeof window !== 'undefined') {
-    savePersistedSignalPreferences(window.localStorage, {
-      enabled: config.marketSignalsEnabled,
-      minUsd: config.marketSignalsMinUsd as SignalNotificationThreshold,
-    });
-  }
   return config;
 }
 

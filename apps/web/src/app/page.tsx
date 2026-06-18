@@ -13,7 +13,6 @@ import { PatternsView } from '@/components/patterns/patterns-view';
 import { AlertToast, AlertModal } from '@/components/alerts/alert-toast';
 import { useUIStore, useMarketStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { useSignalMonitor } from '@/hooks/useSignalMonitor';
 import { marketApi } from '@/lib/api';
 import { isTerminalChartGridActive } from '@/components/charts/chart-activity';
 
@@ -25,8 +24,6 @@ export default function TerminalPage() {
   useWebSocket();
   const [loading, setLoading] = useState(true);
   const isTerminalGridActive = isTerminalChartGridActive({ viewMode, coinChartModalOpen });
-
-  useSignalMonitor();
 
   // ─── Initial Data Load ───────────────────────────────────
   useEffect(() => {

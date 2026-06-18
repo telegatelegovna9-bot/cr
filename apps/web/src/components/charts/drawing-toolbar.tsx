@@ -37,7 +37,6 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
   const tools: { id: DrawingTool; icon: any; label: string }[] = [
     { id: 'cursor', icon: MousePointer2, label: 'Cursor' },
     { id: 'horizontal_line', icon: Minus, label: 'Horizontal Line' },
-    { id: 'signal_level', icon: Siren, label: 'Signal Level' },
     { id: 'trendline', icon: TrendingUp, label: 'Trend Line' },
     { id: 'rectangle', icon: Square, label: 'Rectangle' },
     { id: 'ruler', icon: Ruler, label: 'Ruler' },

@@ -75,7 +75,6 @@ export function DrawingOverlay({
       .filter(Boolean)
       .filter((drawing): drawing is AnyDrawing => {
         return drawing.kind === 'horizontal_line'
-          || drawing.kind === 'signal_level'
           || drawing.kind === 'trendline'
           || drawing.kind === 'rectangle'
           || drawing.kind === 'ruler';
@@ -222,7 +221,7 @@ export function DrawingOverlay({
     for (let index = drawings.length - 1; index >= 0; index -= 1) {
       const drawing = drawings[index];
 
-      if (drawing.kind === 'horizontal_line' || drawing.kind === 'signal_level') {
+      if (drawing.kind === 'horizontal_line') {
         const line = projectHorizontalLine(drawing, projectionContext);
         if (line && hitTestLine(x, y, line.x1, line.y1, line.x2, line.y2, 8)) {
           return drawing;
@@ -283,18 +282,11 @@ export function DrawingOverlay({
     const id = createDrawingId();
     const base = makeBaseDrawing(id);
 
-    if (selectedTool === 'horizontal_line' || selectedTool === 'signal_level') {
+    if (selectedTool === 'horizontal_line') {
       upsertDrawing({
         ...base,
         kind: selectedTool,
         price: point.price,
-        ...(selectedTool === 'signal_level'
-          ? {
-              triggered: false,
-              triggeredAt: null,
-              armed: true,
-            }
-          : {}),
       } as AnyDrawing);
       setSelectedDrawingId(id);
       return;

@@ -259,6 +259,4 @@ export interface AlertConfig {
   autoDismiss: boolean;
   autoDismissSeconds: number;
   timeframes: Timeframe[];
-  marketSignalsEnabled: boolean;
-  marketSignalsMinUsd: number;
 }

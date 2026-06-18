@@ -18,11 +18,6 @@ import {
 import { DatabaseService } from '../../database/database.service';
 import { MarketGateway } from './market.gateway';
 import { AlertsService } from '../alerts/alerts.service';
-import { SignalsService } from '../signals/signals.service';
-import type {
-  NormalizedTradeEvent,
-  SignalExchange,
-} from '../signals/signals.types';
 
 export interface TickerWithMeta extends Ticker {
   volatility: number;
@@ -36,12 +31,6 @@ const EXCHANGE_HEALTH_KEY = 'exchange:health';
 export class MarketService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MarketService.name);
   private readonly MAX_CANDLE_CACHE = 20000;
-  private readonly excludedSignalAssets = new Set(['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'BNB', 'HYPE']);
-  private readonly signalExchanges: SignalExchange[] = ['hyperliquid', 'binance', 'bybit', 'okx', 'coinbase'];
-  private readonly backgroundSignalSymbols = DEFAULT_SYMBOLS.filter(symbol => {
-    const [baseAsset] = symbol.split('/');
-    return !!baseAsset && !this.excludedSignalAssets.has(baseAsset.toUpperCase());
-  });
   private exchangeManager!: ExchangeManager;
 
   private tickerCache = new Map<string, TickerWithMeta>();
@@ -68,7 +57,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly db: DatabaseService,
     private readonly alertsService: AlertsService,
-    private readonly signalsService: SignalsService,
     @Inject(forwardRef(() => MarketGateway)) private readonly gateway: MarketGateway,
   ) {}
 
@@ -89,11 +77,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       for (const sub of this.subscribedCandles.values()) {
         if (!sub.exchange || sub.exchange === id) {
           this.exchangeManager.subscribeCandle(sub.symbol, sub.timeframe, [id]);
-        }
-      }
-      if (this.isSupportedSignalExchange(id)) {
-        for (const symbol of this.backgroundSignalSymbols) {
-          this.exchangeManager.subscribeTrades(symbol, [id]);
         }
       }
     });
@@ -213,52 +196,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.gateway.broadcast('ticker', updatedTicker);
     }
     this.db.publish('trade', trade).catch(() => {});
-
-    const signalEvent = this.toSignalTradeEvent(trade);
-    if (signalEvent) {
-      const alerts = this.signalsService.ingest([signalEvent]);
-      for (const alert of alerts) {
-        this.gateway.broadcastGlobal('signal_alert', alert);
-      }
-    }
-  }
-
-  private toSignalTradeEvent(trade: Trade): NormalizedTradeEvent | null {
-    if (!this.isSupportedSignalExchange(trade.exchange)) {
-      return null;
-    }
-
-    const normalizedSymbol = normalizeSymbol(trade.symbol, trade.exchange);
-    const [baseAsset, quoteAsset = 'USD'] = normalizedSymbol.split('/');
-    if (!baseAsset) {
-      return null;
-    }
-
-    if (this.excludedSignalAssets.has(baseAsset.toUpperCase())) {
-      return null;
-    }
-
-    return {
-      id: `${trade.exchange}-${trade.symbol}-${trade.timestamp}-${trade.price}-${trade.quantity}`,
-      timestamp: trade.timestamp,
-      exchange: trade.exchange,
-      symbol: normalizedSymbol,
-      baseAsset,
-      quoteAsset,
-      side: trade.side,
-      price: trade.price,
-      quantity: trade.quantity,
-      usdValue: trade.price * trade.quantity,
-      isBlockTrade: false,
-    };
-  }
-
-  private isSupportedSignalExchange(exchange: ExchangeId): exchange is SignalExchange {
-    return exchange === 'hyperliquid'
-      || exchange === 'binance'
-      || exchange === 'bybit'
-      || exchange === 'okx'
-      || exchange === 'coinbase';
   }
 
   private handleOrderBook(ob: OrderBook) {
