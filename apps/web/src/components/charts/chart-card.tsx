@@ -18,6 +18,7 @@ import { HeatmapControls } from './heatmap-controls';
 import { HeatmapSummary } from './heatmap-summary';
 import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingOverlay } from './drawing-overlay';
+import { isChartRealtimeActive } from './chart-activity';
 import {
   detectGap,
   detectMissingCandleRange,
@@ -551,10 +552,11 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   }, [initialTimeframe]);
 
   const showMarketToggle = isModal || chartGridSize === 1;
+  const isRealtimeActive = isChartRealtimeActive({ paused, isViewActive });
 
   // ─── Shared WebSocket Subscription ──────────────────────────
   useEffect(() => {
-    if (paused) return;
+    if (!isRealtimeActive) return;
 
     // Capture wsSymbol at subscribe time so cleanup uses the same value
     const wsSymbol = marketType === 'futures' && !symbol.includes(':')
@@ -575,11 +577,11 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
         unsubscribe(exchange, marketType, wsSymbol, undefined, 'orderbook');
       }
     };
-  }, [symbol, exchange, timeframe, marketType, paused, showHeatmap, subscribe, unsubscribe]);
+  }, [symbol, exchange, timeframe, marketType, isRealtimeActive, showHeatmap, subscribe, unsubscribe]);
 
   // ─── Handle Incoming Candle Updates from Global Store ───────
   useEffect(() => {
-    if (!latestCandle || paused) return;
+    if (!latestCandle || !isRealtimeActive) return;
     if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
     if (!dataLoadedRef.current) return; // ignore WS updates until REST data is loaded
 
@@ -668,11 +670,11 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
           });
       }
     }
-  }, [latestCandle, paused]);
+  }, [latestCandle, isRealtimeActive]);
 
   // ─── Real-time Tick Update (Inside Candle) ─────────────────
   useEffect(() => {
-    if (paused || !isViewActive || !dataLoadedRef.current || !candleSeriesRef.current || !volumeSeriesRef.current || !ticker) return;
+    if (!isRealtimeActive || !dataLoadedRef.current || !candleSeriesRef.current || !volumeSeriesRef.current || !ticker) return;
     
     // Ensure ticker is for this specific chart
     if (!symbolLookupCandidates.includes(ticker.symbol) || ticker.exchange !== exchange) return;
@@ -715,10 +717,10 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
       // Update header price
       setCurrentPrice(price);
     } catch (err) { /* ignore */ }
-  }, [ticker, paused, exchange, isViewActive, refreshLatestHistory, symbolLookupCandidates]);
+  }, [ticker, exchange, isRealtimeActive, refreshLatestHistory, symbolLookupCandidates]);
 
   useEffect(() => {
-    if (!isViewActive || paused || !dataLoadedRef.current) return;
+    if (!isRealtimeActive || !dataLoadedRef.current) return;
 
     const lastCandle = allRawRef.current[allRawRef.current.length - 1];
     if (!lastCandle) return;
@@ -733,25 +735,25 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     if (nowBucketStart - lastBucketStart >= bucketMs) {
       void refreshLatestHistory();
     }
-  }, [isViewActive, paused, refreshLatestHistory]);
+  }, [isRealtimeActive, refreshLatestHistory]);
 
   useEffect(() => {
     const shouldRefresh = shouldRefreshLatestHistoryOnResume({
       dataLoaded: dataLoadedRef.current,
-      paused,
+      paused: !isRealtimeActive,
       wasViewActive: wasViewActiveRef.current,
-      isViewActive,
+      isViewActive: isRealtimeActive,
       wasConnected: wasWsConnectedRef.current,
       isConnected: wsConnected,
     });
 
-    wasViewActiveRef.current = isViewActive;
+    wasViewActiveRef.current = isRealtimeActive;
     wasWsConnectedRef.current = wsConnected;
 
     if (shouldRefresh) {
       void refreshLatestHistory();
     }
-  }, [isViewActive, paused, refreshLatestHistory, wsConnected]);
+  }, [isRealtimeActive, refreshLatestHistory, wsConnected]);
 
   // ─── Chart Initialization ───────────────────────────────────
   useEffect(() => {
@@ -1090,7 +1092,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   // ─── Visibility Change Gap Filling ─────────────────────────
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && dataLoadedRef.current && !paused) {
+      if (document.visibilityState === 'visible' && dataLoadedRef.current && isRealtimeActive) {
         const lastCandle = allRawRef.current[allRawRef.current.length - 1];
         const gap = detectGap(lastCandle, timeframeRef.current);
         
@@ -1103,7 +1105,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [paused, refreshLatestHistory]);
+  }, [isRealtimeActive, refreshLatestHistory]);
 
   const livePrice = ticker?.lastPrice ?? currentPrice;
   const liveChange = ticker?.priceChangePercent24h ?? priceChange;

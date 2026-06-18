@@ -172,6 +172,7 @@ export function CoinList() {
   const coinListOpen = useUIStore(state => state.coinListOpen);
   const toggleCoinList = useUIStore(state => state.toggleCoinList);
   const setSelectedCoin = useUIStore(state => state.setSelectedCoin);
+  const setCoinChartModalOpen = useUIStore(state => state.setCoinChartModalOpen);
   const [search, setSearch] = useState('');
   const [marketType, setMarketType] = useState<MarketType>('spot');
   const [sort, setSort] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'volume', direction: 'desc' });
@@ -246,8 +247,14 @@ export function CoinList() {
   const handleCoinClick = useCallback((symbol: string) => {
     setSelectedSymbol(symbol);
     setSelectedCoin(symbol);
+    setCoinChartModalOpen(true);
     setChartSymbol(symbol);
-  }, [setSelectedSymbol, setSelectedCoin]);
+  }, [setSelectedSymbol, setSelectedCoin, setCoinChartModalOpen]);
+
+  const handleCloseChart = useCallback(() => {
+    setChartSymbol(null);
+    setCoinChartModalOpen(false);
+  }, [setCoinChartModalOpen]);
 
   if (!coinListOpen) return null;
 
@@ -410,7 +417,7 @@ export function CoinList() {
       {/* Chart modal on coin click */}
       <AnimatePresence>
         {chartSymbol && (
-          <CoinChartModal symbol={chartSymbol} exchange={selectedExchange} marketType={marketType} onClose={() => setChartSymbol(null)} />
+          <CoinChartModal symbol={chartSymbol} exchange={selectedExchange} marketType={marketType} onClose={handleCloseChart} />
         )}
       </AnimatePresence>
     </>

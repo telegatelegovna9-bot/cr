@@ -15,13 +15,16 @@ import { useUIStore, useMarketStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useSignalMonitor } from '@/hooks/useSignalMonitor';
 import { marketApi } from '@/lib/api';
+import { isTerminalChartGridActive } from '@/components/charts/chart-activity';
 
 export default function TerminalPage() {
   const viewMode = useUIStore(state => state.viewMode);
+  const coinChartModalOpen = useUIStore(state => state.coinChartModalOpen);
   const setTickers = useMarketStore(state => state.setTickers);
   const setConnectedExchanges = useMarketStore(state => state.setConnectedExchanges);
   useWebSocket();
   const [loading, setLoading] = useState(true);
+  const isTerminalGridActive = isTerminalChartGridActive({ viewMode, coinChartModalOpen });
 
   useSignalMonitor();
 
@@ -64,7 +67,7 @@ export default function TerminalPage() {
               className={`absolute inset-0 ${viewMode === 'terminal' ? 'visible z-10' : 'invisible pointer-events-none z-0'}`}
               aria-hidden={viewMode !== 'terminal'}
             >
-              <ChartGrid isViewActive={viewMode === 'terminal'} />
+              <ChartGrid isViewActive={isTerminalGridActive} />
             </div>
 
             {viewMode === 'screener' && (

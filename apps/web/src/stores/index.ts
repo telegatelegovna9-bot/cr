@@ -456,6 +456,7 @@ interface UIStore {
   viewMode: ViewMode;
   sidebarOpen: boolean;
   coinListOpen: boolean;
+  coinChartModalOpen: boolean;
   selectedCoin: string | null;
   chartGridSize: 1 | 4 | 6 | 9;
   showHeatmap: boolean;
@@ -470,6 +471,7 @@ interface UIStore {
   setViewMode: (mode: ViewMode) => void;
   toggleSidebar: () => void;
   toggleCoinList: () => void;
+  setCoinChartModalOpen: (open: boolean) => void;
   setSelectedCoin: (coin: string | null) => void;
   setChartGridSize: (size: 1 | 4 | 6 | 9) => void;
   toggleHeatmap: () => void;
@@ -495,6 +497,7 @@ export const useUIStore = create<UIStore>((set) => ({
   viewMode: 'terminal',
   sidebarOpen: true,
   coinListOpen: true,
+  coinChartModalOpen: false,
   selectedCoin: null,
   chartGridSize: 4,
   showHeatmap: false,
@@ -509,6 +512,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setViewMode: (mode) => set({ viewMode: mode }),
   toggleSidebar: () => set(state => ({ sidebarOpen: !state.sidebarOpen })),
   toggleCoinList: () => set(state => ({ coinListOpen: !state.coinListOpen })),
+  setCoinChartModalOpen: (open) => set({ coinChartModalOpen: open }),
   setSelectedCoin: (coin) => set({ selectedCoin: coin }),
   setChartGridSize: (size) => set({ chartGridSize: size }),
   toggleHeatmap: () => set(state => ({ showHeatmap: !state.showHeatmap })),
