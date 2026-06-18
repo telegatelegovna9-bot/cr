@@ -15,7 +15,7 @@ import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
 import { HeatmapControls } from './heatmap-controls';
-import { HeatmapSummary } from './heatmap-summary';
+import { HeatmapSummary, type HeatmapSummaryHandle } from './heatmap-summary';
 import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingOverlay } from './drawing-overlay';
 import { isChartRealtimeActive } from './chart-activity';
@@ -249,27 +249,12 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
   const [lastBarTime, setLastBarTime] = useState<number | null>(null);
-  const [heatmapSummary, setHeatmapSummary] = useState<{
-    barrier: { price: number; usd: number } | null;
-    topAbove: { price: number; usd: number } | null;
-    topBelow: { price: number; usd: number } | null;
-    bias: 'pull up' | 'pull down' | 'balanced';
-    upPath: 'clear' | 'mixed' | 'blocked';
-    downPath: 'clear' | 'mixed' | 'blocked';
-  }>({
-    barrier: null,
-    topAbove: null,
-    topBelow: null,
-    bias: 'balanced',
-    upPath: 'blocked',
-    downPath: 'blocked',
-  });
-
   const { subscribe, unsubscribe } = useWebSocket();
   const heatmapEngineRef = useRef<LiquidityEngine | null>(null);
   const heatmapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const heatmapRafRef = useRef<number | null>(null);
   const heatmapDirtyRef = useRef(false);
+  const heatmapSummaryRef = useRef<HeatmapSummaryHandle | null>(null);
   const wasViewActiveRef = useRef(isViewActive);
   const wasWsConnectedRef = useRef(wsConnected);
 
@@ -438,7 +423,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
       // Nothing to draw — clear and exit (don't leave stale bands)
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      setHeatmapSummary(model.summary);
+      heatmapSummaryRef.current?.publish(model.summary);
       if (!model.backgroundBands.length && !model.keyLevels.length && !model.diagnostics.length) return;
 
       const W = canvas.width;
@@ -1223,11 +1208,10 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
           style={{
             zIndex: 1,
             display: showHeatmap ? 'block' : 'none',
-            filter: 'blur(3px)',
           }}
         />
         <div ref={containerRef} className="w-full h-full" style={{ contain: 'strict', position: 'relative', zIndex: 2 }} />
-        {showHeatmap && <HeatmapSummary {...heatmapSummary} />}
+        {showHeatmap && <HeatmapSummary ref={heatmapSummaryRef} />}
         <DrawingOverlay
           chart={chartRef.current}
           candleSeries={candleSeriesRef.current}

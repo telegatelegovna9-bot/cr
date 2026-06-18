@@ -1,27 +1,53 @@
 'use client';
 
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { formatPrice } from '@/lib/format';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useState } from 'react';
+import {
+  type HeatmapSummarySnapshot,
+  shouldCommitHeatmapSummary,
+} from './heatmap-summary-state';
 
-type SummaryLevel = { price: number; usd: number } | null;
+const EMPTY_SUMMARY: HeatmapSummarySnapshot = {
+  barrier: null,
+  topAbove: null,
+  topBelow: null,
+  bias: 'balanced',
+  upPath: 'blocked',
+  downPath: 'blocked',
+};
 
-export function HeatmapSummary({
-  barrier,
-  topAbove,
-  topBelow,
-  bias,
-  upPath,
-  downPath,
-}: {
-  barrier: SummaryLevel;
-  topAbove: SummaryLevel;
-  topBelow: SummaryLevel;
-  bias: 'pull up' | 'pull down' | 'balanced';
-  upPath: 'clear' | 'mixed' | 'blocked';
-  downPath: 'clear' | 'mixed' | 'blocked';
-}) {
+const HEATMAP_SUMMARY_MIN_INTERVAL_MS = 400;
+
+export interface HeatmapSummaryHandle {
+  publish: (summary: HeatmapSummarySnapshot) => void;
+}
+
+export const HeatmapSummary = forwardRef<HeatmapSummaryHandle>(function HeatmapSummary(_props, ref) {
   const [collapsed, setCollapsed] = useState(false);
+  const [summary, setSummary] = useState<HeatmapSummarySnapshot>(EMPTY_SUMMARY);
+  const latestSummaryRef = useRef<HeatmapSummarySnapshot | null>(null);
+  const lastCommittedAtRef = useRef(0);
+
+  useImperativeHandle(ref, () => ({
+    publish(nextSummary) {
+      const now = Date.now();
+      if (!shouldCommitHeatmapSummary({
+        previous: latestSummaryRef.current,
+        next: nextSummary,
+        lastCommittedAt: lastCommittedAtRef.current,
+        now,
+        minIntervalMs: HEATMAP_SUMMARY_MIN_INTERVAL_MS,
+      })) {
+        return;
+      }
+
+      latestSummaryRef.current = nextSummary;
+      lastCommittedAtRef.current = now;
+      setSummary(nextSummary);
+    },
+  }), []);
+
   const fmtUsd = (value: number) => {
     if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
     if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
@@ -34,7 +60,7 @@ export function HeatmapSummary({
         <div className="font-semibold uppercase tracking-[0.16em] text-[9px] text-white/55">Liquidity</div>
         <button
           type="button"
-          onClick={() => setCollapsed(v => !v)}
+          onClick={() => setCollapsed(value => !value)}
           className="text-white/55 hover:text-white/85 transition-colors"
           aria-label={collapsed ? 'Expand liquidity summary' : 'Collapse liquidity summary'}
         >
@@ -45,21 +71,21 @@ export function HeatmapSummary({
         <div className="mt-1 space-y-0.5 pointer-events-none">
           <div>
             Barrier:{' '}
-            {barrier ? `${fmtUsd(barrier.usd)} @ ${formatPrice(barrier.price)}` : '—'}
+            {summary.barrier ? `${fmtUsd(summary.barrier.usd)} @ ${formatPrice(summary.barrier.price)}` : '—'}
           </div>
           <div>
             Up target:{' '}
-            {topAbove ? `${fmtUsd(topAbove.usd)} @ ${formatPrice(topAbove.price)}` : '—'}
+            {summary.topAbove ? `${fmtUsd(summary.topAbove.usd)} @ ${formatPrice(summary.topAbove.price)}` : '—'}
           </div>
           <div>
             Down target:{' '}
-            {topBelow ? `${fmtUsd(topBelow.usd)} @ ${formatPrice(topBelow.price)}` : '—'}
+            {summary.topBelow ? `${fmtUsd(summary.topBelow.usd)} @ ${formatPrice(summary.topBelow.price)}` : '—'}
           </div>
-          <div>Up path: {upPath}</div>
-          <div>Down path: {downPath}</div>
-          <div>Bias: {bias}</div>
+          <div>Up path: {summary.upPath}</div>
+          <div>Down path: {summary.downPath}</div>
+          <div>Bias: {summary.bias}</div>
         </div>
       )}
     </div>
   );
-}
+});
