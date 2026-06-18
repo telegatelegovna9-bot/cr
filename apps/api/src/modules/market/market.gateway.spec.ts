@@ -117,6 +117,61 @@ async function runTest() {
     },
   });
 
+  const marketService = (gateway as any).marketService;
+  marketService.getLatestOrderBook = (symbol: string, exchange: string, marketType: 'spot' | 'futures') => ({
+    exchange,
+    marketType,
+    symbol,
+    bids: [{ price: marketType === 'futures' ? 200 : 100, quantity: 2 }],
+    asks: [{ price: marketType === 'futures' ? 201 : 101, quantity: 3 }],
+    timestamp: 1710000000500,
+  });
+
+  const futuresClient = new FakeClient();
+  gateway.handleConnection(futuresClient as never);
+  (gateway as any).handleSubscription(futuresClient, {
+    action: 'subscribe',
+    exchange: 'binance',
+    marketType: 'futures',
+    symbol: 'BTC/USDT',
+    channel: 'orderbook',
+  });
+
+  assert.deepEqual(JSON.parse(futuresClient.sent[1]), {
+    channel: 'orderbook',
+    data: {
+      exchange: 'binance',
+      marketType: 'futures',
+      symbol: 'BTC/USDT',
+      bids: [{ price: 200, quantity: 2 }],
+      asks: [{ price: 201, quantity: 3 }],
+      timestamp: 1710000000500,
+    },
+  });
+
+  gateway.broadcast('orderbook', {
+    exchange: 'binance',
+    marketType: 'futures',
+    symbol: 'BTC/USDT',
+    bids: [{ price: 300, quantity: 5 }],
+    asks: [{ price: 301, quantity: 6 }],
+    timestamp: 1710000000600,
+  });
+
+  assert.equal(orderbookClient.sent.length, 2);
+  assert.equal(futuresClient.sent.length, 3);
+  assert.deepEqual(JSON.parse(futuresClient.sent[2]), {
+    channel: 'orderbook',
+    data: {
+      exchange: 'binance',
+      marketType: 'futures',
+      symbol: 'BTC/USDT',
+      bids: [{ price: 300, quantity: 5 }],
+      asks: [{ price: 301, quantity: 6 }],
+      timestamp: 1710000000600,
+    },
+  });
+
   console.log('MarketGateway snapshot tests passed!');
 }
 

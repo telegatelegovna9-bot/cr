@@ -199,7 +199,7 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   }
 
   private handleOrderBook(ob: OrderBook) {
-    const key = `ob:${ob.exchange}:${ob.symbol}`;
+    const key = `ob:${ob.exchange}:${ob.marketType ?? 'spot'}:${ob.symbol}`;
     this.orderbookCache.set(key, ob);
     this.gateway.broadcast('orderbook', ob);
   }
@@ -323,22 +323,29 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async getOrderBook(symbol: string, exchange?: ExchangeId): Promise<OrderBook | null> {
+  async getOrderBook(symbol: string, exchange?: ExchangeId, marketType: 'spot' | 'futures' = 'spot'): Promise<OrderBook | null> {
     if (exchange) {
-      const key = `ob:${exchange}:${symbol}`;
+      const key = `ob:${exchange}:${marketType}:${symbol}`;
       const cached = this.orderbookCache.get(key);
       if (cached) return cached;
     }
-    return this.exchangeManager.fetchOrderBook(symbol, exchange);
+    const fetched = await this.exchangeManager.fetchOrderBook(symbol, exchange);
+    if (!fetched) return null;
+    if (!fetched.marketType) {
+      fetched.marketType = marketType;
+    }
+    return fetched;
   }
 
-  getLatestOrderBook(symbol: string, exchange?: ExchangeId): OrderBook | null {
+  getLatestOrderBook(symbol: string, exchange?: ExchangeId, marketType: 'spot' | 'futures' = 'spot'): OrderBook | null {
     if (exchange) {
-      return this.orderbookCache.get(`ob:${exchange}:${symbol}`) || null;
+      return this.orderbookCache.get(`ob:${exchange}:${marketType}:${symbol}`) || null;
     }
 
     for (const [key, orderbook] of this.orderbookCache.entries()) {
-      if (key.endsWith(`:${symbol}`)) return orderbook;
+      if (!key.endsWith(`:${symbol}`)) continue;
+      if ((orderbook.marketType ?? 'spot') !== marketType) continue;
+      return orderbook;
     }
     return null;
   }
@@ -393,14 +400,14 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     this.candleSubscriptionRefs.set(key, currentRefs - 1);
   }
 
-  subscribeOrderBook(symbol: string, exchange?: ExchangeId): void {
-    this.incrementScopedRefs(this.orderBookSubscriptionRefs, symbol, exchange, (id) => {
+  subscribeOrderBook(symbol: string, marketType: 'spot' | 'futures' = 'spot', exchange?: ExchangeId): void {
+    this.incrementScopedRefs(this.orderBookSubscriptionRefs, `${marketType}:${symbol}`, exchange, (id) => {
       this.exchangeManager.subscribeOrderBook(symbol, [id]);
     });
   }
 
-  unsubscribeOrderBook(symbol: string, exchange?: ExchangeId): void {
-    this.decrementScopedRefs(this.orderBookSubscriptionRefs, symbol, exchange, (id) => {
+  unsubscribeOrderBook(symbol: string, marketType: 'spot' | 'futures' = 'spot', exchange?: ExchangeId): void {
+    this.decrementScopedRefs(this.orderBookSubscriptionRefs, `${marketType}:${symbol}`, exchange, (id) => {
       this.exchangeManager.unsubscribeOrderBook(symbol, [id]);
     });
   }

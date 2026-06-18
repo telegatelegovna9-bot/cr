@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { MarketService } from './market.service';
-import type { Candle } from '@crypto-screener/shared';
+import type { Candle, OrderBook } from '@crypto-screener/shared';
 
 function createService() {
   const calls: Array<{ method: string; args: unknown[] }> = [];
   let fetchCandlesImpl: (...args: unknown[]) => Promise<Candle[]> = async () => [];
+  let fetchOrderBookImpl: (...args: unknown[]) => Promise<OrderBook | null> = async () => null;
 
   const exchangeManager = {
     on: () => undefined,
@@ -18,7 +19,7 @@ function createService() {
     subscribeOrderBook: (...args: unknown[]) => calls.push({ method: 'subscribeOrderBook', args }),
     unsubscribeOrderBook: (...args: unknown[]) => calls.push({ method: 'unsubscribeOrderBook', args }),
     fetchCandles: async (...args: unknown[]) => fetchCandlesImpl(...args),
-    fetchOrderBook: async () => null,
+    fetchOrderBook: async (...args: unknown[]) => fetchOrderBookImpl(...args),
     fetchAllTickers: async () => [],
   };
 
@@ -49,6 +50,9 @@ function createService() {
     setFetchCandlesImpl: (impl: (...args: unknown[]) => Promise<Candle[]>) => {
       fetchCandlesImpl = impl;
     },
+    setFetchOrderBookImpl: (impl: (...args: unknown[]) => Promise<OrderBook | null>) => {
+      fetchOrderBookImpl = impl;
+    },
   };
 }
 
@@ -66,14 +70,69 @@ async function runTest() {
   {
     const { service, calls } = createService();
 
-    service.subscribeOrderBook('BTC/USDT', 'binance');
-    service.subscribeOrderBook('BTC/USDT', 'binance');
-    service.unsubscribeOrderBook('BTC/USDT', 'binance');
+    service.subscribeOrderBook('BTC/USDT', 'spot', 'binance');
+    service.subscribeOrderBook('BTC/USDT', 'spot', 'binance');
+    service.unsubscribeOrderBook('BTC/USDT', 'spot', 'binance');
 
     assert.equal(calls.some(call => call.method === 'unsubscribeOrderBook'), false);
 
-    service.unsubscribeOrderBook('BTC/USDT', 'binance');
+    service.unsubscribeOrderBook('BTC/USDT', 'spot', 'binance');
     assert.equal(calls.filter(call => call.method === 'unsubscribeOrderBook').length, 1);
+  }
+
+  {
+    const { service, calls } = createService();
+
+    service.subscribeOrderBook('BTC/USDT', 'spot', 'binance');
+    service.subscribeOrderBook('BTC/USDT', 'futures', 'binance');
+    service.unsubscribeOrderBook('BTC/USDT', 'spot', 'binance');
+
+    assert.equal(calls.filter(call => call.method === 'unsubscribeOrderBook').length, 1);
+
+    service.unsubscribeOrderBook('BTC/USDT', 'futures', 'binance');
+    assert.equal(calls.filter(call => call.method === 'unsubscribeOrderBook').length, 2);
+  }
+
+  {
+    const { service, setFetchOrderBookImpl } = createService();
+
+    (service as any).handleOrderBook({
+      exchange: 'binance',
+      marketType: 'spot',
+      symbol: 'BTC/USDT',
+      bids: [{ price: 100, quantity: 2 }],
+      asks: [{ price: 101, quantity: 3 }],
+      timestamp: 1710000000000,
+    });
+
+    (service as any).handleOrderBook({
+      exchange: 'binance',
+      marketType: 'futures',
+      symbol: 'BTC/USDT',
+      bids: [{ price: 200, quantity: 4 }],
+      asks: [{ price: 201, quantity: 5 }],
+      timestamp: 1710000000100,
+    });
+
+    const spot = service.getLatestOrderBook('BTC/USDT', 'binance', 'spot');
+    const futures = service.getLatestOrderBook('BTC/USDT', 'binance', 'futures');
+
+    assert.equal(spot?.marketType, 'spot');
+    assert.equal(spot?.bids[0]?.price, 100);
+    assert.equal(futures?.marketType, 'futures');
+    assert.equal(futures?.bids[0]?.price, 200);
+
+    setFetchOrderBookImpl(async (symbol: unknown, exchange: unknown) => ({
+      exchange: exchange as 'binance',
+      marketType: 'futures',
+      symbol: symbol as string,
+      bids: [{ price: 300, quantity: 1 }],
+      asks: [{ price: 301, quantity: 1 }],
+      timestamp: 1710000000200,
+    }));
+
+    const fetched = await service.getOrderBook('ETH/USDT', 'binance', 'futures');
+    assert.equal(fetched?.marketType, 'futures');
   }
 
   {

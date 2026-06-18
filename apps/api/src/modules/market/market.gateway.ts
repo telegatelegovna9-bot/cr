@@ -91,9 +91,9 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
           const sub = JSON.parse(subKey);
           this.removeSubscriptionFromLookup(client, sub);
           
-          const { exchange, symbol, timeframe, channel } = sub;
+          const { exchange, symbol, timeframe, channel, marketType } = sub;
           if (channel === 'orderbook') {
-            this.marketService.unsubscribeOrderBook(symbol, exchange as ExchangeId);
+            this.marketService.unsubscribeOrderBook(symbol, marketType as 'spot' | 'futures' | undefined, exchange as ExchangeId);
           } else if (timeframe) {
             this.marketService.unsubscribeCandle(symbol, timeframe as Timeframe, exchange as ExchangeId);
           } else {
@@ -120,7 +120,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Subscribe via MarketService
       if (channel === 'orderbook') {
-        this.marketService.subscribeOrderBook(symbol, exchange);
+        this.marketService.subscribeOrderBook(symbol, marketType, exchange);
       } else if (timeframe) {
         this.marketService.subscribeCandle(symbol, timeframe, exchange);
       } else {
@@ -136,7 +136,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.removeSubscriptionFromLookup(client, subData);
 
       if (channel === 'orderbook') {
-        this.marketService.unsubscribeOrderBook(symbol, exchange);
+        this.marketService.unsubscribeOrderBook(symbol, marketType, exchange);
       } else if (timeframe) {
         this.marketService.unsubscribeCandle(symbol, timeframe, exchange);
       } else {
@@ -148,7 +148,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private sendInitialSnapshot(client: WebSocket, sub: Omit<SubscribePayload, 'action'>) {
     if (sub.channel === 'orderbook') {
-      const orderbook = this.marketService.getLatestOrderBook(sub.symbol, sub.exchange);
+      const orderbook = this.marketService.getLatestOrderBook(sub.symbol, sub.exchange, sub.marketType);
       if (orderbook) {
         client.send(JSON.stringify({ channel: 'orderbook', data: orderbook }));
       }
@@ -171,7 +171,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private addSubscriptionToLookup(client: WebSocket, sub: any) {
     const channel = sub.channel || (sub.timeframe ? 'candle' : 'ticker');
-    const symbolKey = this.getSymbolKey(sub);
+    const symbolKey = this.getSymbolKey(channel, sub);
     
     this.addToLookup(client, channel, symbolKey);
 
@@ -200,7 +200,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private removeSubscriptionFromLookup(client: WebSocket, sub: any) {
     const channel = sub.channel || (sub.timeframe ? 'candle' : 'ticker');
-    const symbolKey = this.getSymbolKey(sub);
+    const symbolKey = this.getSymbolKey(channel, sub);
     
     this.removeFromLookup(client, channel, symbolKey);
 
@@ -224,7 +224,10 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  private getSymbolKey(sub: any): string {
+  private getSymbolKey(channel: string, sub: any): string {
+    if (channel === 'orderbook') {
+      return [sub.exchange, sub.marketType ?? 'spot', sub.symbol].join('|');
+    }
     const parts = [sub.exchange, sub.symbol];
     if (sub.timeframe) parts.push(sub.timeframe);
     return parts.join('|');
@@ -247,6 +250,8 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const keys: string[] = [];
     if (channel === 'candle') {
       keys.push(`${data.exchange}|${data.symbol}|${data.timeframe}`);
+    } else if (channel === 'orderbook') {
+      keys.push(`${data.exchange}|${data.marketType ?? 'spot'}|${data.symbol}`);
     } else {
       keys.push(`${data.exchange}|${data.symbol}`);
     }

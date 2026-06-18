@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  findPreferredOrderbook,
+  getOrderbookMapKey,
+} from './orderbook-identity.ts';
+
+test('keys orderbook snapshots by exchange, market type, and symbol', () => {
+  assert.equal(
+    getOrderbookMapKey('binance', 'spot', 'BTC/USDT'),
+    'binance:spot:BTC/USDT',
+  );
+  assert.equal(
+    getOrderbookMapKey('binance', 'futures', 'BTC/USDT'),
+    'binance:futures:BTC/USDT',
+  );
+});
+
+test('futures heatmap lookup does not fall back to spot orderbook', () => {
+  const books = new Map([
+    ['binance:spot:BTC/USDT', { exchange: 'binance', marketType: 'spot', symbol: 'BTC/USDT' }],
+  ]);
+
+  const snapshot = findPreferredOrderbook(books, 'binance', 'futures', ['BTC/USDT']);
+
+  assert.equal(snapshot, undefined);
+});
+
+test('futures heatmap lookup resolves the futures snapshot when present', () => {
+  const books = new Map([
+    ['binance:spot:BTC/USDT', { exchange: 'binance', marketType: 'spot', symbol: 'BTC/USDT' }],
+    ['binance:futures:BTC/USDT', { exchange: 'binance', marketType: 'futures', symbol: 'BTC/USDT' }],
+  ]);
+
+  const snapshot = findPreferredOrderbook(books, 'binance', 'futures', ['BTC/USDT']);
+
+  assert.deepEqual(snapshot, {
+    exchange: 'binance',
+    marketType: 'futures',
+    symbol: 'BTC/USDT',
+  });
+});

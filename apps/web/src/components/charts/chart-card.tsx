@@ -11,6 +11,7 @@ import { useMarketStore, useUIStore, useOrderbookStore, useWSStore } from '@/sto
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { formatPrice, getChartPriceFormat } from '@/lib/format';
 import { formatDisplaySymbol, formatMarketTypeLabel, getDisplayBaseSymbol } from '@/lib/display-symbol';
+import { findPreferredOrderbook } from '@/lib/orderbook-identity';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
 import { LiquidityEngine, heatColor } from '@/lib/liquidity-engine';
@@ -327,11 +328,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   // ─── Heatmap: LiquidityEngine + canvas overlay ──────────────────
   const orderbook = useOrderbookStore(state => {
     if (!showHeatmap) return undefined;
-    for (const candidate of symbolLookupCandidates) {
-      const nextOrderbook = state.getOrderbook(candidate, exchange);
-      if (nextOrderbook) return nextOrderbook;
-    }
-    return undefined;
+    return findPreferredOrderbook(state.books, exchange, marketType, symbolLookupCandidates);
   });
 
   // Feed orderbook updates into engine

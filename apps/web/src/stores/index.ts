@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle, OrderBook } from '@crypto-screener/shared';
 import type { HeatmapSettings } from '@/lib/liquidity-engine';
 import { DEFAULT_HEATMAP_SETTINGS } from '@/lib/liquidity-engine';
+import { getOrderbookMapKey, getOrderbookMapKeyFromSnapshot } from '@/lib/orderbook-identity';
 import {
   DEFAULT_PERSONAL_GRID_STATE,
   type PersonalGridLayout,
@@ -614,7 +615,7 @@ export const useWSStore = create<WSStore>((set) => ({
 interface OrderbookStore {
   books: Map<string, OrderBook>;
   updateOrderbook: (ob: OrderBook) => void;
-  getOrderbook: (symbol: string, exchange: string) => OrderBook | undefined;
+  getOrderbook: (symbol: string, exchange: string, marketType?: 'spot' | 'futures') => OrderBook | undefined;
 }
 
 // Throttle map: key -> last update timestamp
@@ -625,7 +626,7 @@ export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
   books: new Map(),
 
   updateOrderbook: (ob) => {
-    const key = `${ob.exchange}:${ob.symbol}`;
+    const key = getOrderbookMapKeyFromSnapshot(ob);
     const now = Date.now();
     const lastUpdate = orderbookThrottle.get(key) || 0;
 
@@ -639,7 +640,7 @@ export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
     });
   },
 
-  getOrderbook: (symbol, exchange) => get().books.get(`${exchange}:${symbol}`),
+  getOrderbook: (symbol, exchange, marketType) => get().books.get(getOrderbookMapKey(exchange, marketType, symbol)),
 }));
 
 // ============================================================
