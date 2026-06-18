@@ -229,6 +229,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const showHeatmap = useUIStore(state => state.showHeatmap);
   const heatmapSettings = useUIStore(state => state.heatmapSettings);
   const chartGridSize = useUIStore(state => state.chartGridSize);
+  const updateOrderbook = useOrderbookStore(state => state.updateOrderbook);
   const ticker = useMarketStore(state => {
     for (const candidate of symbolLookupCandidates) {
       const nextTicker = state.getTicker(candidate, exchange, marketType);
@@ -358,6 +359,12 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     );
     heatmapDirtyRef.current = true;
   }, [currentPrice, orderbook, showHeatmap, ticker?.lastPrice]);
+
+  useEffect(() => {
+    if (!showHeatmap) return;
+    heatmapEngineRef.current?.clear();
+    heatmapDirtyRef.current = false;
+  }, [showHeatmap, exchange, marketType, effectiveSymbol]);
 
   // Clear engine when heatmap is toggled off; init canvas size when turned on
   useEffect(() => {
@@ -543,6 +550,28 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
   const showMarketToggle = isModal || chartGridSize === 1;
   const isRealtimeActive = isChartRealtimeActive({ paused, isViewActive });
+
+  useEffect(() => {
+    if (!showHeatmap || !isRealtimeActive) return;
+
+    const controller = new AbortController();
+    const searchParams = new URLSearchParams({
+      exchange,
+      marketType,
+    });
+
+    fetch(`${API_BASE}/api/market/orderbook/${encodeURIComponent(effectiveSymbol)}?${searchParams.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(resp => resp.ok ? resp.json() : null)
+      .then(payload => {
+        if (!payload?.data) return;
+        updateOrderbook(payload.data);
+      })
+      .catch(() => {});
+
+    return () => controller.abort();
+  }, [effectiveSymbol, exchange, isRealtimeActive, marketType, showHeatmap, updateOrderbook]);
 
   // ─── Shared WebSocket Subscription ──────────────────────────
   useEffect(() => {

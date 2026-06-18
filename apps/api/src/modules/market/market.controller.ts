@@ -88,11 +88,17 @@ export class MarketController {
   @Get('orderbook/:symbol')
   @ApiOperation({ summary: 'Get order book' })
   @ApiQuery({ name: 'exchange', required: false })
+  @ApiQuery({ name: 'marketType', required: false })
   async getOrderBook(
     @Param('symbol') symbol: string,
     @Query('exchange') exchange?: ExchangeId,
+    @Query('marketType') marketType?: 'spot' | 'futures',
   ) {
-    const ob = await this.marketService.getOrderBook(symbol.replace('-', '/'), exchange);
+    const ob = await this.marketService.getOrderBook(
+      symbol.replace('-', '/'),
+      exchange,
+      marketType ?? 'spot',
+    );
     return {
       success: true,
       data: ob,
