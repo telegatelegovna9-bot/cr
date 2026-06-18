@@ -23,9 +23,6 @@ function getAlertColor(type: string) {
   if (type === 'price_below' || type === 'change_down') {
     return { bg: 'bg-negative/10', border: 'border-negative/20', text: 'text-negative', icon: 'DN' };
   }
-  if (type === 'pattern_detected') {
-    return { bg: 'bg-accent/12', border: 'border-accent/25', text: 'text-accent-light', icon: 'PT' };
-  }
   return { bg: 'bg-accent/10', border: 'border-accent/20', text: 'text-accent-light', icon: 'AL' };
 }
 
@@ -67,9 +64,6 @@ export function AlertToast() {
 
   useEffect(() => {
     activeAlerts.forEach((alert) => {
-      if (alert.alert.type === 'pattern_detected') {
-        return;
-      }
       if (config.soundEnabled) {
         try {
           const ctx = new AudioContext();
@@ -133,62 +127,47 @@ export function AlertToast() {
               </div>
 
               <div className="flex items-center gap-4 text-xs">
-                {alert.alert.type === 'pattern_detected' ? (
-                  <>
-                    <div>
-                      <span className="text-text-muted">Pattern: </span>
-                      <span className="font-bold text-text-primary capitalize">{alert.alert.condition}</span>
+                {alert.alert.type === 'market_signal' ? (
+                  <div className="space-y-1.5 w-full">
+                    <div className="flex items-center gap-4 text-xs">
+                      <div>
+                        <span className="text-text-muted">Exchange: </span>
+                        <span className="font-bold text-text-primary uppercase">{alert.exchange ?? 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-text-muted">Type: </span>
+                        <span className="font-bold text-text-primary">{formatMarketSignalType(alert.eventType)}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-text-muted">Quality: </span>
-                      <span className="font-bold font-mono text-text-primary">{Math.round(alert.alert.value)}</span>
+                    <div className="flex items-center gap-4 text-xs">
+                      <div>
+                        <span className="text-text-muted">Price: </span>
+                        <span className="font-bold font-mono text-text-primary">${formatPrice(alert.currentPrice)}</span>
+                      </div>
+                      <div>
+                        <span className="text-text-muted">Size: </span>
+                        <span className="font-bold font-mono text-text-primary">${formatPrice(alert.alert.value)}</span>
+                      </div>
                     </div>
-                  </>
+                    {alert.venues && alert.venues.length > 1 ? (
+                      <div className="text-[11px] text-text-muted">
+                        Venues: {alert.venues.map(venue => venue.toUpperCase()).join(', ')}
+                      </div>
+                    ) : null}
+                    {alert.message ? (
+                      <div className="text-[11px] text-text-secondary leading-relaxed">{alert.message}</div>
+                    ) : null}
+                  </div>
                 ) : (
                   <>
-                    {alert.alert.type === 'market_signal' ? (
-                      <div className="space-y-1.5 w-full">
-                        <div className="flex items-center gap-4 text-xs">
-                          <div>
-                            <span className="text-text-muted">Exchange: </span>
-                            <span className="font-bold text-text-primary uppercase">{alert.exchange ?? 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="text-text-muted">Type: </span>
-                            <span className="font-bold text-text-primary">{formatMarketSignalType(alert.eventType)}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs">
-                          <div>
-                            <span className="text-text-muted">Price: </span>
-                            <span className="font-bold font-mono text-text-primary">${formatPrice(alert.currentPrice)}</span>
-                          </div>
-                          <div>
-                            <span className="text-text-muted">Size: </span>
-                            <span className="font-bold font-mono text-text-primary">${formatPrice(alert.alert.value)}</span>
-                          </div>
-                        </div>
-                        {alert.venues && alert.venues.length > 1 ? (
-                          <div className="text-[11px] text-text-muted">
-                            Venues: {alert.venues.map(venue => venue.toUpperCase()).join(', ')}
-                          </div>
-                        ) : null}
-                        {alert.message ? (
-                          <div className="text-[11px] text-text-secondary leading-relaxed">{alert.message}</div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <>
-                        <div>
-                          <span className="text-text-muted">Current: </span>
-                          <span className="font-bold font-mono text-text-primary">${formatPrice(alert.currentPrice)}</span>
-                        </div>
-                        <div>
-                          <span className="text-text-muted">Target: </span>
-                          <span className="font-bold font-mono text-text-primary">${formatPrice(alert.alert.value)}</span>
-                        </div>
-                      </>
-                    )}
+                    <div>
+                      <span className="text-text-muted">Current: </span>
+                      <span className="font-bold font-mono text-text-primary">${formatPrice(alert.currentPrice)}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted">Target: </span>
+                      <span className="font-bold font-mono text-text-primary">${formatPrice(alert.alert.value)}</span>
+                    </div>
                   </>
                 )}
               </div>

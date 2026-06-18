@@ -33,7 +33,6 @@ export interface Ticker {
   high24h: number;
   low24h: number;
   timestamp: number;
-  // Extended fields for screener (optional but useful)
   priceChangePercent24h?: number;
   quoteVolume24h?: number;
   trades24h?: number;
@@ -54,7 +53,6 @@ export interface Candle {
   close: number;
   volume: number;
   isClosed: boolean;
-  // Extended fields
   trades?: number;
 }
 
@@ -118,60 +116,6 @@ export interface DeltaZone {
 }
 
 // ============================================================
-// PATTERN TYPES
-// ============================================================
-
-export type PatternType =
-  | 'triangle_ascending'
-  | 'triangle_descending'
-  | 'triangle_symmetrical'
-  | 'wedge_rising'
-  | 'wedge_falling'
-  | 'flag_bull'
-  | 'flag_bear'
-  | 'channel_up'
-  | 'channel_down'
-  | 'range'
-  | 'breakout'
-  | 'fakeout'
-  | 'bos' // Break of Structure
-  | 'choch' // Change of Character
-  | 'fvg' // Fair Value Gap
-  | 'order_block'
-  | 'liquidity_sweep'
-  | 'support'
-  | 'resistance';
-
-export interface DetectedPattern {
-  id: string;
-  symbol: string;
-  exchange: ExchangeId;
-  type: PatternType;
-  timeframe: Timeframe;
-  confidence: number;
-  points: { price: number; timestamp: number }[];
-  description: string;
-  direction: 'bullish' | 'bearish' | 'neutral';
-  targetPrice?: number;
-  stopLoss?: number;
-  detectedAt: number;
-  status: 'forming' | 'confirmed' | 'invalidated';
-  // Frontend display fields (optional, computed on read)
-  strength?: number;
-  entry?: number;
-  target?: number;
-  riskReward?: number;
-}
-
-export interface PatternScanResult {
-  symbol: string;
-  exchange: ExchangeId;
-  pattern: DetectedPattern;
-  confidence: number;
-  timestamp: number;
-}
-
-// ============================================================
 // ALERT TYPES
 // ============================================================
 
@@ -186,7 +130,6 @@ export type AlertType =
   | 'price_cross'
   | 'pump'
   | 'dump'
-  | 'pattern_detected'
   | 'market_signal';
 
 export type AlertPriority = 'low' | 'medium' | 'high' | 'critical';
@@ -215,70 +158,6 @@ export interface AlertRule {
 }
 
 // ============================================================
-// SCREENER TYPES
-// ============================================================
-
-export interface ScreenerFilter {
-  field: string;
-  operator: 'gt' | 'lt' | 'eq' | 'gte' | 'lte' | 'between' | 'in';
-  value: number | number[] | string[];
-}
-
-export interface ScreenerPreset {
-  id: string;
-  name: string;
-  filters: ScreenerFilter[];
-  sortBy?: string;
-  sortDirection?: 'asc' | 'desc';
-}
-
-export type ScreenerSortField =
-  | 'symbol'
-  | 'price'
-  | 'priceChange24h'
-  | 'volume24h'
-  | 'trades24h'
-  | 'volatility'
-  | 'spread'
-  | 'funding'
-  | 'openInterest';
-
-export type ScreenerMode = 'best-setups' | 'spot' | 'futures';
-
-export type ScreenerStrengthTier = 'watching' | 'actionable' | 'high-risk' | 'event-live';
-
-export type ScreenerPromotionTier = 'ignore' | 'watch' | 'actionable' | 'rare';
-
-export type ScreenerDetectorType =
-  | 'spot-breakout-pressure'
-  | 'spot-cross-exchange'
-  | 'futures-oi-build'
-  | 'futures-squeeze-risk';
-
-export interface ScreenerEvent {
-  id: string;
-  symbol: string;
-  marketMode: Exclude<ScreenerMode, 'best-setups'>;
-  detectorType: ScreenerDetectorType;
-  promotionTier: ScreenerPromotionTier;
-  strengthTier: ScreenerStrengthTier;
-  headline: string;
-  reason: string;
-  riskNote: string;
-  primaryExchange: string;
-  chartTimeframe: Extract<Timeframe, '1m' | '5m' | '15m'>;
-  supportingMetrics: Record<string, number | string | null>;
-  confirms: string[];
-  invalidates: string[];
-  updatedAt: number;
-}
-
-export interface ScreenerEventsResponse {
-  items: ScreenerEvent[];
-  timestamp: number;
-}
-
-// ============================================================
 // WEBSOCKET TYPES
 // ============================================================
 
@@ -288,7 +167,6 @@ export type WSChannel =
   | 'orderbook'
   | 'trades'
   | 'alerts'
-  | 'patterns'
   | 'liquidity';
 
 export interface WSMessage {

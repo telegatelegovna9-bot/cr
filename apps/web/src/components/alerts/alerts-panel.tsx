@@ -7,21 +7,21 @@ import { useRecentAlerts } from '@/hooks/useData';
 import { alertsApi } from '@/lib/api';
 import { formatDisplaySymbol } from '@/lib/display-symbol';
 import { cn } from '@/lib/utils';
-import { getTimeAgo, formatDateTime } from '@/lib/format';
+import { getTimeAgo } from '@/lib/format';
 import type { AlertType } from '@crypto-screener/shared';
 
 const ALERT_ICONS: Record<string, string> = {
-  listing: '🆕',
-  volume_spike: '📊',
-  volatility_spike: '⚡',
-  breakout: '🚀',
-  liquidity_appear: '💧',
-  funding_anomaly: '💰',
-  oi_spike: '📈',
-  price_cross: '🎯',
-  pump: '🟢',
-  dump: '🔴',
-  pattern_detected: '📐',
+  listing: 'NEW',
+  volume_spike: 'VOL',
+  volatility_spike: 'VLT',
+  breakout: 'BRK',
+  liquidity_appear: 'LIQ',
+  funding_anomaly: 'FND',
+  oi_spike: 'OI',
+  price_cross: 'PX',
+  pump: 'PMP',
+  dump: 'DMP',
+  market_signal: 'SIG',
 };
 
 const ALERT_TYPES: { id: AlertType | 'all'; label: string }[] = [
@@ -32,7 +32,7 @@ const ALERT_TYPES: { id: AlertType | 'all'; label: string }[] = [
   { id: 'breakout', label: 'Breakouts' },
   { id: 'pump', label: 'Pumps' },
   { id: 'dump', label: 'Dumps' },
-  { id: 'pattern_detected', label: 'Patterns' },
+  { id: 'market_signal', label: 'Signals' },
 ];
 
 export function AlertsPanel() {
@@ -50,10 +50,9 @@ export function AlertsPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="p-4 border-b border-terminal-border">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold">🔔 Alerts</h2>
+          <h2 className="text-lg font-semibold">Alerts</h2>
           <button
             onClick={handleMarkAllRead}
             className="text-xs text-terminal-accent hover:underline"
@@ -62,7 +61,6 @@ export function AlertsPanel() {
           </button>
         </div>
 
-        {/* Type filter */}
         <div className="flex flex-wrap gap-1">
           {ALERT_TYPES.map(type => (
             <button
@@ -81,7 +79,6 @@ export function AlertsPanel() {
         </div>
       </div>
 
-      {/* Alert list */}
       <div className="flex-1 overflow-y-auto">
         {(filteredAlerts as any[])?.map((alert: any) => (
           <div
@@ -92,7 +89,7 @@ export function AlertsPanel() {
             )}
           >
             <div className="flex items-start gap-2">
-              <span className="text-lg mt-0.5">{ALERT_ICONS[alert.type] || '🔔'}</span>
+              <span className="text-sm mt-0.5 font-semibold">{ALERT_ICONS[alert.type] || 'ALT'}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-sm">{alert.title}</span>
@@ -100,11 +97,11 @@ export function AlertsPanel() {
                 </div>
                 <p className="text-xs text-terminal-muted mt-1">{alert.message}</p>
                 <div className="flex items-center gap-2 mt-2">
-                    {alert.symbol && (
-                      <span className="px-2 py-0.5 bg-terminal-card rounded text-xs font-mono">
-                        {formatDisplaySymbol(alert.symbol)}
-                      </span>
-                    )}
+                  {alert.symbol && (
+                    <span className="px-2 py-0.5 bg-terminal-card rounded text-xs font-mono">
+                      {formatDisplaySymbol(alert.symbol)}
+                    </span>
+                  )}
                   <span className={cn(
                     'px-2 py-0.5 rounded text-xs',
                     alert.priority === 'critical' && 'bg-red-500/20 text-red-400',
@@ -123,7 +120,7 @@ export function AlertsPanel() {
 
         {(!filteredAlerts || filteredAlerts.length === 0) && (
           <div className="p-8 text-center text-terminal-muted">
-            <span className="text-4xl mb-4 block">🔔</span>
+            <span className="text-4xl mb-4 block">AL</span>
             <p>No alerts yet</p>
             <p className="text-xs mt-1">Alerts will appear here in real-time</p>
           </div>
