@@ -30,9 +30,11 @@ test('calculateRangeMetrics ignores candles outside loaded overlap', () => {
   const metrics = calculateRangeMetrics(
     { p1: { time: 60, price: 200 }, p2: { time: 300, price: 180 } },
     [
+      { time: 0, volume: 3 },
       { time: 180, volume: 5 },
       { time: 240, volume: 7 },
       { time: 300, volume: 9 },
+      { time: 360, volume: 11 },
     ],
   );
 
@@ -40,4 +42,7 @@ test('calculateRangeMetrics ignores candles outside loaded overlap', () => {
   assert.equal(metrics.volume, 21);
   assert.equal(metrics.priceDelta, -20);
   assert.equal(metrics.percentDelta, -10);
+  assert.equal(metrics.startTime, 180);
+  assert.equal(metrics.endTime, 300);
+  assert.equal(metrics.timeMs, 120000);
 });

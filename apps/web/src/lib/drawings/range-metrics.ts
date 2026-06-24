@@ -22,12 +22,16 @@ export function calculateRangeMetrics(
   input: { p1: RangeMetricPoint; p2: RangeMetricPoint },
   candles: RangeMetricCandle[],
 ): RangeMetrics {
-  const startTime = Math.min(input.p1.time, input.p2.time);
-  const endTime = Math.max(input.p1.time, input.p2.time);
+  const rangeStartTime = Math.min(input.p1.time, input.p2.time);
+  const rangeEndTime = Math.max(input.p1.time, input.p2.time);
   const priceDelta = input.p2.price - input.p1.price;
   const percentDelta = input.p1.price === 0 ? 0 : (priceDelta / input.p1.price) * 100;
-  const overlapping = candles.filter((candle) => candle.time >= startTime && candle.time <= endTime);
+  const overlapping = candles.filter(
+    (candle) => candle.time >= rangeStartTime && candle.time <= rangeEndTime,
+  );
   const volume = overlapping.reduce((sum, candle) => sum + (candle.volume ?? 0), 0);
+  const startTime = overlapping[0]?.time ?? rangeStartTime;
+  const endTime = overlapping.at(-1)?.time ?? rangeEndTime;
 
   return {
     priceDelta,
