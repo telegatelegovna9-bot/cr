@@ -19,16 +19,14 @@ test('calculateRangeMetrics returns delta percent bars time and volume for loade
     priceDelta: 10,
     percentDelta: 10,
     bars: 4,
+    timeMs: 180000,
     volume: 140,
-    rangeStartTime: 120,
-    rangeEndTime: 300,
-    overlapStartTime: 120,
-    overlapEndTime: 300,
-    overlapTimeMs: 180000,
+    startTime: 120,
+    endTime: 300,
   });
 });
 
-test('calculateRangeMetrics tracks explicit overlap bounds for unsorted loaded candles', () => {
+test('calculateRangeMetrics ignores candles outside loaded overlap for unsorted in-range input', () => {
   const metrics = calculateRangeMetrics(
     { p1: { time: 60, price: 200 }, p2: { time: 300, price: 180 } },
     [
@@ -44,9 +42,7 @@ test('calculateRangeMetrics tracks explicit overlap bounds for unsorted loaded c
   assert.equal(metrics.volume, 21);
   assert.equal(metrics.priceDelta, -20);
   assert.equal(metrics.percentDelta, -10);
-  assert.equal(metrics.rangeStartTime, 60);
-  assert.equal(metrics.rangeEndTime, 300);
-  assert.equal(metrics.overlapStartTime, 180);
-  assert.equal(metrics.overlapEndTime, 300);
-  assert.equal(metrics.overlapTimeMs, 120000);
+  assert.equal(metrics.startTime, 180);
+  assert.equal(metrics.endTime, 300);
+  assert.equal(metrics.timeMs, 120000);
 });

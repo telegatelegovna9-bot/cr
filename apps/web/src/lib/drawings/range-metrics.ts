@@ -8,16 +8,19 @@ export interface RangeMetricCandle {
   volume?: number;
 }
 
+/**
+ * `startTime`, `endTime`, and `timeMs` describe the loaded candle overlap inside
+ * the selected range when in-range candles exist; otherwise they fall back to
+ * the raw selected range bounds.
+ */
 export interface RangeMetrics {
   priceDelta: number;
   percentDelta: number;
   bars: number;
+  timeMs: number;
   volume: number;
-  rangeStartTime: number;
-  rangeEndTime: number;
-  overlapStartTime: number | null;
-  overlapEndTime: number | null;
-  overlapTimeMs: number;
+  startTime: number;
+  endTime: number;
 }
 
 export function calculateRangeMetrics(
@@ -44,18 +47,16 @@ export function calculateRangeMetrics(
       overlapEndTime === null ? candle.time : Math.max(overlapEndTime, candle.time);
   }
 
+  const startTime = overlapStartTime ?? rangeStartTime;
+  const endTime = overlapEndTime ?? rangeEndTime;
+
   return {
     priceDelta,
     percentDelta,
     bars,
+    timeMs: Math.max(0, endTime - startTime) * 1000,
     volume,
-    rangeStartTime,
-    rangeEndTime,
-    overlapStartTime,
-    overlapEndTime,
-    overlapTimeMs:
-      overlapStartTime === null || overlapEndTime === null
-        ? 0
-        : Math.max(0, overlapEndTime - overlapStartTime) * 1000,
+    startTime,
+    endTime,
   };
 }
