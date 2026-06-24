@@ -46,3 +46,24 @@ test('calculateRangeMetrics ignores candles outside loaded overlap for unsorted 
   assert.equal(metrics.endTime, 300);
   assert.equal(metrics.timeMs, 120000);
 });
+
+test('calculateRangeMetrics falls back to selected range bounds when no candles overlap', () => {
+  const metrics = calculateRangeMetrics(
+    { p1: { time: 120, price: 50 }, p2: { time: 300, price: 65 } },
+    [
+      { time: 0, volume: 3 },
+      { time: 60, volume: 5 },
+      { time: 360, volume: 7 },
+    ],
+  );
+
+  assert.deepEqual(metrics, {
+    priceDelta: 15,
+    percentDelta: 30,
+    bars: 0,
+    timeMs: 180000,
+    volume: 0,
+    startTime: 120,
+    endTime: 300,
+  });
+});
