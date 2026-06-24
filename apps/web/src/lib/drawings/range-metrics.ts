@@ -9,9 +9,9 @@ export interface RangeMetricCandle {
 }
 
 /**
- * `startTime`, `endTime`, and `timeMs` describe the loaded candle overlap inside
- * the selected range when in-range candles exist; otherwise they fall back to
- * the raw selected range bounds.
+ * `startTime`, `endTime`, and `timeMs` describe the effective loaded candle
+ * window inside the selected range when any in-range candles exist. When no
+ * candles overlap the selected range, they fall back to the selected bounds.
  */
 export interface RangeMetrics {
   priceDelta: number;

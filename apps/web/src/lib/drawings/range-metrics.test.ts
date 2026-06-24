@@ -67,3 +67,24 @@ test('calculateRangeMetrics falls back to selected range bounds when no candles 
     endTime: 300,
   });
 });
+
+test('calculateRangeMetrics falls back to selected bounds for reversed drag with no overlap', () => {
+  const metrics = calculateRangeMetrics(
+    { p1: { time: 300, price: 65 }, p2: { time: 120, price: 50 } },
+    [
+      { time: 0, volume: 3 },
+      { time: 60, volume: 5 },
+      { time: 360, volume: 7 },
+    ],
+  );
+
+  assert.deepEqual(metrics, {
+    priceDelta: -15,
+    percentDelta: -23.076923076923077,
+    bars: 0,
+    timeMs: 180000,
+    volume: 0,
+    startTime: 120,
+    endTime: 300,
+  });
+});
