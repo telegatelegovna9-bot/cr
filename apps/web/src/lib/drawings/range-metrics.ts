@@ -12,10 +12,12 @@ export interface RangeMetrics {
   priceDelta: number;
   percentDelta: number;
   bars: number;
-  timeMs: number;
   volume: number;
-  startTime: number;
-  endTime: number;
+  rangeStartTime: number;
+  rangeEndTime: number;
+  overlapStartTime: number | null;
+  overlapEndTime: number | null;
+  overlapTimeMs: number;
 }
 
 export function calculateRangeMetrics(
@@ -26,20 +28,34 @@ export function calculateRangeMetrics(
   const rangeEndTime = Math.max(input.p1.time, input.p2.time);
   const priceDelta = input.p2.price - input.p1.price;
   const percentDelta = input.p1.price === 0 ? 0 : (priceDelta / input.p1.price) * 100;
-  const overlapping = candles.filter(
-    (candle) => candle.time >= rangeStartTime && candle.time <= rangeEndTime,
-  );
-  const volume = overlapping.reduce((sum, candle) => sum + (candle.volume ?? 0), 0);
-  const startTime = overlapping[0]?.time ?? rangeStartTime;
-  const endTime = overlapping.at(-1)?.time ?? rangeEndTime;
+  let bars = 0;
+  let volume = 0;
+  let overlapStartTime: number | null = null;
+  let overlapEndTime: number | null = null;
+
+  for (const candle of candles) {
+    if (candle.time < rangeStartTime || candle.time > rangeEndTime) continue;
+
+    bars += 1;
+    volume += candle.volume ?? 0;
+    overlapStartTime =
+      overlapStartTime === null ? candle.time : Math.min(overlapStartTime, candle.time);
+    overlapEndTime =
+      overlapEndTime === null ? candle.time : Math.max(overlapEndTime, candle.time);
+  }
 
   return {
     priceDelta,
     percentDelta,
-    bars: overlapping.length,
-    timeMs: Math.max(0, endTime - startTime) * 1000,
+    bars,
     volume,
-    startTime,
-    endTime,
+    rangeStartTime,
+    rangeEndTime,
+    overlapStartTime,
+    overlapEndTime,
+    overlapTimeMs:
+      overlapStartTime === null || overlapEndTime === null
+        ? 0
+        : Math.max(0, overlapEndTime - overlapStartTime) * 1000,
   };
 }
