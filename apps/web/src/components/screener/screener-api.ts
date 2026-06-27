@@ -1,5 +1,5 @@
 import type { ScreenerMarketType, ScreenerSnapshotRow } from '@crypto-screener/shared';
-import { fetchApi } from '@/lib/api';
+import { fetchApi } from '../../lib/api';
 
 export interface ScreenerSnapshotResponse {
   success: true;

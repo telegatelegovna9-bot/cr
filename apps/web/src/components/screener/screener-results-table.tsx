@@ -1,3 +1,6 @@
+import type { ScreenerSnapshotMetricId, ScreenerSnapshotRow } from '@crypto-screener/shared';
+import { formatNumber, formatPercent, formatPrice, getTimeAgo } from '../../lib/format';
+
 const HEADERS = [
   'Symbol',
   'Exchange',
@@ -13,7 +16,12 @@ const HEADERS = [
   'Updated',
 ];
 
-export function ScreenerResultsTable() {
+interface ScreenerResultsTableProps {
+  rows: ScreenerSnapshotRow[];
+  onRowClick?: (row: ScreenerSnapshotRow) => void;
+}
+
+export function ScreenerResultsTable({ rows, onRowClick }: ScreenerResultsTableProps) {
   return (
     <div className="glass-card min-h-0 flex-1 overflow-hidden">
       <div className="h-full overflow-auto">
@@ -28,14 +36,42 @@ export function ScreenerResultsTable() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td colSpan={HEADERS.length} className="px-3 py-6 text-center text-text-muted">
-                No matches yet
-              </td>
-            </tr>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={HEADERS.length} className="px-3 py-6 text-center text-text-muted">
+                  No matches yet
+                </td>
+              </tr>
+            ) : (
+              rows.map(row => (
+                <tr
+                  key={`${row.exchange}:${row.marketType}:${row.symbol}`}
+                  className="cursor-pointer border-b border-border/60 text-text-secondary transition-colors hover:bg-bg-primary/30 hover:text-text-primary"
+                  onClick={() => onRowClick?.(row)}
+                >
+                  <td className="px-3 py-2 font-semibold text-text-primary">{row.symbol}</td>
+                  <td className="px-3 py-2 uppercase">{row.exchange}</td>
+                  <td className="px-3 py-2">{row.marketType}</td>
+                  <td className="px-3 py-2">{formatPrice(row.price)}</td>
+                  <td className="px-3 py-2">{formatPercent(metric(row, '1m.changePct'))}</td>
+                  <td className="px-3 py-2">{formatPercent(metric(row, '1m.volumeSpikePct'))}</td>
+                  <td className="px-3 py-2">{formatPercent(metric(row, '1m.tradesSpikePct'))}</td>
+                  <td className="px-3 py-2">{formatPercent(metric(row, '1m.oiChangePct'))}</td>
+                  <td className="px-3 py-2">{formatPercent(row.fundingPct ?? undefined)}</td>
+                  <td className="px-3 py-2">{formatPercent(row.spreadPct ?? undefined)}</td>
+                  <td className="px-3 py-2">{formatNumber(metric(row, '1m.turnover'))}</td>
+                  <td className="px-3 py-2">{getTimeAgo(row.updatedAt)}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
     </div>
   );
+}
+
+function metric(row: ScreenerSnapshotRow, key: ScreenerSnapshotMetricId): number | undefined {
+  const value = row.metrics[key];
+  return typeof value === 'number' ? value : undefined;
 }

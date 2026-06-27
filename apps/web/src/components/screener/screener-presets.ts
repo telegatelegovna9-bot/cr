@@ -76,9 +76,9 @@ function normalizeMetricRange(value: unknown): ScreenerMetricRange | null {
   if (value.timeframe !== undefined && !timeframe) return null;
 
   const range: ScreenerMetricRange = {};
-  if (min !== undefined) range.min = min;
-  if (max !== undefined) range.max = max;
-  if (timeframe !== undefined) range.timeframe = timeframe;
+  if (typeof min === 'number') range.min = min;
+  if (typeof max === 'number') range.max = max;
+  if (timeframe) range.timeframe = timeframe;
   return range;
 }
 
