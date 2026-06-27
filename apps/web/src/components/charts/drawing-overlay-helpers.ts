@@ -58,9 +58,13 @@ export function panLogicalRange(
 export function toRangeMetricCandles(
   raw: Array<{ time?: number; timestamp?: number; volume?: number }>,
 ) {
+  const normalizeRawTime = (time: number) => {
+    return time < 10_000_000_000 ? time * 1000 : time;
+  };
+
   return raw
     .map((candle) => ({
-      time: Math.floor(((candle.time ?? candle.timestamp ?? 0) as number) / 1000),
+      time: Math.floor(normalizeRawTime((candle.time ?? candle.timestamp ?? 0) as number) / 1000),
       volume: candle.volume ?? 0,
     }))
     .filter((candle) => candle.time > 0);

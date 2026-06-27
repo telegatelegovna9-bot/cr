@@ -302,9 +302,13 @@ export function DrawingOverlay({
       return;
     }
 
-    const mode = hitTestPoint(chartX, chartY, box.x1, box.y1, 8)
+    const centerX = box.midX;
+    const topY = Math.min(box.y1, box.y2);
+    const bottomY = Math.max(box.y1, box.y2);
+
+    const mode = hitTestPoint(chartX, chartY, centerX, topY, 8)
       ? 'resize-start'
-      : hitTestPoint(chartX, chartY, box.x2, box.y2, 8)
+      : hitTestPoint(chartX, chartY, centerX, bottomY, 8)
         ? 'resize-end'
         : 'move';
 

@@ -32,13 +32,15 @@ test('panLogicalRange returns null without a valid range', () => {
 
 test('toRangeMetricCandles maps raw chart history into time and volume pairs', () => {
   const candles = toRangeMetricCandles([
-    { time: 120000, volume: 10, open: 1, high: 2, low: 1, close: 2 },
-    { timestamp: 180000, volume: 20, open: 2, high: 3, low: 2, close: 3 },
+    { time: 1719446520000, volume: 10, open: 1, high: 2, low: 1, close: 2 },
+    { timestamp: 1719446580000, volume: 20, open: 2, high: 3, low: 2, close: 3 },
+    { time: 1719446640, volume: 30, open: 3, high: 4, low: 2, close: 4 },
   ]);
 
   assert.deepEqual(candles, [
-    { time: 120, volume: 10 },
-    { time: 180, volume: 20 },
+    { time: 1719446520, volume: 10 },
+    { time: 1719446580, volume: 20 },
+    { time: 1719446640, volume: 30 },
   ]);
 });
 

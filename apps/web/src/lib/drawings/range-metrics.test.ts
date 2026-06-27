@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { calculateRangeMetrics, formatRangeLabel } from './range-metrics.ts';
+import { calculateRangeMetrics, formatRangeDuration, formatRangeLabel } from './range-metrics.ts';
 
 test('calculateRangeMetrics returns delta percent bars time and volume for loaded candles', () => {
   const metrics = calculateRangeMetrics(
@@ -105,4 +105,26 @@ test('formatRangeLabel includes delta percent bars time and volume', () => {
   assert.match(label, /8 bars/);
   assert.match(label, /7m/);
   assert.match(label, /Vol 999/);
+});
+
+test('formatRangeDuration derives duration from captured bar span', () => {
+  assert.equal(formatRangeDuration({
+    priceDelta: 1,
+    percentDelta: 1,
+    bars: 21,
+    timeMs: 20 * 60000,
+    volume: 0,
+    startTime: 0,
+    endTime: 0,
+  }), '21m');
+
+  assert.equal(formatRangeDuration({
+    priceDelta: 1,
+    percentDelta: 1,
+    bars: 14,
+    timeMs: 13 * 86400000,
+    volume: 0,
+    startTime: 0,
+    endTime: 0,
+  }), '2w');
 });

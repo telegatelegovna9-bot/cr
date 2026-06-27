@@ -17,7 +17,7 @@ import {
   projectTrendline,
 } from './engine';
 import type { RangeMetricCandle } from './range-metrics';
-import { calculateRangeMetrics } from './range-metrics';
+import { calculateRangeMetrics, formatRangeDuration } from './range-metrics';
 import { getRangeStyle } from './range-style';
 
 interface DrawingPrimitiveState {
@@ -46,12 +46,13 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
     const metrics = calculateRangeMetrics(drawing, measurementCandles);
     const style = getRangeStyle(metrics.priceDelta);
     const deltaLabel = `${metrics.priceDelta >= 0 ? '+' : ''}${metrics.priceDelta.toFixed(3)} (${Math.abs(metrics.percentDelta).toFixed(2)}%) ${drawing.p2.price.toFixed(1)}`;
-    const timeDays = Math.max(1, Math.round(metrics.timeMs / 86400000));
-    const subLabel = `Бары: ${metrics.bars}, ${timeDays}д`;
+    const subLabel = `Bars: ${metrics.bars}, ${formatRangeDuration(metrics)}`;
     const centerX = (box.x1 + box.x2) / 2;
     const topY = Math.min(box.y1, box.y2);
     const bottomY = Math.max(box.y1, box.y2);
     const midY = (topY + bottomY) / 2;
+    const arrowY = metrics.priceDelta >= 0 ? topY : bottomY;
+    const arrowDirection = metrics.priceDelta >= 0 ? 1 : -1;
 
     context.save();
     context.fillStyle = style.fill;
@@ -74,10 +75,10 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
     context.stroke();
 
     context.beginPath();
-    context.moveTo(centerX, topY);
-    context.lineTo(centerX - 5, topY + 7);
-    context.moveTo(centerX, topY);
-    context.lineTo(centerX + 5, topY + 7);
+    context.moveTo(centerX, arrowY);
+    context.lineTo(centerX - 5, arrowY + (7 * arrowDirection));
+    context.moveTo(centerX, arrowY);
+    context.lineTo(centerX + 5, arrowY + (7 * arrowDirection));
     context.strokeStyle = style.line;
     context.lineWidth = 1;
     context.stroke();
@@ -101,7 +102,10 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
     const line2Width = context.measureText(subLabel).width;
     const labelWidth = Math.max(line1Width, line2Width) + 20;
     const labelHeight = 42;
-    const labelX = Math.min(Math.max(centerX - (labelWidth / 2), 4), Math.max(4, projection.width - labelWidth - 4));
+    const labelX = Math.min(
+      Math.max(centerX - (labelWidth / 2), 4),
+      Math.max(4, projection.width - labelWidth - 4),
+    );
     const labelY = Math.max(4, topY - labelHeight - 10);
 
     context.shadowColor = 'rgba(15, 23, 42, 0.24)';

@@ -68,3 +68,31 @@ export function formatRangeLabel(metrics: RangeMetrics): string {
 
   return `${priceSign}${metrics.priceDelta.toFixed(2)} (${percentSign}${metrics.percentDelta.toFixed(2)}%) ${metrics.bars} bars ${minutes}m Vol ${metrics.volume.toFixed(0)}`;
 }
+
+export function formatRangeDuration(metrics: RangeMetrics): string {
+  const effectiveSpanMs =
+    metrics.bars > 1
+      ? metrics.timeMs + (metrics.timeMs / (metrics.bars - 1))
+      : metrics.timeMs;
+
+  const totalMinutes = Math.max(0, Math.round(effectiveSpanMs / 60000));
+
+  if (totalMinutes < 60) {
+    return `${totalMinutes}m`;
+  }
+
+  const totalHours = Math.ceil(totalMinutes / 60);
+  if (totalHours < 24) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+  }
+
+  const totalDays = Math.ceil(totalMinutes / 1440);
+  if (totalDays < 7) {
+    return `${totalDays}d`;
+  }
+
+  const weeks = Math.ceil(totalDays / 7);
+  return `${weeks}w`;
+}
