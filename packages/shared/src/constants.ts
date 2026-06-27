@@ -103,3 +103,5 @@ export const VOLATILITY_SPIKE_THRESHOLD = 2; // 2x average
 
 export const SCREENER_DEFAULT_PAGE_SIZE = 50;
 export const SCREENER_MAX_PAGE_SIZE = 200;
+export const SCREENER_REFRESH_INTERVAL_MS = 5000;
+export const SCREENER_DEFAULT_EXCHANGES = ['binance', 'bybit', 'okx', 'mexc'] as const;
