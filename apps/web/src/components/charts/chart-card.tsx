@@ -9,7 +9,12 @@ import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from
 import type { Timeframe } from '@crypto-screener/shared';
 import { useMarketStore, useUIStore, useOrderbookStore, useWSStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { formatPrice, getChartPriceFormat } from '@/lib/format';
+import {
+  CHART_PRICE_SCALE_MIN_WIDTH,
+  formatPrice,
+  getChartPriceFormat,
+  mergeChartPriceFormat,
+} from '@/lib/format';
 import { formatDisplaySymbol, formatMarketTypeLabel, getDisplayBaseSymbol } from '@/lib/display-symbol';
 import { findPreferredOrderbook } from '@/lib/orderbook-identity';
 import { getHeatmapPriceStep, resolveHeatmapReferencePrice } from '@/lib/heatmap-price';
@@ -262,6 +267,21 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const heatmapSummaryRef = useRef<HeatmapSummaryHandle | null>(null);
   const wasViewActiveRef = useRef(isViewActive);
   const wasWsConnectedRef = useRef(wsConnected);
+  const chartPriceFormatRef = useRef(getChartPriceFormat(ticker?.lastPrice ?? currentPrice ?? undefined));
+
+  const updateChartPriceFormat = useCallback((price?: number) => {
+    const nextFormat = mergeChartPriceFormat(chartPriceFormatRef.current, price);
+    const changed =
+      nextFormat.precision !== chartPriceFormatRef.current.precision ||
+      nextFormat.minMove !== chartPriceFormatRef.current.minMove;
+
+    if (!changed) {
+      return;
+    }
+
+    chartPriceFormatRef.current = nextFormat;
+    candleSeriesRef.current?.applyOptions({ priceFormat: nextFormat });
+  }, []);
 
   const refreshLatestHistory = useCallback(async () => {
     if (historyRefreshInFlightRef.current) return;
@@ -309,7 +329,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
       const lastTime = lastRaw?.time || lastRaw?.timestamp;
       if (lastTime) setLastBarTime(Math.floor(lastTime / 1000));
       if (lastRaw?.close != null) {
-        candleSeriesRef.current.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
+        updateChartPriceFormat(lastRaw.close);
         setCurrentPrice(lastRaw.close);
       }
       if (merged.length > 1) {
@@ -635,7 +655,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
     const time = timeInSeconds as Time;
     try {
-      candleSeriesRef.current.applyOptions({ priceFormat: getChartPriceFormat(close) });
+      updateChartPriceFormat(close);
       candleSeriesRef.current.update({ time, open, high, low, close });
       volumeSeriesRef.current.update({
         time,
@@ -824,7 +844,11 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
           vertLine: { color: 'rgba(99,102,241,0.3)', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#6366f1' },
           horzLine: { color: 'rgba(99,102,241,0.3)', width: 1, style: LineStyle.Dashed, labelBackgroundColor: '#6366f1' },
         },
-        rightPriceScale: { borderColor: 'rgba(255,255,255,0.06)', scaleMargins: { top: 0.1, bottom: 0.25 } },
+        rightPriceScale: {
+          borderColor: 'rgba(255,255,255,0.06)',
+          scaleMargins: { top: 0.1, bottom: 0.25 },
+          minimumWidth: CHART_PRICE_SCALE_MIN_WIDTH,
+        },
         timeScale: { borderColor: 'rgba(255,255,255,0.06)', timeVisible: true, secondsVisible: false, rightOffset: 3, fixLeftEdge: false, fixRightEdge: false, lockVisibleTimeRangeOnResize: true },
         handleScroll: { vertTouchDrag: false, mouseWheel: true, pressedMouseMove: true },
         handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: true, price: true } },
@@ -852,7 +876,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
         upColor: '#22c55e', downColor: '#ef4444',
         borderUpColor: '#22c55e', borderDownColor: '#ef4444',
         wickUpColor: '#22c55e88', wickDownColor: '#ef444488',
-        priceFormat: getChartPriceFormat(ticker?.lastPrice ?? currentPrice ?? undefined),
+        priceFormat: chartPriceFormatRef.current,
       });
       candleSeriesRef.current = candleSeries;
 
@@ -890,7 +914,8 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
           initialRangeSetRef.current = true;
 
           const lastRaw = raw[raw.length - 1];
-          candleSeries.applyOptions({ priceFormat: getChartPriceFormat(lastRaw.close) });
+          chartPriceFormatRef.current = mergeChartPriceFormat(chartPriceFormatRef.current, lastRaw.close);
+          candleSeries.applyOptions({ priceFormat: chartPriceFormatRef.current });
           setCurrentPrice(lastRaw.close);
           if (raw.length > 1) {
             setPriceChange(((lastRaw.close - raw[0].open) / raw[0].open) * 100);

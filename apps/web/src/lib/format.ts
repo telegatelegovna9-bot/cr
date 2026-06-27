@@ -24,6 +24,27 @@ export function getChartPriceFormat(price?: number) {
   };
 }
 
+export const CHART_PRICE_SCALE_MIN_WIDTH = 72;
+
+export function mergeChartPriceFormat(
+  current:
+    | {
+        type: 'price';
+        precision: number;
+        minMove: number;
+      }
+    | undefined,
+  price?: number,
+) {
+  const precision = Math.max(current?.precision ?? 0, getPricePrecision(price));
+
+  return {
+    type: 'price' as const,
+    precision,
+    minMove: 10 ** -precision,
+  };
+}
+
 export function formatPrice(price?: number): string {
   if (price === undefined || price === null) return '—';
   const precision = getPricePrecision(price);
