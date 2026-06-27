@@ -10,7 +10,7 @@ const getApiBase = () => {
 
 const API_BASE = getApiBase();
 
-async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}/api${endpoint}`;
   const response = await fetch(url, {
     ...options,
