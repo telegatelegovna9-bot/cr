@@ -17,7 +17,7 @@ import {
   projectTrendline,
 } from './engine';
 import type { RangeMetricCandle } from './range-metrics';
-import { calculateRangeMetrics, formatRangeLabel } from './range-metrics';
+import { calculateRangeMetrics } from './range-metrics';
 import { getRangeStyle } from './range-style';
 
 interface DrawingPrimitiveState {
@@ -45,46 +45,77 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
 
     const metrics = calculateRangeMetrics(drawing, measurementCandles);
     const style = getRangeStyle(metrics.priceDelta);
-    const label = formatRangeLabel(metrics);
+    const deltaLabel = `${metrics.priceDelta >= 0 ? '+' : ''}${metrics.priceDelta.toFixed(3)} (${Math.abs(metrics.percentDelta).toFixed(2)}%) ${drawing.p2.price.toFixed(1)}`;
+    const timeDays = Math.max(1, Math.round(metrics.timeMs / 86400000));
+    const subLabel = `Бары: ${metrics.bars}, ${timeDays}д`;
+    const centerX = (box.x1 + box.x2) / 2;
+    const topY = Math.min(box.y1, box.y2);
+    const bottomY = Math.max(box.y1, box.y2);
+    const midY = (topY + bottomY) / 2;
 
     context.save();
     context.fillStyle = style.fill;
     context.fillRect(box.x, box.y, box.width, box.height);
 
-    context.strokeStyle = style.border;
-    context.lineWidth = selected ? 1.8 : 1.2;
+    context.beginPath();
+    context.moveTo(centerX, topY);
+    context.lineTo(centerX, bottomY);
+    context.strokeStyle = style.line;
+    context.lineWidth = selected ? 1.6 : 1.2;
     context.setLineDash(temporary ? [4, 3] : []);
-    context.strokeRect(box.x, box.y, box.width, box.height);
+    context.stroke();
 
     context.beginPath();
-    context.moveTo(box.x1, box.y1);
-    context.lineTo(box.x2, box.y2);
+    context.moveTo(box.x, midY);
+    context.lineTo(box.x + box.width, midY);
     context.strokeStyle = style.line;
-    context.lineWidth = selected ? 1.6 : 1.1;
+    context.lineWidth = 1;
+    context.setLineDash([]);
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(centerX, topY);
+    context.lineTo(centerX - 5, topY + 7);
+    context.moveTo(centerX, topY);
+    context.lineTo(centerX + 5, topY + 7);
+    context.strokeStyle = style.line;
+    context.lineWidth = 1;
     context.stroke();
 
     if (selected && !temporary) {
       context.setLineDash([]);
       context.fillStyle = style.handle;
-      for (const [x, y] of [[box.x1, box.y1], [box.x2, box.y2]] as const) {
+      context.strokeStyle = style.line;
+      for (const [x, y] of [[centerX, topY], [centerX, bottomY]] as const) {
         context.beginPath();
-        context.arc(x, y, 4, 0, Math.PI * 2);
+        context.arc(x, y, 3.5, 0, Math.PI * 2);
         context.fill();
+        context.stroke();
       }
     }
 
     context.setLineDash([]);
-    context.font = '11px JetBrains Mono, monospace';
-    const textWidth = context.measureText(label).width;
-    const boxWidth = textWidth + 12;
-    const boxHeight = 20;
-    const labelX = Math.min(Math.max(box.midX - (boxWidth / 2), 4), Math.max(4, projection.width - boxWidth - 4));
-    const labelY = Math.max(4, box.y - boxHeight - 6);
+    context.font = 'bold 11px Inter, sans-serif';
+    const line1Width = context.measureText(deltaLabel).width;
+    context.font = '600 11px Inter, sans-serif';
+    const line2Width = context.measureText(subLabel).width;
+    const labelWidth = Math.max(line1Width, line2Width) + 20;
+    const labelHeight = 42;
+    const labelX = Math.min(Math.max(centerX - (labelWidth / 2), 4), Math.max(4, projection.width - labelWidth - 4));
+    const labelY = Math.max(4, topY - labelHeight - 10);
 
+    context.shadowColor = 'rgba(15, 23, 42, 0.24)';
+    context.shadowBlur = 10;
     context.fillStyle = style.textBg;
-    context.fillRect(labelX, labelY, boxWidth, boxHeight);
+    context.beginPath();
+    context.roundRect(labelX, labelY, labelWidth, labelHeight, 5);
+    context.fill();
+    context.shadowBlur = 0;
     context.fillStyle = style.textFg;
-    context.fillText(label, labelX + 6, labelY + 14);
+    context.font = 'bold 11px Inter, sans-serif';
+    context.fillText(deltaLabel, labelX + ((labelWidth - line1Width) / 2), labelY + 16);
+    context.font = '600 11px Inter, sans-serif';
+    context.fillText(subLabel, labelX + ((labelWidth - line2Width) / 2), labelY + 31);
     context.restore();
   }
 

@@ -483,6 +483,8 @@ export function DrawingOverlay({
       const chartY = event.clientY - rect.top;
 
       if (shouldStartTemporaryMeasure({ shiftKey: event.shiftKey, button: event.button })) {
+        event.preventDefault();
+        event.stopPropagation();
         setTemporaryMeasure({
           ...makeBaseDrawing('temp_measure'),
           kind: 'ruler',
@@ -493,7 +495,12 @@ export function DrawingOverlay({
       }
 
       if (selectedTool === 'cursor' && event.button === 0) {
-        beginRulerInteraction(chartX, chartY, point);
+        const hit = hitTestDrawing(chartX, chartY);
+        if (hit?.kind === 'ruler') {
+          event.preventDefault();
+          event.stopPropagation();
+          beginRulerInteraction(chartX, chartY, point);
+        }
       }
     };
 
@@ -555,12 +562,12 @@ export function DrawingOverlay({
       setTemporaryMeasure(null);
     };
 
-    host.addEventListener('pointerdown', handlePointerDown);
+    host.addEventListener('pointerdown', handlePointerDown, true);
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', finish);
 
     return () => {
-      host.removeEventListener('pointerdown', handlePointerDown);
+      host.removeEventListener('pointerdown', handlePointerDown, true);
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', finish);
     };
@@ -576,6 +583,7 @@ export function DrawingOverlay({
     screenToValue,
     selectedTool,
     temporaryMeasure,
+    hitTestDrawing,
     upsertDrawing,
   ]);
 
