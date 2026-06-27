@@ -3,6 +3,12 @@ import { test } from 'node:test';
 import { buildScreenerSnapshotRow } from './screener.metrics';
 import { ScreenerService } from './screener.service';
 
+function createService(tickers: any[] = []) {
+  return new ScreenerService({
+    getAllTickerValues: () => tickers,
+  } as never);
+}
+
 test('buildScreenerSnapshotRow derives current and timeframe metrics from market inputs', () => {
   const featureMap = {
     '1m.changePct': 0.8,
@@ -33,7 +39,7 @@ test('buildScreenerSnapshotRow derives current and timeframe metrics from market
 });
 
 test('ScreenerService snapshots are market-scoped and detached from caller mutations', () => {
-  const service = new ScreenerService();
+  const service = createService();
   const rows = [
     {
       symbol: 'BTC/USDT',
@@ -77,7 +83,7 @@ test('ScreenerService snapshots are market-scoped and detached from caller mutat
 });
 
 test('ScreenerService refreshFromMarketRows keeps spot and futures snapshots separated', () => {
-  const service = new ScreenerService();
+  const service = createService();
 
   service.refreshFromMarketRows([
     {
@@ -116,4 +122,49 @@ test('ScreenerService refreshFromMarketRows keeps spot and futures snapshots sep
   assert.equal(futuresSnapshot.rows.length, 1);
   assert.equal(futuresSnapshot.rows[0]?.marketType, 'futures');
   assert.equal(futuresSnapshot.rows[0]?.symbol, 'ETH/USDT:USDT');
+});
+
+test('ScreenerService listSnapshot hydrates rows from MarketService ticker cache', () => {
+  const service = createService([
+    {
+      exchange: 'binance',
+      marketType: 'spot',
+      symbol: 'BTC/USDT',
+      lastPrice: 64000,
+      priceChange24h: 0,
+      priceChangePercent24h: 2.5,
+      volume24h: 120000000,
+      high24h: 65000,
+      low24h: 61000,
+      timestamp: 1710000000000,
+      volatility: 0,
+      atr: 0,
+    },
+    {
+      exchange: 'bybit',
+      marketType: 'futures',
+      symbol: 'ETH/USDT:USDT',
+      lastPrice: 3500,
+      priceChange24h: 0,
+      priceChangePercent24h: 1.1,
+      volume24h: 99000000,
+      high24h: 3550,
+      low24h: 3400,
+      timestamp: 1710000005000,
+      volatility: 0,
+      atr: 0,
+    },
+  ]);
+
+  const spotSnapshot = service.listSnapshot('spot');
+  const futuresSnapshot = service.listSnapshot('futures');
+
+  assert.equal(spotSnapshot.rows.length, 1);
+  assert.equal(spotSnapshot.rows[0]?.symbol, 'BTC/USDT');
+  assert.equal(spotSnapshot.rows[0]?.price, 64000);
+  assert.deepEqual(spotSnapshot.rows[0]?.metrics, {});
+
+  assert.equal(futuresSnapshot.rows.length, 1);
+  assert.equal(futuresSnapshot.rows[0]?.symbol, 'ETH/USDT:USDT');
+  assert.equal(futuresSnapshot.rows[0]?.price, 3500);
 });
