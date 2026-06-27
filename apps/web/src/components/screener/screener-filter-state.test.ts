@@ -46,3 +46,27 @@ test('rowMatchesFilters applies min and max metric bounds', () => {
 
   assert.equal(matched, true);
 });
+
+test('rowMatchesFilters treats missing timeframe metrics as non-matching', () => {
+  const matched = rowMatchesFilters(
+    {
+      symbol: 'BTC/USDT',
+      exchange: 'binance',
+      marketType: 'spot',
+      metrics: {},
+      spreadPct: 0.03,
+      fundingPct: 0.01,
+      oi: 1000,
+      price: 120,
+      updatedAt: 1,
+    },
+    {
+      exchanges: ['binance'],
+      metrics: {
+        changePct: { min: 1.5 },
+      },
+    },
+  );
+
+  assert.equal(matched, false);
+});
