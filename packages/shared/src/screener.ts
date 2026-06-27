@@ -1,50 +1,58 @@
-export type ScreenerMarketType = 'spot' | 'futures';
+import type { ExchangeId, Timeframe } from './types';
 
-export type ScreenerMetricKey =
-  | 'changePct'
-  | 'trades'
-  | 'turnover'
-  | 'natrPct'
-  | 'spreadPct'
-  | 'fundingPct'
-  | 'volumeSpikePct'
-  | 'tradesSpikePct'
-  | 'oiChangePct'
-  | 'oi'
-  | 'deltaVolumePct'
-  | 'deltaVolume'
-  | 'price';
+export const SCREENER_MARKET_TYPES = ['spot', 'futures'] as const;
+export type ScreenerMarketType = (typeof SCREENER_MARKET_TYPES)[number];
 
-export type ScreenerTimeframeMetricKey =
-  | 'changePct'
-  | 'trades'
-  | 'turnover'
-  | 'natrPct'
-  | 'volumeSpikePct'
-  | 'tradesSpikePct'
-  | 'oiChangePct'
-  | 'deltaVolumePct'
-  | 'deltaVolume';
+export const SCREENER_METRIC_KEYS = [
+  'changePct',
+  'trades',
+  'turnover',
+  'natrPct',
+  'spreadPct',
+  'fundingPct',
+  'volumeSpikePct',
+  'tradesSpikePct',
+  'oiChangePct',
+  'oi',
+  'deltaVolumePct',
+  'deltaVolume',
+  'price',
+] as const;
+export type ScreenerMetricKey = (typeof SCREENER_METRIC_KEYS)[number];
+
+export const SCREENER_TIMEFRAME_METRIC_KEYS = [
+  'changePct',
+  'trades',
+  'turnover',
+  'natrPct',
+  'volumeSpikePct',
+  'tradesSpikePct',
+  'oiChangePct',
+  'deltaVolumePct',
+  'deltaVolume',
+] as const;
+export type ScreenerTimeframeMetricKey = (typeof SCREENER_TIMEFRAME_METRIC_KEYS)[number];
+export type ScreenerSnapshotMetricId = `${Timeframe}.${ScreenerTimeframeMetricKey}`;
 
 export interface ScreenerMetricRange {
   min?: number;
   max?: number;
-  timeframe?: string;
+  timeframe?: Timeframe;
 }
 
 export interface ScreenerFilters {
-  exchanges: string[];
+  exchanges: ExchangeId[];
   metrics: Partial<Record<ScreenerMetricKey, ScreenerMetricRange>>;
 }
 
 export interface ScreenerSnapshotRow {
   symbol: string;
-  exchange: string;
+  exchange: ExchangeId;
   marketType: ScreenerMarketType;
   price: number;
   spreadPct?: number | null;
   fundingPct?: number | null;
   oi?: number | null;
   updatedAt: number;
-  metrics: Record<string, number | null>;
+  metrics: Partial<Record<ScreenerSnapshotMetricId, number | null>>;
 }
