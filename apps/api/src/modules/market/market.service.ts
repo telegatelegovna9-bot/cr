@@ -228,6 +228,10 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     return tickers;
   }
 
+  getAllTickerValues(): readonly TickerWithMeta[] {
+    return Array.from(this.tickerCache.values());
+  }
+
   getTopGainers(limit = 50): TickerWithMeta[] {
     return this.getTickers().sort((a, b) => (b.priceChangePercent24h || 0) - (a.priceChangePercent24h || 0)).slice(0, limit);
   }
