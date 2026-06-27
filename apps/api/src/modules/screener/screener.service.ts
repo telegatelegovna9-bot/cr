@@ -28,11 +28,11 @@ export class ScreenerService {
       .map(row => this.cloneRow(row));
 
     this.snapshots.set(marketType, bucketRows);
-    this.updatedAt.set(marketType, Date.now());
+    this.updatedAt.set(marketType, this.getBucketUpdatedAt(bucketRows));
   }
 
   listSnapshot(marketType: ScreenerMarketType): ScreenerSnapshotBucket {
-    this.refreshFromMarketCache();
+    this.bootstrapFromMarketCache(marketType);
 
     return {
       marketType,
@@ -43,13 +43,22 @@ export class ScreenerService {
 
   readonly buildRow = buildScreenerSnapshotRow;
 
-  private refreshFromMarketCache(): void {
-    const tickers = this.marketService.getAllTickerValues();
-    if (tickers.length === 0) {
+  private bootstrapFromMarketCache(marketType: ScreenerMarketType): void {
+    const existingRows = this.snapshots.get(marketType);
+    if (existingRows && existingRows.length > 0) {
       return;
     }
 
-    this.refreshFromMarketRows(tickers.map(ticker => this.mapTickerToSnapshotRow(ticker)));
+    const rows = this.marketService
+      .getAllTickerValues()
+      .filter(ticker => ticker.marketType === marketType)
+      .map(ticker => this.mapTickerToSnapshotRow(ticker));
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    this.updateSnapshot(marketType, rows);
   }
 
   private mapTickerToSnapshotRow(ticker: TickerWithMeta): ScreenerSnapshotRow {
@@ -72,5 +81,9 @@ export class ScreenerService {
       ...row,
       metrics: { ...row.metrics },
     };
+  }
+
+  private getBucketUpdatedAt(rows: ScreenerSnapshotRow[]): number {
+    return rows.reduce((latest, row) => Math.max(latest, row.updatedAt), 0);
   }
 }
