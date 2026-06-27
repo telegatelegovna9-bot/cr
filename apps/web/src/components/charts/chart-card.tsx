@@ -20,6 +20,7 @@ import { HeatmapControls } from './heatmap-controls';
 import { HeatmapSummary, type HeatmapSummaryHandle } from './heatmap-summary';
 import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingOverlay } from './drawing-overlay';
+import { toRangeMetricCandles } from './drawing-overlay-helpers';
 import { isChartRealtimeActive } from './chart-activity';
 import {
   detectGap,
@@ -188,6 +189,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
       raw,
     );
   };
+  const measurementCandles = toRangeMetricCandles(allRawRef.current);
 
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const selectedTimeframe = useMarketStore(state => state.selectedTimeframe);
@@ -1254,6 +1256,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
           exchange={exchange}
           marketType={marketType}
           symbol={effectiveSymbol}
+          measurementCandles={measurementCandles}
           compact={chartGridSize !== 1 && !isModal}
         />
 

@@ -60,3 +60,11 @@ export function calculateRangeMetrics(
     endTime,
   };
 }
+
+export function formatRangeLabel(metrics: RangeMetrics): string {
+  const priceSign = metrics.priceDelta >= 0 ? '+' : '';
+  const percentSign = metrics.percentDelta >= 0 ? '+' : '';
+  const minutes = Math.round(metrics.timeMs / 60000);
+
+  return `${priceSign}${metrics.priceDelta.toFixed(2)} (${percentSign}${metrics.percentDelta.toFixed(2)}%) ${metrics.bars} bars ${minutes}m Vol ${metrics.volume.toFixed(0)}`;
+}

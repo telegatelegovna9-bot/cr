@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getLocalOverlayPoint, panLogicalRange } from './drawing-overlay-helpers';
+import {
+  getLocalOverlayPoint,
+  panLogicalRange,
+  shouldStartTemporaryMeasure,
+  toRangeMetricCandles,
+} from './drawing-overlay-helpers.ts';
 
 test('getLocalOverlayPoint scales client coordinates into overlay space', () => {
   const point = getLocalOverlayPoint(
@@ -23,4 +28,22 @@ test('panLogicalRange shifts visible range by drag distance', () => {
 test('panLogicalRange returns null without a valid range', () => {
   assert.equal(panLogicalRange(null, 50, 500), null);
   assert.equal(panLogicalRange({ from: 100, to: 200 }, 50, 0), null);
+});
+
+test('toRangeMetricCandles maps raw chart history into time and volume pairs', () => {
+  const candles = toRangeMetricCandles([
+    { time: 120000, volume: 10, open: 1, high: 2, low: 1, close: 2 },
+    { timestamp: 180000, volume: 20, open: 2, high: 3, low: 2, close: 3 },
+  ]);
+
+  assert.deepEqual(candles, [
+    { time: 120, volume: 10 },
+    { time: 180, volume: 20 },
+  ]);
+});
+
+test('shouldStartTemporaryMeasure only allows shift plus primary button', () => {
+  assert.equal(shouldStartTemporaryMeasure({ shiftKey: true, button: 0 }), true);
+  assert.equal(shouldStartTemporaryMeasure({ shiftKey: false, button: 0 }), false);
+  assert.equal(shouldStartTemporaryMeasure({ shiftKey: true, button: 2 }), false);
 });

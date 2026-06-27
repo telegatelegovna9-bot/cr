@@ -7,17 +7,23 @@ import {
   AnyDrawing,
   DrawingPoint,
   InstrumentMarketType,
+  RulerDrawing,
   makeInstrumentKey,
 } from '@/lib/drawings/models';
 import { DrawingPrimitive } from '@/lib/drawings/primitive';
 import {
   type ChartProjectionContext,
   hitTestLine,
+  hitTestPoint,
   projectHorizontalLine,
+  projectRangeBox,
   projectRectangle,
-  projectRuler,
   projectTrendline,
 } from '@/lib/drawings/engine';
+import type { RangeMetricCandle } from '@/lib/drawings/range-metrics';
+import {
+  shouldStartTemporaryMeasure,
+} from './drawing-overlay-helpers';
 
 interface DrawingOverlayProps {
   chart: IChartApi | null;
@@ -27,6 +33,7 @@ interface DrawingOverlayProps {
   exchange: string;
   marketType: InstrumentMarketType;
   symbol: string;
+  measurementCandles: RangeMetricCandle[];
   compact?: boolean;
 }
 
@@ -34,6 +41,19 @@ interface CreationState {
   drawingId: string;
   kind: 'trendline' | 'rectangle' | 'ruler';
 }
+
+type DragState =
+  | {
+      drawingId: string;
+      mode: 'move';
+      anchor: DrawingPoint;
+      original: RulerDrawing;
+    }
+  | {
+      drawingId: string;
+      mode: 'resize-start' | 'resize-end';
+      original: RulerDrawing;
+    };
 
 function createDrawingId() {
   return `draw_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -47,10 +67,13 @@ export function DrawingOverlay({
   exchange,
   marketType,
   symbol,
+  measurementCandles,
 }: DrawingOverlayProps) {
   const primitiveRef = useRef<DrawingPrimitive | null>(null);
   const [hostSize, setHostSize] = useState({ width: 0, height: 0 });
   const [creation, setCreation] = useState<CreationState | null>(null);
+  const [temporaryMeasure, setTemporaryMeasure] = useState<RulerDrawing | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
 
   const {
     byId,
@@ -124,8 +147,10 @@ export function DrawingOverlay({
       hidden,
       lastBarTime,
       selectedDrawingId,
+      measurementCandles,
+      temporaryMeasure,
     });
-  }, [drawings, hidden, lastBarTime, selectedDrawingId]);
+  }, [drawings, hidden, lastBarTime, measurementCandles, selectedDrawingId, temporaryMeasure]);
 
   const projectionContext = useMemo<ChartProjectionContext | null>(() => {
     if (!chart || !candleSeries || paneWidth <= 0 || paneHeight <= 0) return null;
@@ -236,8 +261,14 @@ export function DrawingOverlay({
       }
 
       if (drawing.kind === 'ruler') {
-        const line = projectRuler(drawing, projectionContext);
-        if (line && hitTestLine(x, y, line.x1, line.y1, line.x2, line.y2, 10)) {
+        const box = projectRangeBox(drawing, projectionContext);
+        const inside = box
+          ? x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height
+          : false;
+        const onLine = box
+          ? hitTestLine(x, y, box.x1, box.y1, box.x2, box.y2, 10)
+          : false;
+        if (inside || onLine) {
           return drawing;
         }
       }
@@ -266,18 +297,25 @@ export function DrawingOverlay({
     const chartX = rect ? event.clientX - rect.left : 0;
     const chartY = rect ? event.clientY - rect.top : 0;
 
-    if (selectedTool === 'cursor' || selectedTool === 'delete') {
+    if (selectedTool === 'delete') {
       const hit = hitTestDrawing(chartX, chartY);
-      if (selectedTool === 'delete') {
-        if (hit) removeDrawing(hit.id);
-        return;
-      }
-      setSelectedDrawingId(hit?.id ?? null);
+      if (hit) removeDrawing(hit.id);
       return;
     }
 
     const point = screenToValue(event.clientX, event.clientY);
     if (!point) return;
+
+    if (shouldStartTemporaryMeasure({ shiftKey: event.shiftKey, button: event.button })) {
+      setTemporaryMeasure({
+        ...makeBaseDrawing('temp_measure'),
+        kind: 'ruler',
+        p1: point,
+        p2: point,
+      } as RulerDrawing);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
 
     const id = createDrawingId();
     const base = makeBaseDrawing(id);
@@ -306,10 +344,87 @@ export function DrawingOverlay({
       });
       setSelectedDrawingId(id);
       event.currentTarget.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    if (selectedTool === 'cursor') {
+      const hit = hitTestDrawing(chartX, chartY);
+      setSelectedDrawingId(hit?.id ?? null);
+      if (hit?.kind === 'ruler') {
+        const box = projectionContext ? projectRangeBox(hit, projectionContext) : null;
+        if (box) {
+          const mode = hitTestPoint(chartX, chartY, box.x1, box.y1, 8)
+            ? 'resize-start'
+            : hitTestPoint(chartX, chartY, box.x2, box.y2, 8)
+              ? 'resize-end'
+              : 'move';
+          setDragState(
+            mode === 'move'
+              ? { drawingId: hit.id, mode, anchor: point, original: hit }
+              : { drawingId: hit.id, mode, original: hit },
+          );
+          setSelectedDrawingId(hit.id);
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }
+      }
     }
   };
 
   const handlePointerMove = (event: React.PointerEvent<SVGElement>) => {
+    if (temporaryMeasure) {
+      const point = screenToValue(event.clientX, event.clientY);
+      if (!point) return;
+      setTemporaryMeasure((current) => (current ? { ...current, p2: point, updatedAt: Date.now() } : null));
+      return;
+    }
+
+    if (dragState) {
+      const point = screenToValue(event.clientX, event.clientY);
+      if (!point) return;
+
+      const current = byId[dragState.drawingId];
+      if (!current || current.kind !== 'ruler') return;
+
+      if (dragState.mode === 'resize-start') {
+        upsertDrawing({ ...current, p1: point, updatedAt: Date.now() });
+        return;
+      }
+
+      if (dragState.mode === 'resize-end') {
+        upsertDrawing({ ...current, p2: point, updatedAt: Date.now() });
+        return;
+      }
+
+      if (dragState.mode !== 'move') {
+        return;
+      }
+
+      const deltaPrice = point.price - dragState.anchor.price;
+      const timeOffset =
+        typeof point.futureOffset === 'number'
+        && typeof dragState.anchor.futureOffset === 'number'
+          ? point.futureOffset - dragState.anchor.futureOffset
+          : null;
+      const deltaTime = point.time - dragState.anchor.time;
+      const movePoint = (input: DrawingPoint): DrawingPoint => ({
+        ...input,
+        price: input.price + deltaPrice,
+        time: input.time + deltaTime,
+        futureOffset:
+          typeof input.futureOffset === 'number' && timeOffset !== null
+            ? input.futureOffset + timeOffset
+            : input.futureOffset,
+      });
+
+      upsertDrawing({
+        ...current,
+        p1: movePoint(dragState.original.p1),
+        p2: movePoint(dragState.original.p2),
+        updatedAt: Date.now(),
+      });
+      return;
+    }
+
     if (!creation) return;
 
     const current = byId[creation.drawingId];
@@ -347,6 +462,8 @@ export function DrawingOverlay({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     setCreation(null);
+    setDragState(null);
+    setTemporaryMeasure(null);
   };
 
   useEffect(() => {
@@ -360,69 +477,6 @@ export function DrawingOverlay({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [removeDrawing, selectedDrawingId, setSelectedDrawingId]);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host || !chart || !candleSeries || hidden) return;
-
-    let active = false;
-    let activeId: string | null = null;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!event.shiftKey || event.button !== 2) return;
-      const point = screenToValue(event.clientX, event.clientY);
-      if (!point) return;
-
-      active = true;
-      const id = createDrawingId();
-      activeId = id;
-      upsertDrawing({
-        ...makeBaseDrawing(id),
-        kind: 'ruler',
-        p1: point,
-        p2: point,
-      } as AnyDrawing);
-      setSelectedDrawingId(id);
-      event.preventDefault();
-    };
-
-    const handlePointerMove = (event: PointerEvent) => {
-      if (!active || !activeId) return;
-      const current = byId[activeId];
-      if (!current || current.kind !== 'ruler') return;
-      const point = screenToValue(event.clientX, event.clientY);
-      if (!point) return;
-
-      upsertDrawing({
-        ...current,
-        p2: point,
-        updatedAt: Date.now(),
-      });
-    };
-
-    const finish = () => {
-      active = false;
-      activeId = null;
-    };
-
-    const suppressContextMenu = (event: MouseEvent) => {
-      if (event.shiftKey) {
-        event.preventDefault();
-      }
-    };
-
-    host.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', finish);
-    host.addEventListener('contextmenu', suppressContextMenu);
-
-    return () => {
-      host.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', finish);
-      host.removeEventListener('contextmenu', suppressContextMenu);
-    };
-  }, [byId, candleSeries, chart, hidden, hostRef, makeBaseDrawing, removeDrawing, screenToValue, setSelectedDrawingId, upsertDrawing]);
 
   if (!chart || !candleSeries || hidden || paneWidth <= 0 || paneHeight <= 0) {
     return null;
@@ -438,26 +492,24 @@ export function DrawingOverlay({
         height: hostSize.height,
       }}
     >
-      {selectedTool !== 'cursor' && (
-        <rect
-          x={paneLeft}
-          y={0}
-          width={paneWidth}
-          height={paneHeight}
-          fill="transparent"
-          pointerEvents="auto"
-          onWheel={forwardWheelToHost}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={finishCreation}
-          onPointerCancel={finishCreation}
-          onPointerLeave={(event) => {
-            if (creation) {
-              finishCreation(event);
-            }
-          }}
-        />
-      )}
+      <rect
+        x={paneLeft}
+        y={0}
+        width={paneWidth}
+        height={paneHeight}
+        fill="transparent"
+        pointerEvents="auto"
+        onWheel={forwardWheelToHost}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishCreation}
+        onPointerCancel={finishCreation}
+        onPointerLeave={(event) => {
+          if (creation || dragState || temporaryMeasure) {
+            finishCreation(event);
+          }
+        }}
+      />
     </svg>
   );
 }

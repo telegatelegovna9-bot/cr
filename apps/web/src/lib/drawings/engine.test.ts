@@ -5,10 +5,11 @@ import {
   projectTrendline,
   projectVerticalLine,
   projectRectangle,
+  projectRangeBox,
   hitTestLine,
   hitTestPoint,
   hitTestRectangleHandle 
-} from './engine';
+} from './engine.ts';
 
 test('projectHorizontalLine returns full-width line for visible price', () => {
   const line = projectHorizontalLine(
@@ -35,6 +36,33 @@ test('projectTrendline returns line between two points', () => {
     } as any
   );
   assert.deepEqual(line, { x1: 100, y1: 50, x2: 200, y2: 150 });
+});
+
+test('projectRangeBox returns bounds and center points for ruler geometry', () => {
+  const box = projectRangeBox(
+    { p1: { time: 10, price: 100 }, p2: { time: 20, price: 120 } } as any,
+    {
+      width: 400,
+      height: 300,
+      timeToX: (time: number) => (time === 10 ? 100 : (time === 20 ? 200 : null)),
+      logicalToX: () => null,
+      lastRealLogical: null,
+      priceToY: (price: number) => (price === 100 ? 220 : (price === 120 ? 120 : null)),
+    } as any,
+  );
+
+  assert.deepEqual(box, {
+    x: 100,
+    y: 120,
+    width: 100,
+    height: 100,
+    x1: 100,
+    y1: 220,
+    x2: 200,
+    y2: 120,
+    midX: 150,
+    midY: 170,
+  });
 });
 
 test('hitTestRectangleHandle detects near-corner hit', () => {

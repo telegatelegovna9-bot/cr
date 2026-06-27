@@ -78,6 +78,20 @@ export function projectRuler(
   return projectTrendline(drawing, ctx);
 }
 
+export function projectRangeBox(
+  drawing: { p1: PointLike; p2: PointLike },
+  ctx: ChartProjectionContext,
+) {
+  const rect = projectRectangle(drawing, ctx);
+  if (!rect) return null;
+
+  return {
+    ...rect,
+    midX: (rect.x1 + rect.x2) / 2,
+    midY: (rect.y1 + rect.y2) / 2,
+  };
+}
+
 export function projectRectangle(
   drawing: { p1: PointLike; p2: PointLike },
   ctx: ChartProjectionContext

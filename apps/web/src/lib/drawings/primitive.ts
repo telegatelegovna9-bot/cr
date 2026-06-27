@@ -8,31 +8,92 @@ import type {
   Time,
 } from 'lightweight-charts';
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
-import type { AnyDrawing } from './models';
+import type { AnyDrawing, RulerDrawing } from './models';
 import {
   type ChartProjectionContext,
   projectHorizontalLine,
-  projectRuler,
+  projectRangeBox,
   projectRectangle,
   projectTrendline,
 } from './engine';
+import type { RangeMetricCandle } from './range-metrics';
+import { calculateRangeMetrics, formatRangeLabel } from './range-metrics';
+import { getRangeStyle } from './range-style';
 
 interface DrawingPrimitiveState {
   drawings: AnyDrawing[];
   hidden: boolean;
   lastBarTime: number | null;
   selectedDrawingId: string | null;
+  measurementCandles: RangeMetricCandle[];
+  temporaryMeasure: RulerDrawing | null;
 }
 
 class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
   constructor(private readonly primitive: DrawingPrimitive) {}
+
+  private drawRange(
+    context: CanvasRenderingContext2D,
+    projection: ChartProjectionContext,
+    drawing: RulerDrawing,
+    selected: boolean,
+    measurementCandles: RangeMetricCandle[],
+    temporary = false,
+  ) {
+    const box = projectRangeBox(drawing, projection);
+    if (!box) return;
+
+    const metrics = calculateRangeMetrics(drawing, measurementCandles);
+    const style = getRangeStyle(metrics.priceDelta);
+    const label = formatRangeLabel(metrics);
+
+    context.save();
+    context.fillStyle = style.fill;
+    context.fillRect(box.x, box.y, box.width, box.height);
+
+    context.strokeStyle = style.border;
+    context.lineWidth = selected ? 1.8 : 1.2;
+    context.setLineDash(temporary ? [4, 3] : []);
+    context.strokeRect(box.x, box.y, box.width, box.height);
+
+    context.beginPath();
+    context.moveTo(box.x1, box.y1);
+    context.lineTo(box.x2, box.y2);
+    context.strokeStyle = style.line;
+    context.lineWidth = selected ? 1.6 : 1.1;
+    context.stroke();
+
+    if (selected && !temporary) {
+      context.setLineDash([]);
+      context.fillStyle = style.handle;
+      for (const [x, y] of [[box.x1, box.y1], [box.x2, box.y2]] as const) {
+        context.beginPath();
+        context.arc(x, y, 4, 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+
+    context.setLineDash([]);
+    context.font = '11px JetBrains Mono, monospace';
+    const textWidth = context.measureText(label).width;
+    const boxWidth = textWidth + 12;
+    const boxHeight = 20;
+    const labelX = Math.min(Math.max(box.midX - (boxWidth / 2), 4), Math.max(4, projection.width - boxWidth - 4));
+    const labelY = Math.max(4, box.y - boxHeight - 6);
+
+    context.fillStyle = style.textBg;
+    context.fillRect(labelX, labelY, boxWidth, boxHeight);
+    context.fillStyle = style.textFg;
+    context.fillText(label, labelX + 6, labelY + 14);
+    context.restore();
+  }
 
   draw(target: CanvasRenderingTarget2D): void {
     target.useMediaCoordinateSpace(({ context, mediaSize }) => {
       const projection = this.primitive.projectionContext(mediaSize.width, mediaSize.height);
       if (!projection) return;
 
-      const { drawings } = this.primitive.state();
+      const { drawings, measurementCandles, temporaryMeasure } = this.primitive.state();
       context.save();
 
       for (const drawing of drawings) {
@@ -70,35 +131,7 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
         }
 
         if (drawing.kind === 'ruler') {
-          const line = projectRuler(drawing, projection);
-          if (!line) continue;
-
-          const delta = drawing.p2.price - drawing.p1.price;
-          const percent = drawing.p1.price === 0 ? 0 : (delta / drawing.p1.price) * 100;
-          const midX = (line.x1 + line.x2) / 2;
-          const midY = (line.y1 + line.y2) / 2;
-
-          context.beginPath();
-          context.moveTo(line.x1, line.y1);
-          context.lineTo(line.x2, line.y2);
-          context.strokeStyle = '#f59e0b';
-          context.lineWidth = selected ? 2.2 : 1.4;
-          context.setLineDash([6, 4]);
-          context.stroke();
-
-          context.setLineDash([]);
-          context.fillStyle = 'rgba(15, 23, 42, 0.92)';
-          context.strokeStyle = '#f59e0b';
-          context.lineWidth = 1;
-          context.font = '11px JetBrains Mono, monospace';
-          const label = `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} (${percent >= 0 ? '+' : ''}${percent.toFixed(2)}%)`;
-          const textWidth = context.measureText(label).width;
-          const boxWidth = textWidth + 10;
-          const boxHeight = 18;
-          context.fillRect(midX - boxWidth / 2, midY - boxHeight - 6, boxWidth, boxHeight);
-          context.strokeRect(midX - boxWidth / 2, midY - boxHeight - 6, boxWidth, boxHeight);
-          context.fillStyle = '#f8fafc';
-          context.fillText(label, midX - textWidth / 2, midY - 12);
+          this.drawRange(context, projection, drawing, selected, measurementCandles);
           continue;
         }
 
@@ -115,6 +148,10 @@ class DrawingPrimitiveRenderer implements ISeriesPrimitivePaneRenderer {
           context.setLineDash([]);
           context.strokeRect(rect.x, rect.y, rect.width, rect.height);
         }
+      }
+
+      if (temporaryMeasure) {
+        this.drawRange(context, projection, temporaryMeasure, false, measurementCandles, true);
       }
 
       context.restore();
@@ -143,6 +180,8 @@ export class DrawingPrimitive implements ISeriesPrimitive<Time> {
     hidden: false,
     lastBarTime: null,
     selectedDrawingId: null,
+    measurementCandles: [],
+    temporaryMeasure: null,
   };
   private readonly rendererInstance = new DrawingPrimitiveRenderer(this);
   private readonly paneView = new DrawingPrimitivePaneView(this.rendererInstance);

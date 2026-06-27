@@ -39,7 +39,7 @@ export function DrawingToolbar({ exchange, marketType, symbol, compact }: Drawin
     { id: 'horizontal_line', icon: Minus, label: 'Horizontal Line' },
     { id: 'trendline', icon: TrendingUp, label: 'Trend Line' },
     { id: 'rectangle', icon: Square, label: 'Rectangle' },
-    { id: 'ruler', icon: Ruler, label: 'Ruler' },
+    { id: 'ruler', icon: Ruler, label: 'Price Range' },
     { id: 'delete', icon: Trash2, label: 'Delete' },
   ];
 

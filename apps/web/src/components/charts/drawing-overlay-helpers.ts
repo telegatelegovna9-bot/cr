@@ -15,6 +15,11 @@ export interface LogicalRangeLike {
   to: number;
 }
 
+export interface TemporaryMeasureGestureLike {
+  shiftKey: boolean;
+  button: number;
+}
+
 export function getLocalOverlayPoint(
   clientX: number,
   clientY: number,
@@ -48,4 +53,21 @@ export function panLogicalRange(
     from: range.from - deltaBars,
     to: range.to - deltaBars,
   };
+}
+
+export function toRangeMetricCandles(
+  raw: Array<{ time?: number; timestamp?: number; volume?: number }>,
+) {
+  return raw
+    .map((candle) => ({
+      time: Math.floor(((candle.time ?? candle.timestamp ?? 0) as number) / 1000),
+      volume: candle.volume ?? 0,
+    }))
+    .filter((candle) => candle.time > 0);
+}
+
+export function shouldStartTemporaryMeasure(
+  event: TemporaryMeasureGestureLike,
+): boolean {
+  return event.shiftKey && event.button === 0;
 }
