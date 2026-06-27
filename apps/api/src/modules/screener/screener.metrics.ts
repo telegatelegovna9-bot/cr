@@ -11,6 +11,6 @@ export function buildScreenerSnapshotRow(input: BuildScreenerSnapshotRowInput): 
     fundingPct: input.fundingPct ?? null,
     oi: input.oi ?? null,
     updatedAt: input.ticker.timestamp,
-    metrics: input.featureMap,
+    metrics: { ...input.featureMap },
   };
 }
