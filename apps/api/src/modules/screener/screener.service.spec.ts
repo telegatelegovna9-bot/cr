@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildScreenerSnapshotRow } from './screener.metrics.ts';
-import { ScreenerService } from './screener.service.ts';
+import { buildScreenerSnapshotRow } from './screener.metrics';
+import { ScreenerService } from './screener.service';
 
 test('buildScreenerSnapshotRow derives current and timeframe metrics from market inputs', () => {
   const featureMap = {
@@ -19,9 +19,6 @@ test('buildScreenerSnapshotRow derives current and timeframe metrics from market
       lastPrice: 64000,
       volume24h: 120000000,
       priceChangePercent24h: 3.2,
-      priceChange24h: 1984,
-      high24h: 65000,
-      low24h: 61000,
       timestamp: Date.now(),
     },
     featureMap,
@@ -77,4 +74,46 @@ test('ScreenerService snapshots are market-scoped and detached from caller mutat
   assert.equal(secondRead.rows[0]?.metrics['1m.changePct'], 0.6);
   assert.notEqual(secondRead.rows[0], rows[0]);
   assert.notEqual(secondRead.rows[0]?.metrics, rows[0].metrics);
+});
+
+test('ScreenerService refreshFromMarketRows keeps spot and futures snapshots separated', () => {
+  const service = new ScreenerService();
+
+  service.refreshFromMarketRows([
+    {
+      symbol: 'ETH/USDT',
+      exchange: 'binance',
+      marketType: 'spot',
+      price: 3500,
+      spreadPct: 0.02,
+      fundingPct: null,
+      oi: null,
+      updatedAt: 1,
+      metrics: { '1m.changePct': 0.6 },
+    },
+    {
+      symbol: 'ETH/USDT:USDT',
+      exchange: 'bybit',
+      marketType: 'futures',
+      price: 3510,
+      spreadPct: 0.03,
+      fundingPct: 0.01,
+      oi: 2000,
+      updatedAt: 2,
+      metrics: { '1m.changePct': 0.8 },
+    },
+  ]);
+
+  const spotSnapshot = service.listSnapshot('spot');
+  const futuresSnapshot = service.listSnapshot('futures');
+
+  assert.equal(spotSnapshot.marketType, 'spot');
+  assert.equal(spotSnapshot.rows.length, 1);
+  assert.equal(spotSnapshot.rows[0]?.marketType, 'spot');
+  assert.equal(spotSnapshot.rows[0]?.symbol, 'ETH/USDT');
+
+  assert.equal(futuresSnapshot.marketType, 'futures');
+  assert.equal(futuresSnapshot.rows.length, 1);
+  assert.equal(futuresSnapshot.rows[0]?.marketType, 'futures');
+  assert.equal(futuresSnapshot.rows[0]?.symbol, 'ETH/USDT:USDT');
 });
