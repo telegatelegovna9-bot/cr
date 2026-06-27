@@ -12,24 +12,24 @@ export function getRangeStyle(priceDelta: number): RangeStyleTokens {
   if (priceDelta < 0) {
     return {
       direction: 'down',
-      fill: 'rgba(239, 68, 68, 0.16)',
-      border: 'rgba(239, 68, 68, 0.9)',
-      line: 'rgba(239, 68, 68, 0.95)',
-      textBg: 'rgba(127, 29, 29, 0.95)',
-      textFg: '#fee2e2',
-      handle: '#ef4444',
+      fill: 'rgba(239, 68, 68, 0.18)',
+      border: 'rgba(239, 68, 68, 0.95)',
+      line: 'rgba(239, 68, 68, 1)',
+      textBg: 'rgba(185, 28, 28, 0.96)',
+      textFg: '#ffffff',
+      handle: '#ffffff',
     };
   }
 
   if (priceDelta > 0) {
     return {
       direction: 'up',
-      fill: 'rgba(59, 130, 246, 0.16)',
-      border: 'rgba(59, 130, 246, 0.9)',
-      line: 'rgba(59, 130, 246, 0.95)',
-      textBg: 'rgba(30, 64, 175, 0.95)',
-      textFg: '#dbeafe',
-      handle: '#3b82f6',
+      fill: 'rgba(34, 197, 94, 0.18)',
+      border: 'rgba(34, 197, 94, 0.95)',
+      line: 'rgba(34, 197, 94, 1)',
+      textBg: 'rgba(21, 128, 61, 0.96)',
+      textFg: '#ffffff',
+      handle: '#ffffff',
     };
   }
 
