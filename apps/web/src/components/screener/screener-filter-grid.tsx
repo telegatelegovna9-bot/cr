@@ -29,17 +29,17 @@ interface ScreenerFilterGridProps {
 
 export function ScreenerFilterGrid({ filters, onMetricChange }: ScreenerFilterGridProps) {
   return (
-    <div className="glass-card grid grid-cols-1 gap-3 p-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className="glass-card grid grid-cols-1 gap-2 p-2.5 md:grid-cols-2 xl:grid-cols-3">
       {FILTER_DEFS.map(({ key, label, timeframe }) => {
         const range = filters.metrics[key];
 
         return (
-        <div key={key} className="rounded-xl border border-border bg-bg-primary/20 p-3">
-          <div className="mb-2 text-xs font-semibold text-text-primary">{label}</div>
-          <div className="space-y-2">
+        <div key={key} className="rounded-xl border border-border bg-bg-primary/20 p-2.5">
+          <div className="mb-1.5 text-[11px] font-semibold text-text-primary">{label}</div>
+          <div className="space-y-1.5">
             {timeframe ? (
               <select
-                className="input-premium !py-2 !text-xs"
+                className="input-premium !py-1.5 !text-[11px]"
                 value={range?.timeframe ?? '1m'}
                 onChange={event =>
                   onMetricChange(key, {
@@ -55,19 +55,19 @@ export function ScreenerFilterGrid({ filters, onMetricChange }: ScreenerFilterGr
                 ))}
               </select>
             ) : (
-              <div className="rounded-lg border border-dashed border-border px-3 py-2 text-[11px] text-text-muted">
+              <div className="rounded-lg border border-dashed border-border px-2.5 py-1.5 text-[10px] text-text-muted">
                 Current value
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">
               <input
-                className="input-premium !py-2 !text-xs"
+                className="input-premium !py-1.5 !text-[11px]"
                 placeholder="Min"
                 value={range?.min ?? ''}
                 onChange={event => onMetricChange(key, nextRange(range, timeframe, 'min', event.target.value))}
               />
               <input
-                className="input-premium !py-2 !text-xs"
+                className="input-premium !py-1.5 !text-[11px]"
                 placeholder="Max"
                 value={range?.max ?? ''}
                 onChange={event => onMetricChange(key, nextRange(range, timeframe, 'max', event.target.value))}
