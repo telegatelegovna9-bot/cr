@@ -6,6 +6,7 @@ import { ScreenerService } from './screener.service';
 function createService(tickers: any[] = []) {
   return new ScreenerService({
     getAllTickerValues: () => tickers,
+    refreshAllTickersSnapshot: async () => tickers.length,
   } as never);
 }
 
@@ -125,6 +126,7 @@ test('ScreenerService refreshFromMarketRows keeps spot and futures snapshots sep
 });
 
 test('ScreenerService listSnapshot hydrates rows from MarketService ticker cache', () => {
+  const now = Date.now();
   const service = createService([
     {
       exchange: 'binance',
@@ -136,7 +138,7 @@ test('ScreenerService listSnapshot hydrates rows from MarketService ticker cache
       volume24h: 120000000,
       high24h: 65000,
       low24h: 61000,
-      timestamp: 1710000000000,
+      timestamp: now,
       volatility: 0,
       atr: 0,
     },
@@ -150,7 +152,7 @@ test('ScreenerService listSnapshot hydrates rows from MarketService ticker cache
       volume24h: 99000000,
       high24h: 3550,
       low24h: 3400,
-      timestamp: 1710000005000,
+      timestamp: now + 5000,
       volatility: 0,
       atr: 0,
     },
@@ -163,15 +165,16 @@ test('ScreenerService listSnapshot hydrates rows from MarketService ticker cache
   assert.equal(spotSnapshot.rows[0]?.symbol, 'BTC/USDT');
   assert.equal(spotSnapshot.rows[0]?.price, 64000);
   assert.equal(spotSnapshot.rows[0]?.metrics['1m.natrPct'], 6.25);
-  assert.equal(spotSnapshot.updatedAt, 1710000000000);
+  assert.equal(spotSnapshot.updatedAt, now);
 
   assert.equal(futuresSnapshot.rows.length, 1);
   assert.equal(futuresSnapshot.rows[0]?.symbol, 'ETH/USDT:USDT');
   assert.equal(futuresSnapshot.rows[0]?.price, 3500);
-  assert.equal(futuresSnapshot.updatedAt, 1710000005000);
+  assert.equal(futuresSnapshot.updatedAt, now + 5000);
 });
 
-test('ScreenerService derives rolling 1m metrics from ticker history', () => {
+test('ScreenerService derives rolling 1m metrics from ticker history', async () => {
+  const baseTime = Date.now() - 60_000;
   const baseTicker = {
     exchange: 'binance',
     marketType: 'spot',
@@ -192,7 +195,7 @@ test('ScreenerService derives rolling 1m metrics from ticker history', () => {
       volume24h: 1000,
       quoteVolume24h: 64000000,
       trades24h: 100,
-      timestamp: 1710000000000,
+      timestamp: baseTime,
     },
     {
       ...baseTicker,
@@ -200,7 +203,7 @@ test('ScreenerService derives rolling 1m metrics from ticker history', () => {
       volume24h: 1010,
       quoteVolume24h: 64741000,
       trades24h: 102,
-      timestamp: 1710000015000,
+      timestamp: baseTime + 15_000,
     },
     {
       ...baseTicker,
@@ -208,7 +211,7 @@ test('ScreenerService derives rolling 1m metrics from ticker history', () => {
       volume24h: 1021,
       quoteVolume24h: 65562000,
       trades24h: 105,
-      timestamp: 1710000030000,
+      timestamp: baseTime + 30_000,
     },
     {
       ...baseTicker,
@@ -216,7 +219,7 @@ test('ScreenerService derives rolling 1m metrics from ticker history', () => {
       volume24h: 1033,
       quoteVolume24h: 66419000,
       trades24h: 109,
-      timestamp: 1710000045000,
+      timestamp: baseTime + 45_000,
     },
     {
       ...baseTicker,
@@ -224,17 +227,18 @@ test('ScreenerService derives rolling 1m metrics from ticker history', () => {
       volume24h: 1088,
       quoteVolume24h: 70720000,
       trades24h: 130,
-      timestamp: 1710000060000,
+      timestamp: baseTime + 60_000,
     },
   ];
   let currentTickers = [tickers[0]];
   const service = new ScreenerService({
     getAllTickerValues: () => currentTickers,
+    refreshAllTickersSnapshot: async () => currentTickers.length,
   } as never);
 
   for (const ticker of tickers) {
     currentTickers = [ticker];
-    service.refreshSnapshotsFromMarketCache();
+    await service.refreshSnapshotsFromMarketCache();
   }
 
   const snapshot = service.listSnapshot('spot');
@@ -293,6 +297,7 @@ test('ScreenerService listSnapshot does not overwrite existing rows and metrics 
 });
 
 test('ScreenerService listSnapshot does not bump updatedAt just because it was called', () => {
+  const now = Date.now();
   const service = createService([
     {
       exchange: 'binance',
@@ -304,7 +309,7 @@ test('ScreenerService listSnapshot does not bump updatedAt just because it was c
       volume24h: 120000000,
       high24h: 65000,
       low24h: 61000,
-      timestamp: 1710000000000,
+      timestamp: now,
       volatility: 0,
       atr: 0,
     },
@@ -313,6 +318,84 @@ test('ScreenerService listSnapshot does not bump updatedAt just because it was c
   const first = service.listSnapshot('spot');
   const second = service.listSnapshot('spot');
 
-  assert.equal(first.updatedAt, 1710000000000);
-  assert.equal(second.updatedAt, 1710000000000);
+  assert.equal(first.updatedAt, now);
+  assert.equal(second.updatedAt, now);
+});
+
+test('ScreenerService excludes stale rows from screener snapshot output', () => {
+  const now = Date.now();
+  const service = createService([
+    {
+      exchange: 'binance',
+      marketType: 'spot',
+      symbol: 'BTC/USDT',
+      lastPrice: 64000,
+      priceChange24h: 0,
+      priceChangePercent24h: 2.5,
+      volume24h: 120000000,
+      high24h: 65000,
+      low24h: 61000,
+      timestamp: now,
+      volatility: 0,
+      atr: 0,
+    },
+    {
+      exchange: 'binance',
+      marketType: 'spot',
+      symbol: 'OLD/USDT',
+      lastPrice: 1,
+      priceChange24h: 0,
+      priceChangePercent24h: 0.1,
+      volume24h: 1000,
+      high24h: 1.1,
+      low24h: 0.9,
+      timestamp: now - 10 * 60 * 1000,
+      volatility: 0,
+      atr: 0,
+    },
+  ]);
+
+  service.refreshSnapshotsFromMarketCache();
+  const snapshot = service.listSnapshot('spot');
+
+  assert.equal(snapshot.rows.some(row => row.symbol === 'OLD/USDT'), false);
+  assert.equal(snapshot.rows.some(row => row.symbol === 'BTC/USDT'), true);
+});
+
+test('ScreenerService triggers shared full-market refresh before rebuilding snapshot', async () => {
+  let refreshCalls = 0;
+  const now = Date.now() - 60_000;
+  let tickers = [
+    {
+      exchange: 'binance',
+      marketType: 'futures',
+      symbol: 'BTC/USDT:USDT',
+      lastPrice: 64000,
+      priceChange24h: 0,
+      priceChangePercent24h: 1.5,
+      volume24h: 5000000,
+      high24h: 65000,
+      low24h: 63000,
+      timestamp: now,
+      volatility: 0,
+      atr: 0,
+    },
+  ];
+
+  const service = new ScreenerService({
+    getAllTickerValues: () => tickers,
+    refreshAllTickersSnapshot: async () => {
+      refreshCalls += 1;
+      tickers = tickers.map(ticker => ({
+        ...ticker,
+        timestamp: ticker.timestamp + 60_000,
+      }));
+      return tickers.length;
+    },
+  } as never);
+
+  await service.refreshSnapshotsFromMarketCache();
+
+  assert.equal(refreshCalls, 1);
+  assert.equal(service.listSnapshot('futures').updatedAt, now + 60_000);
 });
