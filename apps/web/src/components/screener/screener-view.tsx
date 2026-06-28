@@ -210,6 +210,17 @@ export function ScreenerView() {
     setFiltersExpanded(false);
   };
 
+  const handleDeletePreset = () => {
+    if (!selectedPresetId) {
+      return;
+    }
+
+    setPresets(current => current.filter(item => item.id !== selectedPresetId));
+    setSelectedPresetId(null);
+    setPresetName('');
+    lastMatchKeysRef.current = [];
+  };
+
   const handleResetFilters = () => {
     setFilters(DEFAULT_FILTERS);
     setPresetName('');
@@ -255,6 +266,7 @@ export function ScreenerView() {
         selectedPresetId={selectedPresetId}
         onPresetSelect={handlePresetSelect}
         onSavePreset={handleSavePreset}
+        onDeletePreset={handleDeletePreset}
         onResetFilters={handleResetFilters}
         soundEnabled={soundEnabled}
         onSoundToggle={() => setSoundEnabled(current => !current)}
