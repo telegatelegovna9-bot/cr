@@ -10,7 +10,7 @@ export class ScreenerService {
   private readonly snapshots = new Map<ScreenerMarketType, ScreenerSnapshotRow[]>();
   private readonly updatedAt = new Map<ScreenerMarketType, number>();
 
-  constructor(private readonly marketService: MarketService) {}
+  constructor(private readonly marketService: Pick<MarketService, 'getAllTickerValues'>) {}
 
   refreshFromMarketRows(rows: ScreenerSnapshotRow[]): void {
     const grouped = {
