@@ -3,23 +3,16 @@ import type {
   ScreenerMetricKey,
   ScreenerSnapshotMetricId,
   ScreenerSnapshotRow,
-  ScreenerTimeframeMetricKey,
-  Timeframe,
 } from '@crypto-screener/shared';
-import { SCREENER_TIMEFRAME_METRIC_KEYS } from '@crypto-screener/shared';
 
-function isTimeframeMetricKey(key: ScreenerMetricKey): key is ScreenerTimeframeMetricKey {
-  return SCREENER_TIMEFRAME_METRIC_KEYS.includes(key as ScreenerTimeframeMetricKey);
-}
-
-function metricValue(row: ScreenerSnapshotRow, key: ScreenerMetricKey, timeframe?: Timeframe): number | null {
+function metricValue(row: ScreenerSnapshotRow, key: ScreenerMetricKey, timeframe?: string): number | null {
   if (key === 'price') return row.price;
   if (key === 'spreadPct') return row.spreadPct ?? null;
   if (key === 'fundingPct') return row.fundingPct ?? null;
   if (key === 'oi') return row.oi ?? null;
-  if (!timeframe || !isTimeframeMetricKey(key)) return null;
+  if (!timeframe) return null;
 
-  const metricId: ScreenerSnapshotMetricId = `${timeframe}.${key}`;
+  const metricId = `${timeframe}.${key}` as ScreenerSnapshotMetricId;
   return row.metrics[metricId] ?? null;
 }
 
