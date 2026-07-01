@@ -232,25 +232,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     return Array.from(this.tickerCache.values());
   }
 
-  async refreshAllTickersSnapshot(symbols?: string[]): Promise<number> {
-    const tickers = await this.exchangeManager.fetchAllTickers(symbols);
-    const ingestedAt = Date.now();
-
-    for (const ticker of tickers) {
-      const key = `${ticker.exchange}:${ticker.symbol}`;
-      const existing = this.tickerCache.get(key);
-      this.tickerCache.set(key, {
-        ...(existing || {}),
-        ...ticker,
-        timestamp: ingestedAt,
-        volatility: existing?.volatility || 0,
-        atr: existing?.atr || 0,
-      } as TickerWithMeta);
-    }
-
-    return tickers.length;
-  }
-
   getTopGainers(limit = 50): TickerWithMeta[] {
     return this.getTickers().sort((a, b) => (b.priceChangePercent24h || 0) - (a.priceChangePercent24h || 0)).slice(0, limit);
   }
@@ -481,7 +462,17 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private async refreshTickers() {
     if (this.connectedExchanges.size === 0) return;
     try {
-      await this.refreshAllTickersSnapshot(Array.from(this.subscribedSymbols));
+      const tickers = await this.exchangeManager.fetchAllTickers(Array.from(this.subscribedSymbols));
+      for (const ticker of tickers) {
+        const key = `${ticker.exchange}:${ticker.symbol}`;
+        const existing = this.tickerCache.get(key);
+        this.tickerCache.set(key, { 
+          ...(existing || {}), 
+          ...ticker, 
+          volatility: existing?.volatility || 0, 
+          atr: existing?.atr || 0 
+        } as TickerWithMeta);
+      }
     } catch { /* fail */ }
   }
 

@@ -24,20 +24,15 @@ export class ScreenerService implements OnModuleInit {
   private readonly HISTORY_WINDOW_MS = 10 * 60 * 1000;
   private readonly BASELINE_WINDOW_MS = 60 * 1000;
   private readonly MIN_SPIKE_SAMPLES = 3;
-  private readonly FULL_REFRESH_INTERVAL_MS = 15_000;
-  private readonly STALE_ROW_THRESHOLD_MS = 2 * 60 * 1000;
-  private lastFullRefreshAt = 0;
 
   constructor(private readonly marketService: MarketService) {}
 
-  async onModuleInit(): Promise<void> {
-    await this.refreshSnapshotsFromMarketCache();
+  onModuleInit(): void {
+    this.refreshSnapshotsFromMarketCache();
   }
 
   @Interval(SCREENER_REFRESH_INTERVAL_MS)
-  async refreshSnapshotsFromMarketCache(): Promise<void> {
-    await this.ensureFreshGlobalTickers();
-
+  refreshSnapshotsFromMarketCache(): void {
     const tickers = this.marketService.getAllTickerValues();
     if (tickers.length === 0) {
       return;
@@ -47,10 +42,7 @@ export class ScreenerService implements OnModuleInit {
       this.recordSample(ticker);
     }
 
-    const now = Date.now();
-    const rows = tickers
-      .filter(ticker => now - ticker.timestamp <= this.STALE_ROW_THRESHOLD_MS)
-      .map(ticker => this.mapTickerToSnapshotRow(ticker));
+    const rows = tickers.map(ticker => this.mapTickerToSnapshotRow(ticker));
     this.refreshFromMarketRows(rows);
   }
 
@@ -76,12 +68,7 @@ export class ScreenerService implements OnModuleInit {
   listSnapshot(marketType: ScreenerMarketType): ScreenerSnapshotBucket {
     const existingRows = this.snapshots.get(marketType);
     if (!existingRows || existingRows.length === 0) {
-      const tickers = this.marketService.getAllTickerValues();
-      const now = Date.now();
-      const rows = tickers
-        .filter(ticker => now - ticker.timestamp <= this.STALE_ROW_THRESHOLD_MS)
-        .map(ticker => this.mapTickerToSnapshotRow(ticker));
-      this.refreshFromMarketRows(rows);
+      this.refreshSnapshotsFromMarketCache();
     }
 
     return {
@@ -281,15 +268,5 @@ export class ScreenerService implements OnModuleInit {
 
   private getBucketUpdatedAt(rows: ScreenerSnapshotRow[]): number {
     return rows.reduce((latest, row) => Math.max(latest, row.updatedAt), 0);
-  }
-
-  private async ensureFreshGlobalTickers(): Promise<void> {
-    const now = Date.now();
-    if (now - this.lastFullRefreshAt < this.FULL_REFRESH_INTERVAL_MS) {
-      return;
-    }
-
-    await this.marketService.refreshAllTickersSnapshot();
-    this.lastFullRefreshAt = Date.now();
   }
 }
