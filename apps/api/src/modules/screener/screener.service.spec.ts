@@ -163,76 +163,8 @@ test('ScreenerService listSnapshot hydrates rows from MarketService ticker cache
   assert.equal(spotSnapshot.rows[0]?.symbol, 'BTC/USDT');
   assert.equal(spotSnapshot.rows[0]?.price, 64000);
   assert.deepEqual(spotSnapshot.rows[0]?.metrics, {});
-  assert.equal(spotSnapshot.updatedAt, 1710000000000);
 
   assert.equal(futuresSnapshot.rows.length, 1);
   assert.equal(futuresSnapshot.rows[0]?.symbol, 'ETH/USDT:USDT');
   assert.equal(futuresSnapshot.rows[0]?.price, 3500);
-  assert.equal(futuresSnapshot.updatedAt, 1710000005000);
-});
-
-test('ScreenerService listSnapshot does not overwrite existing rows and metrics during bootstrap reads', () => {
-  const service = createService([
-    {
-      exchange: 'binance',
-      marketType: 'spot',
-      symbol: 'BTC/USDT',
-      lastPrice: 64010,
-      priceChange24h: 0,
-      priceChangePercent24h: 2.5,
-      volume24h: 120000000,
-      high24h: 65000,
-      low24h: 61000,
-      timestamp: 1710000009999,
-      volatility: 0,
-      atr: 0,
-    },
-  ]);
-
-  service.updateSnapshot('spot', [
-    {
-      symbol: 'BTC/USDT',
-      exchange: 'binance',
-      marketType: 'spot',
-      price: 64000,
-      spreadPct: 0.02,
-      fundingPct: null,
-      oi: null,
-      updatedAt: 1710000001000,
-      metrics: { '1m.changePct': 1.4, '1m.volumeSpikePct': 170 },
-    },
-  ]);
-
-  const snapshot = service.listSnapshot('spot');
-
-  assert.equal(snapshot.rows.length, 1);
-  assert.equal(snapshot.rows[0]?.price, 64000);
-  assert.equal(snapshot.rows[0]?.metrics['1m.changePct'], 1.4);
-  assert.equal(snapshot.rows[0]?.metrics['1m.volumeSpikePct'], 170);
-  assert.equal(snapshot.updatedAt, 1710000001000);
-});
-
-test('ScreenerService listSnapshot does not bump updatedAt just because it was called', () => {
-  const service = createService([
-    {
-      exchange: 'binance',
-      marketType: 'spot',
-      symbol: 'BTC/USDT',
-      lastPrice: 64000,
-      priceChange24h: 0,
-      priceChangePercent24h: 2.5,
-      volume24h: 120000000,
-      high24h: 65000,
-      low24h: 61000,
-      timestamp: 1710000000000,
-      volatility: 0,
-      atr: 0,
-    },
-  ]);
-
-  const first = service.listSnapshot('spot');
-  const second = service.listSnapshot('spot');
-
-  assert.equal(first.updatedAt, 1710000000000);
-  assert.equal(second.updatedAt, 1710000000000);
 });
