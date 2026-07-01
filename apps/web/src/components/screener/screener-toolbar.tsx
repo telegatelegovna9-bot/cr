@@ -5,9 +5,6 @@ interface ScreenerToolbarProps {
   onMarketTypeChange: (marketType: ScreenerMarketType) => void;
   exchanges: ExchangeId[];
   onExchangeToggle: (exchange: ExchangeId) => void;
-  filterCount: number;
-  filtersExpanded: boolean;
-  onToggleFilters: () => void;
   presetName: string;
   onPresetNameChange: (value: string) => void;
   presets: Array<{ id: string; name: string }>;
@@ -24,9 +21,6 @@ export function ScreenerToolbar({
   onMarketTypeChange,
   exchanges,
   onExchangeToggle,
-  filterCount,
-  filtersExpanded,
-  onToggleFilters,
   presetName,
   onPresetNameChange,
   presets,
@@ -38,10 +32,9 @@ export function ScreenerToolbar({
   onSoundToggle,
 }: ScreenerToolbarProps) {
   return (
-    <div className="glass-card flex flex-col gap-3 p-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="glass-card flex flex-col gap-3 p-3 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => onMarketTypeChange('spot')}
@@ -63,13 +56,6 @@ export function ScreenerToolbar({
             }`}
           >
             Futures
-          </button>
-          <button
-            type="button"
-            onClick={onToggleFilters}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:text-text-primary"
-          >
-            {filtersExpanded ? 'Hide Filters' : 'Show Filters'}
           </button>
         </div>
 
@@ -122,16 +108,6 @@ export function ScreenerToolbar({
         <button type="button" className="ghost-btn px-3 py-1.5 text-xs" onClick={onSoundToggle}>
           {soundEnabled ? 'Sound On' : 'Sound Off'}
         </button>
-      </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
-        <div className="rounded-lg border border-border bg-bg-primary/20 px-2.5 py-1">
-          Exchanges: {exchanges.length}
-        </div>
-        <div className="rounded-lg border border-border bg-bg-primary/20 px-2.5 py-1">
-          Active filters: {filterCount}
-        </div>
       </div>
     </div>
   );

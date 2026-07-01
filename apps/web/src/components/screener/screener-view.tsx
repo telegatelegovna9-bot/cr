@@ -47,7 +47,6 @@ export function ScreenerView() {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [presetName, setPresetName] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastMatchKeysRef = useRef<string[]>([]);
@@ -125,15 +124,6 @@ export function ScreenerView() {
   const activePresetName =
     presets.find(preset => preset.id === selectedPresetId)?.name ??
     presetName;
-  const activeFilterEntries = useMemo(
-    () => Object.entries(filters.metrics).filter(([, range]) => range),
-    [filters.metrics],
-  );
-  const activeFilterCount = activeFilterEntries.length;
-  const activeFilterSummary = activeFilterEntries
-    .slice(0, 4)
-    .map(([metric, range]) => formatFilterSummary(metric, range))
-    .filter((value): value is string => Boolean(value));
 
   const handleMetricChange = (metric: ScreenerMetricKey, next: ScreenerMetricRange | null) => {
     setFilters(current => {
@@ -195,7 +185,6 @@ export function ScreenerView() {
       return current.map(item => (item.id === nextPreset.id ? nextPreset : item));
     });
     setSelectedPresetId(nextPreset.id);
-    setFiltersExpanded(false);
   };
 
   const handleResetFilters = () => {
@@ -203,7 +192,6 @@ export function ScreenerView() {
     setPresetName('');
     setSelectedPresetId(null);
     lastMatchKeysRef.current = [];
-    setFiltersExpanded(false);
   };
 
   const handleRowClick = (row: ScreenerSnapshotRow) => {
@@ -234,9 +222,6 @@ export function ScreenerView() {
         }}
         exchanges={filters.exchanges}
         onExchangeToggle={handleExchangeToggle}
-        filterCount={activeFilterCount}
-        filtersExpanded={filtersExpanded}
-        onToggleFilters={() => setFiltersExpanded(current => !current)}
         presetName={presetName}
         onPresetNameChange={setPresetName}
         presets={presets.map(preset => ({ id: preset.id, name: preset.name }))}
@@ -247,51 +232,7 @@ export function ScreenerView() {
         soundEnabled={soundEnabled}
         onSoundToggle={() => setSoundEnabled(current => !current)}
       />
-      <div className="glass-card flex flex-wrap items-center gap-2 px-3 py-2 text-[11px] text-text-muted">
-        <span className="font-semibold text-text-secondary">Filters</span>
-        {activeFilterSummary.length === 0 ? (
-          <span>No active metric filters</span>
-        ) : (
-          activeFilterSummary.map(item => (
-            <span key={item} className="rounded-lg border border-border bg-bg-primary/20 px-2 py-1">
-              {item}
-            </span>
-          ))
-        )}
-        {activeFilterCount > activeFilterSummary.length ? (
-          <span className="rounded-lg border border-border bg-bg-primary/20 px-2 py-1">
-            +{activeFilterCount - activeFilterSummary.length} more
-          </span>
-        ) : null}
-      </div>
-      {filtersExpanded ? (
-        <>
-          <div className="hidden md:block">
-            <ScreenerFilterGrid filters={filters} onMetricChange={handleMetricChange} />
-          </div>
-          <div className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => setFiltersExpanded(false)}>
-            <div
-              className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-auto rounded-t-3xl border border-border bg-bg-primary p-3"
-              onClick={event => event.stopPropagation()}
-            >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-text-primary">Screener Filters</div>
-                  <div className="text-[11px] text-text-muted">Adjust filters without hiding the signals list.</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFiltersExpanded(false)}
-                  className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary"
-                >
-                  Close
-                </button>
-              </div>
-              <ScreenerFilterGrid filters={filters} onMetricChange={handleMetricChange} />
-            </div>
-          </div>
-        </>
-      ) : null}
+      <ScreenerFilterGrid filters={filters} onMetricChange={handleMetricChange} />
       <ScreenerStatusBar
         marketType={marketType}
         matchCount={visibleRows.length}
@@ -310,18 +251,4 @@ export function ScreenerView() {
       <ScreenerResultsTable rows={visibleRows} onRowClick={handleRowClick} />
     </div>
   );
-}
-
-function formatFilterSummary(metric: string, range: ScreenerMetricRange | undefined): string | null {
-  if (!range) return null;
-
-  const parts = [
-    typeof range.min === 'number' ? `>= ${range.min}` : null,
-    typeof range.max === 'number' ? `<= ${range.max}` : null,
-  ].filter((value): value is string => Boolean(value));
-
-  if (parts.length === 0) return null;
-
-  const label = metric.replace(/Pct$/, ' %');
-  return range.timeframe ? `${label} ${range.timeframe} ${parts.join(' ')}` : `${label} ${parts.join(' ')}`;
 }
