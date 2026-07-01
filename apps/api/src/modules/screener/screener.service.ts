@@ -1,9 +1,7 @@
-import { Injectable } from '@nestjs/common';
 import type { ScreenerMarketType, ScreenerSnapshotRow } from '@crypto-screener/shared';
 import type { ScreenerSnapshotBucket } from './screener.types.ts';
 import { buildScreenerSnapshotRow } from './screener.metrics.ts';
 
-@Injectable()
 export class ScreenerService {
   private readonly snapshots = new Map<ScreenerMarketType, ScreenerSnapshotRow[]>();
   private readonly updatedAt = new Map<ScreenerMarketType, number>();
