@@ -1,7 +1,5 @@
 // @crypto-screener/shared - Core type definitions
 
-export * from './screener';
-
 // ============================================================
 // EXCHANGE TYPES
 // ============================================================
