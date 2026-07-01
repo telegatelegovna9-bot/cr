@@ -6,7 +6,6 @@ import { WebSocketModule } from './modules/websocket/websocket.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SignalsModule } from './modules/signals/signals.module';
 import { WatchlistModule } from './modules/watchlist/watchlist.module';
-import { ScreenerModule } from './modules/screener/screener.module';
 import { DatabaseModule } from './database/database.module';
 
 @Module({
@@ -17,7 +16,6 @@ import { DatabaseModule } from './database/database.module';
     MarketModule,
     AlertsModule,
     SignalsModule,
-    ScreenerModule,
     WebSocketModule,
     WatchlistModule,
   ],
