@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { ExchangeId, ScreenerMarketType, ScreenerSnapshotRow } from '@crypto-screener/shared';
-import type { TickerWithMeta } from '../market/market.service';
-import { MarketService } from '../market/market.service';
+import type { ScreenerMarketType, ScreenerSnapshotRow } from '@crypto-screener/shared';
 import type { ScreenerSnapshotBucket } from './screener.types';
 import { buildScreenerSnapshotRow } from './screener.metrics';
 
@@ -9,8 +7,6 @@ import { buildScreenerSnapshotRow } from './screener.metrics';
 export class ScreenerService {
   private readonly snapshots = new Map<ScreenerMarketType, ScreenerSnapshotRow[]>();
   private readonly updatedAt = new Map<ScreenerMarketType, number>();
-
-  constructor(private readonly marketService: Pick<MarketService, 'getAllTickerValues'>) {}
 
   refreshFromMarketRows(rows: ScreenerSnapshotRow[]): void {
     const grouped = {
@@ -32,8 +28,6 @@ export class ScreenerService {
   }
 
   listSnapshot(marketType: ScreenerMarketType): ScreenerSnapshotBucket {
-    this.refreshFromMarketCache();
-
     return {
       marketType,
       updatedAt: this.updatedAt.get(marketType) ?? 0,
@@ -42,30 +36,6 @@ export class ScreenerService {
   }
 
   readonly buildRow = buildScreenerSnapshotRow;
-
-  private refreshFromMarketCache(): void {
-    const tickers = this.marketService.getAllTickerValues();
-    if (tickers.length === 0) {
-      return;
-    }
-
-    this.refreshFromMarketRows(tickers.map(ticker => this.mapTickerToSnapshotRow(ticker)));
-  }
-
-  private mapTickerToSnapshotRow(ticker: TickerWithMeta): ScreenerSnapshotRow {
-    return this.buildRow({
-      ticker: {
-        exchange: ticker.exchange as ExchangeId,
-        marketType: ticker.marketType,
-        symbol: ticker.symbol,
-        lastPrice: ticker.lastPrice,
-        timestamp: ticker.timestamp,
-        priceChangePercent24h: ticker.priceChangePercent24h,
-        volume24h: ticker.volume24h,
-      },
-      featureMap: {},
-    });
-  }
 
   private cloneRow(row: ScreenerSnapshotRow): ScreenerSnapshotRow {
     return {
