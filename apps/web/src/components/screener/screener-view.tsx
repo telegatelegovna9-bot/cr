@@ -1,10 +1,6 @@
 'use client';
 
 import { Radar } from 'lucide-react';
-import { ScreenerFilterGrid } from './screener-filter-grid';
-import { ScreenerResultsTable } from './screener-results-table';
-import { ScreenerStatusBar } from './screener-status-bar';
-import { ScreenerToolbar } from './screener-toolbar';
 
 export function ScreenerView() {
   return (
@@ -15,14 +11,18 @@ export function ScreenerView() {
         </div>
         <div>
           <h1 className="gradient-text text-lg font-bold">Market Screener</h1>
-          <p className="text-xs text-text-muted">Shared live scanner with local presets and sound notifications.</p>
+          <p className="text-xs text-text-muted">This tab has been cleared and is ready for a new implementation.</p>
         </div>
       </div>
 
-      <ScreenerToolbar />
-      <ScreenerFilterGrid />
-      <ScreenerStatusBar />
-      <ScreenerResultsTable />
+      <div className="glass-card flex min-h-0 flex-1 items-center justify-center p-8">
+        <div className="max-w-xl text-center">
+          <div className="text-base font-semibold text-text-primary">Screener is intentionally empty</div>
+          <div className="mt-2 text-sm leading-relaxed text-text-muted">
+            Previous screener logic, feeds, and supporting UI were removed to free the product surface for a new build.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
