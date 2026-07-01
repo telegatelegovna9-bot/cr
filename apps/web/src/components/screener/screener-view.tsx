@@ -81,10 +81,6 @@ export function ScreenerView() {
     let cancelled = false;
 
     const run = async () => {
-      if (typeof document !== 'undefined' && document.hidden) {
-        return;
-      }
-
       setIsLoading(true);
       try {
         const response = await getScreenerSnapshot(marketType);
@@ -104,17 +100,9 @@ export function ScreenerView() {
       void run();
     }, SCREENER_REFRESH_INTERVAL_MS);
 
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        void run();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [marketType]);
 

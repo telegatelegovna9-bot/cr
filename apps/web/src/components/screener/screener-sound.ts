@@ -1,5 +1,3 @@
-let sharedAudioContext: AudioContext | null = null;
-
 export function diffNewScreenerMatches(previous: string[], next: string[]): string[] {
   const previousSet = new Set(previous);
   return next.filter(key => !previousSet.has(key));
@@ -15,13 +13,7 @@ export function playScreenerBeep(): void {
 
   if (!AudioContextCtor) return;
 
-  const ctx = sharedAudioContext ?? new AudioContextCtor();
-  sharedAudioContext = ctx;
-
-  if (ctx.state === 'suspended') {
-    void ctx.resume().catch(() => undefined);
-  }
-
+  const ctx = new AudioContextCtor();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
 
@@ -38,4 +30,5 @@ export function playScreenerBeep(): void {
 
   osc.start(now);
   osc.stop(now + 0.18);
+  void ctx.close().catch(() => undefined);
 }

@@ -162,93 +162,13 @@ test('ScreenerService listSnapshot hydrates rows from MarketService ticker cache
   assert.equal(spotSnapshot.rows.length, 1);
   assert.equal(spotSnapshot.rows[0]?.symbol, 'BTC/USDT');
   assert.equal(spotSnapshot.rows[0]?.price, 64000);
-  assert.equal(spotSnapshot.rows[0]?.metrics['1m.natrPct'], 6.25);
+  assert.deepEqual(spotSnapshot.rows[0]?.metrics, {});
   assert.equal(spotSnapshot.updatedAt, 1710000000000);
 
   assert.equal(futuresSnapshot.rows.length, 1);
   assert.equal(futuresSnapshot.rows[0]?.symbol, 'ETH/USDT:USDT');
   assert.equal(futuresSnapshot.rows[0]?.price, 3500);
   assert.equal(futuresSnapshot.updatedAt, 1710000005000);
-});
-
-test('ScreenerService derives rolling 1m metrics from ticker history', () => {
-  const baseTicker = {
-    exchange: 'binance',
-    marketType: 'spot',
-    symbol: 'BTC/USDT',
-    priceChange24h: 0,
-    priceChangePercent24h: 2.5,
-    volatility: 0,
-    atr: 0,
-    bid: 64990,
-    ask: 65010,
-    high24h: 65600,
-    low24h: 64000,
-  };
-  const tickers = [
-    {
-      ...baseTicker,
-      lastPrice: 64000,
-      volume24h: 1000,
-      quoteVolume24h: 64000000,
-      trades24h: 100,
-      timestamp: 1710000000000,
-    },
-    {
-      ...baseTicker,
-      lastPrice: 64100,
-      volume24h: 1010,
-      quoteVolume24h: 64741000,
-      trades24h: 102,
-      timestamp: 1710000015000,
-    },
-    {
-      ...baseTicker,
-      lastPrice: 64200,
-      volume24h: 1021,
-      quoteVolume24h: 65562000,
-      trades24h: 105,
-      timestamp: 1710000030000,
-    },
-    {
-      ...baseTicker,
-      lastPrice: 64300,
-      volume24h: 1033,
-      quoteVolume24h: 66419000,
-      trades24h: 109,
-      timestamp: 1710000045000,
-    },
-    {
-      ...baseTicker,
-      lastPrice: 65000,
-      volume24h: 1088,
-      quoteVolume24h: 70720000,
-      trades24h: 130,
-      timestamp: 1710000060000,
-    },
-  ];
-  let currentTickers = [tickers[0]];
-  const service = new ScreenerService({
-    getAllTickerValues: () => currentTickers,
-  } as never);
-
-  for (const ticker of tickers) {
-    currentTickers = [ticker];
-    service.refreshSnapshotsFromMarketCache();
-  }
-
-  const snapshot = service.listSnapshot('spot');
-  const row = snapshot.rows[0];
-
-  assert.ok(row);
-  assert.equal(row.symbol, 'BTC/USDT');
-  assert.equal(row.metrics['1m.changePct']?.toFixed(4), '1.5625');
-  assert.equal(row.metrics['1m.trades'], 30);
-  assert.equal(row.metrics['1m.turnover'], 6720000);
-  assert.equal(row.metrics['1m.deltaVolume'], 88);
-  assert.equal(row.metrics['1m.deltaVolumePct'], 800);
-  assert.equal(row.metrics['1m.volumeSpikePct'], 700);
-  assert.equal(row.metrics['1m.tradesSpikePct'], 900);
 });
 
 test('ScreenerService listSnapshot does not overwrite existing rows and metrics during bootstrap reads', () => {

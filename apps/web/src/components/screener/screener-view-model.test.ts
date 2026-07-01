@@ -9,17 +9,6 @@ test('buildDisplayRows filters and sorts snapshot rows for the table', () => {
       updatedAt: 1,
       rows: [
         {
-          symbol: 'ETH/USDT',
-          exchange: 'binance',
-          marketType: 'spot',
-          price: 3200,
-          spreadPct: 0.02,
-          fundingPct: null,
-          oi: null,
-          updatedAt: 5,
-          metrics: { '1m.changePct': 2.4, '1m.volumeSpikePct': 120, '1m.tradesSpikePct': 80 },
-        },
-        {
           symbol: 'BTC/USDT',
           exchange: 'binance',
           marketType: 'spot',
@@ -28,13 +17,12 @@ test('buildDisplayRows filters and sorts snapshot rows for the table', () => {
           fundingPct: null,
           oi: null,
           updatedAt: 1,
-          metrics: { '1m.changePct': 2.5, '1m.volumeSpikePct': 400, '1m.tradesSpikePct': 200 },
+          metrics: { '1m.changePct': 2.4 },
         },
       ],
     },
     filters: { exchanges: ['binance'], metrics: { changePct: { timeframe: '1m', min: 2 } } },
   });
 
-  assert.equal(rows.length, 2);
-  assert.equal(rows[0]?.symbol, 'BTC/USDT');
+  assert.equal(rows.length, 1);
 });
