@@ -14,7 +14,6 @@ interface ScreenerToolbarProps {
   selectedPresetId: string | null;
   onPresetSelect: (id: string | null) => void;
   onSavePreset: () => void;
-  onDeletePreset: () => void;
   onResetFilters: () => void;
   soundEnabled: boolean;
   onSoundToggle: () => void;
@@ -34,7 +33,6 @@ export function ScreenerToolbar({
   selectedPresetId,
   onPresetSelect,
   onSavePreset,
-  onDeletePreset,
   onResetFilters,
   soundEnabled,
   onSoundToggle,
@@ -117,14 +115,6 @@ export function ScreenerToolbar({
         />
         <button type="button" className="ghost-btn px-3 py-1.5 text-xs" onClick={onSavePreset}>
           Save
-        </button>
-        <button
-          type="button"
-          className="ghost-btn px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-          onClick={onDeletePreset}
-          disabled={!selectedPresetId}
-        >
-          Delete
         </button>
         <button type="button" className="ghost-btn px-3 py-1.5 text-xs" onClick={onResetFilters}>
           Reset
