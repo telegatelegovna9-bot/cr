@@ -38,7 +38,7 @@ export function DomTapePanel({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualAnchorPrice, setManualAnchorPrice] = useState<number | null>(null);
   const domScrollRef = useRef<HTMLDivElement>(null);
-  const rowsPerSide = compact ? 11 : 15;
+  const rowsPerSide = compact ? 16 : 22;
 
   useEffect(() => {
     if (settings.autoCenter) {
@@ -218,9 +218,8 @@ export function DomTapePanel({
           </div>
         </div>
 
-        <div className="flex min-h-0 w-full flex-col bg-[#0a0d15] lg:w-[9.5rem]">
-          <div className="grid grid-cols-[auto_1fr_auto] gap-x-2 border-b border-border/70 px-3 py-1 text-[9px] uppercase tracking-[0.22em] text-text-muted">
-            <span>Side</span>
+        <div className="flex min-h-0 w-full flex-col bg-[#0a0d15] lg:w-[9.25rem]">
+          <div className="grid grid-cols-[1fr_auto] gap-x-2 border-b border-border/70 px-3 py-1 text-[9px] uppercase tracking-[0.22em] text-text-muted">
             <span>Price</span>
             <span>Print</span>
           </div>
@@ -245,7 +244,7 @@ function DomRow({ level, side }: { level: DomLevelRow; side: 'buy' | 'sell' }) {
   const strongFill = side === 'buy' ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)';
 
   return (
-    <div className="relative grid grid-cols-[1fr_auto] gap-x-3 border-b border-white/[0.03] px-3 py-1.5 font-mono text-[11px]">
+    <div className="relative grid h-6 grid-cols-[1fr_auto] gap-x-3 border-b border-white/[0.03] px-3 py-1 font-mono text-[11px]">
       <div
         className="absolute inset-y-[2px] right-1 rounded-sm"
         style={{
@@ -270,15 +269,14 @@ function TapeTradeRow({ row, sizeMode }: { row: TapeRow; sizeMode: 'usd' | 'coin
   const fillWidth = `${Math.max(10, Math.round(row.intensity * 100))}%`;
 
   return (
-    <div className="relative grid grid-cols-[auto_1fr_auto] gap-x-2 border-b border-white/[0.03] px-3 py-1.5 font-mono text-[11px]">
+    <div className="relative grid h-6 grid-cols-[1fr_auto] gap-x-2 border-b border-white/[0.03] px-3 py-1 font-mono text-[11px]">
       <div
         className="absolute inset-y-[2px] right-1 rounded-sm"
         style={{ width: fillWidth, background: fill }}
       />
       <span className={`relative z-[1] ${row.side === 'buy' ? 'text-positive' : 'text-negative'}`}>
-        {row.side === 'buy' ? 'B' : 'S'}
+        {formatPrice(row.price)}
       </span>
-      <span className="relative z-[1] text-text-secondary">{formatPrice(row.price)}</span>
       <span className={`relative z-[1] text-right ${row.isLargePrint ? 'font-bold text-text-primary' : 'text-text-secondary'}`}>
         {sizeMode === 'usd' ? formatCompactUsd(row.sizeUsd) : formatCompactCoin(row.sizeCoin)}
       </span>

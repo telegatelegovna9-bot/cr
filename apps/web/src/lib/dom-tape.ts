@@ -73,7 +73,10 @@ export function buildDomViewModel(params: {
   const halfWindow = centerPrice * windowPct;
   const minPrice = Math.max(0, centerPrice - halfWindow);
   const maxPrice = centerPrice + halfWindow;
-  const step = niceStep((maxPrice - minPrice) / (rowsPerSide * 2));
+  const step = Math.max(
+    estimateTickSize(params.orderbook.asks, params.orderbook.bids),
+    centerPrice * 0.0000001,
+  );
 
   const asks = aggregateRows(params.orderbook.asks, 'ask', {
     minPrice,
@@ -226,4 +229,20 @@ function niceStep(rawStep: number): number {
   if (normalized <= 2) return 2 * magnitude;
   if (normalized <= 5) return 5 * magnitude;
   return 10 * magnitude;
+}
+
+function estimateTickSize(asks: OrderBookLevel[], bids: OrderBookLevel[]): number {
+  const diffs: number[] = [];
+  const collectDiffs = (levels: OrderBookLevel[]) => {
+    for (let i = 1; i < Math.min(levels.length, 24); i += 1) {
+      const diff = Math.abs(levels[i]!.price - levels[i - 1]!.price);
+      if (diff > 0 && Number.isFinite(diff)) diffs.push(diff);
+    }
+  };
+
+  collectDiffs(asks);
+  collectDiffs(bids);
+
+  if (diffs.length === 0) return 0.01;
+  return Math.min(...diffs);
 }

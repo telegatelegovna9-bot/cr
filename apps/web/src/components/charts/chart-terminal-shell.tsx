@@ -154,46 +154,38 @@ export function ChartTerminalShell({
   }, [domTapeSettings]);
 
   useEffect(() => {
-    if (!isViewActive || availableDomMarkets.length === 0) return;
+    if (!isViewActive || !activeDomMarket) return;
 
     const controller = new AbortController();
-    void Promise.all(
-      availableDomMarkets.map(target => {
-        const searchParams = new URLSearchParams({
-          exchange,
-          marketType: target.marketType,
-        });
+    const searchParams = new URLSearchParams({
+      exchange,
+      marketType: activeDomMarket.marketType,
+    });
 
-        return fetch(`${API_BASE}/api/market/orderbook/${encodeURIComponent(target.symbol)}?${searchParams.toString()}`, {
-          signal: controller.signal,
-        })
-          .then(resp => resp.ok ? resp.json() : null)
-          .then(payload => {
-            if (!payload?.data) return;
-            updateOrderbook(payload.data);
-          })
-          .catch(() => {});
-      }),
-    );
+    fetch(`${API_BASE}/api/market/orderbook/${encodeURIComponent(activeDomMarket.symbol)}?${searchParams.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(resp => resp.ok ? resp.json() : null)
+      .then(payload => {
+        if (!payload?.data) return;
+        updateOrderbook(payload.data);
+      })
+      .catch(() => {});
 
     return () => controller.abort();
-  }, [availableDomMarkets, exchange, isViewActive, updateOrderbook]);
+  }, [activeDomMarket, exchange, isViewActive, updateOrderbook]);
 
   useEffect(() => {
-    if (!isViewActive) return;
+    if (!isViewActive || !activeDomMarket) return;
 
-    for (const target of availableDomMarkets) {
-      subscribe(exchange, target.marketType, target.symbol, undefined, 'orderbook');
-      subscribe(exchange, target.marketType, target.symbol, undefined, 'trade');
-    }
+    subscribe(exchange, activeDomMarket.marketType, activeDomMarket.symbol, undefined, 'orderbook');
+    subscribe(exchange, activeDomMarket.marketType, activeDomMarket.symbol, undefined, 'trade');
 
     return () => {
-      for (const target of availableDomMarkets) {
-        unsubscribe(exchange, target.marketType, target.symbol, undefined, 'orderbook');
-        unsubscribe(exchange, target.marketType, target.symbol, undefined, 'trade');
-      }
+      unsubscribe(exchange, activeDomMarket.marketType, activeDomMarket.symbol, undefined, 'orderbook');
+      unsubscribe(exchange, activeDomMarket.marketType, activeDomMarket.symbol, undefined, 'trade');
     };
-  }, [availableDomMarkets, exchange, isViewActive, subscribe, unsubscribe]);
+  }, [activeDomMarket, exchange, isViewActive, subscribe, unsubscribe]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 lg:flex-row">
