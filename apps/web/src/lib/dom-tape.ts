@@ -78,17 +78,25 @@ export function buildDomViewModel(params: {
     centerPrice * 0.0000001,
   );
 
-  const asks = aggregateRows(params.orderbook.asks, 'ask', {
+  const askBuckets = aggregateBuckets(params.orderbook.asks, 'ask', {
     minPrice,
     maxPrice,
     step,
-    rowsPerSide,
   });
-  const bids = aggregateRows(params.orderbook.bids, 'bid', {
+  const bidBuckets = aggregateBuckets(params.orderbook.bids, 'bid', {
     minPrice,
     maxPrice,
     step,
+  });
+  const asks = buildDenseSideRows('ask', askBuckets, {
+    step,
     rowsPerSide,
+    bestPrice: bestAsk > 0 ? bestAsk : centerPrice,
+  });
+  const bids = buildDenseSideRows('bid', bidBuckets, {
+    step,
+    rowsPerSide,
+    bestPrice: bestBid > 0 ? bestBid : centerPrice,
   });
 
   const maxSideUsd = Math.max(
@@ -154,16 +162,15 @@ export function findPairedMarket(params: {
     : null;
 }
 
-function aggregateRows(
+function aggregateBuckets(
   levels: OrderBookLevel[],
   side: 'ask' | 'bid',
   params: {
     minPrice: number;
     maxPrice: number;
     step: number;
-    rowsPerSide: number;
   },
-): Array<Pick<DomLevelRow, 'price' | 'sizeUsd' | 'sizeCoin' | 'cumulativeUsd'>> {
+): Map<number, { sizeCoin: number; sizeUsd: number }> {
   const buckets = new Map<number, { sizeCoin: number; sizeUsd: number }>();
 
   for (const level of levels) {
@@ -178,24 +185,39 @@ function aggregateRows(
     buckets.set(bucketPrice, current);
   }
 
-  const sorted = [...buckets.entries()]
-    .sort((a, b) => side === 'ask' ? a[0] - b[0] : b[0] - a[0])
-    .slice(0, params.rowsPerSide);
+  return buckets;
+}
 
-  if (side === 'ask') {
-    sorted.reverse();
-  }
+function buildDenseSideRows(
+  side: 'ask' | 'bid',
+  buckets: Map<number, { sizeCoin: number; sizeUsd: number }>,
+  params: {
+    step: number;
+    rowsPerSide: number;
+    bestPrice: number;
+  },
+): Array<Pick<DomLevelRow, 'price' | 'sizeUsd' | 'sizeCoin' | 'cumulativeUsd'>> {
+  const rows: Array<Pick<DomLevelRow, 'price' | 'sizeUsd' | 'sizeCoin' | 'cumulativeUsd'>> = [];
+  const anchorPrice = side === 'ask'
+    ? Math.ceil(params.bestPrice / params.step) * params.step
+    : Math.floor(params.bestPrice / params.step) * params.step;
 
   let cumulativeUsd = 0;
-  return sorted.map(([price, value]) => {
+  for (let index = 0; index < params.rowsPerSide; index += 1) {
+    const price = side === 'ask'
+      ? anchorPrice + params.step * (params.rowsPerSide - 1 - index)
+      : anchorPrice - params.step * index;
+    const value = buckets.get(Number(price.toFixed(12))) ?? { sizeCoin: 0, sizeUsd: 0 };
     cumulativeUsd += value.sizeUsd;
-    return {
+    rows.push({
       price,
       sizeUsd: value.sizeUsd,
       sizeCoin: value.sizeCoin,
       cumulativeUsd,
-    };
-  });
+    });
+  }
+
+  return rows;
 }
 
 function enrichRows(
@@ -213,7 +235,7 @@ function enrichRows(
       ...row,
       depthRatio: row.sizeUsd / maxSideUsd,
       anomalyRatio,
-      isAnomalous: anomalyRatio >= ANOMALY_THRESHOLD,
+      isAnomalous: row.sizeUsd > 0 && anomalyRatio >= ANOMALY_THRESHOLD,
     };
   });
 }

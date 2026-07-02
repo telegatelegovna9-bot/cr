@@ -1,7 +1,7 @@
 'use client';
 
 import { Settings } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { OrderBook, Trade } from '@crypto-screener/shared';
 import { formatPrice } from '@/lib/format';
 import {
@@ -39,6 +39,8 @@ export function DomTapePanel({
   const [manualAnchorPrice, setManualAnchorPrice] = useState<number | null>(null);
   const domScrollRef = useRef<HTMLDivElement>(null);
   const rowsPerSide = compact ? 16 : 22;
+  const deferredOrderbook = useDeferredValue(orderbook);
+  const deferredTrades = useDeferredValue(trades);
 
   useEffect(() => {
     if (settings.autoCenter) {
@@ -47,23 +49,23 @@ export function DomTapePanel({
   }, [settings.autoCenter, marketLabel, orderbook?.symbol, orderbook?.timestamp]);
 
   const model = useMemo(
-    () => orderbook
+    () => deferredOrderbook
       ? buildDomViewModel({
-          orderbook,
+          orderbook: deferredOrderbook,
           compressionPct: settings.compressionPct,
           anchorPrice: settings.autoCenter ? undefined : manualAnchorPrice,
           rowsPerSide,
         })
       : null,
-    [manualAnchorPrice, orderbook, rowsPerSide, settings.autoCenter, settings.compressionPct],
+    [deferredOrderbook, manualAnchorPrice, rowsPerSide, settings.autoCenter, settings.compressionPct],
   );
   const tapeRows = useMemo(
     () =>
       buildTapeRows({
-        trades,
+        trades: deferredTrades,
         minSizeUsd: settings.minTapeSizeUsd,
       }).slice(0, compact ? 28 : 42),
-    [compact, settings.minTapeSizeUsd, trades],
+    [compact, deferredTrades, settings.minTapeSizeUsd],
   );
 
   useEffect(() => {
