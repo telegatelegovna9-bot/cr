@@ -1,7 +1,7 @@
 // Zustand stores for global state management
 
 import { create } from 'zustand';
-import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle, OrderBook } from '@crypto-screener/shared';
+import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle, OrderBook, Trade } from '@crypto-screener/shared';
 import type { HeatmapSettings } from '@/lib/liquidity-engine';
 import { DEFAULT_HEATMAP_SETTINGS } from '@/lib/liquidity-engine';
 import { getOrderbookMapKey, getOrderbookMapKeyFromSnapshot } from '@/lib/orderbook-identity';
@@ -654,6 +654,49 @@ export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
   },
 
   getOrderbook: (symbol, exchange, marketType) => get().books.get(getOrderbookMapKey(exchange, marketType, symbol)),
+}));
+
+// ============================================================
+// Trade Store
+// ============================================================
+
+interface TradeStore {
+  trades: Map<string, Trade[]>;
+  updateTrade: (trade: Trade) => void;
+  getTrades: (symbol: string, exchange: string, marketType?: 'spot' | 'futures') => Trade[];
+  clearTrades: (symbol: string, exchange: string, marketType?: 'spot' | 'futures') => void;
+}
+
+const MAX_TRADES_PER_MARKET = 200;
+
+function tradeMapKey(trade: { exchange: string; marketType?: 'spot' | 'futures'; symbol: string }): string {
+  return `${trade.exchange}:${trade.marketType ?? 'spot'}:${trade.symbol}`;
+}
+
+export const useTradeStore = create<TradeStore>((set, get) => ({
+  trades: new Map(),
+
+  updateTrade: (trade) => {
+    const key = tradeMapKey(trade);
+    set(state => {
+      const next = new Map(state.trades);
+      const existing = next.get(key) ?? [];
+      next.set(key, [...existing, trade].slice(-MAX_TRADES_PER_MARKET));
+      return { trades: next };
+    });
+  },
+
+  getTrades: (symbol, exchange, marketType) => get().trades.get(`${exchange}:${marketType ?? 'spot'}:${symbol}`) ?? [],
+
+  clearTrades: (symbol, exchange, marketType) => {
+    const key = `${exchange}:${marketType ?? 'spot'}:${symbol}`;
+    set(state => {
+      if (!state.trades.has(key)) return state;
+      const next = new Map(state.trades);
+      next.delete(key);
+      return { trades: next };
+    });
+  },
 }));
 
 // ============================================================

@@ -7,6 +7,7 @@ import {
   useAlertStore,
   useMarketStore,
   useOrderbookStore,
+  useTradeStore,
   useUIStore,
   useWSStore,
 } from '@/stores';
@@ -53,6 +54,9 @@ function handleSocketMessage(event: { data: string }) {
         break;
       case 'orderbook':
         useOrderbookStore.getState().updateOrderbook(data);
+        break;
+      case 'trade':
+        useTradeStore.getState().updateTrade(data);
         break;
       case 'alert': {
         useUIStore.getState().addAlert(data);
