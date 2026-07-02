@@ -217,7 +217,7 @@ export function ChartTerminalShell({
         />
       </div>
 
-      <div className="glass-card min-h-[20rem] w-full shrink-0 overflow-hidden lg:min-h-0 lg:w-[24rem] xl:w-[26rem]">
+      <div className="glass-card min-h-[20rem] w-full shrink-0 overflow-hidden lg:min-h-0 lg:w-[19rem] xl:w-[20.5rem]">
         <DomTapePanel
           marketLabel={activeDomMarket?.marketType ?? marketType}
           orderbook={domOrderbook}

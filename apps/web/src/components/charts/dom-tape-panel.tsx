@@ -38,7 +38,7 @@ export function DomTapePanel({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualAnchorPrice, setManualAnchorPrice] = useState<number | null>(null);
   const domScrollRef = useRef<HTMLDivElement>(null);
-  const rowsPerSide = compact ? 12 : 18;
+  const rowsPerSide = compact ? 11 : 15;
 
   useEffect(() => {
     if (settings.autoCenter) {
@@ -85,7 +85,7 @@ export function DomTapePanel({
   };
 
   return (
-    <div className="flex min-h-0 flex-col border-t border-border lg:border-l lg:border-t-0">
+    <div className="relative flex min-h-0 flex-col bg-[#0b0d14]">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-2">
           {availableMarkets && availableMarkets.length > 1 && activeMarket && onActiveMarketChange ? (
@@ -140,7 +140,10 @@ export function DomTapePanel({
       </div>
 
       {settingsOpen ? (
-        <div className="grid grid-cols-2 gap-2 border-b border-border px-3 py-2 text-[11px] text-text-secondary">
+        <div
+          className="absolute left-2 right-2 top-11 z-20 grid grid-cols-2 gap-2 rounded-xl border border-border/80 px-3 py-3 text-[11px] text-text-secondary shadow-2xl"
+          style={{ background: 'rgba(8, 10, 18, 0.96)', backdropFilter: 'blur(14px)' }}
+        >
           <label className="col-span-2 flex items-center justify-between gap-3">
             <span>Compression %</span>
             <input
@@ -185,15 +188,15 @@ export function DomTapePanel({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div className={`flex min-h-0 flex-1 flex-col lg:flex-row ${settingsOpen ? 'pt-[8.75rem]' : ''}`}>
         <div className="min-h-0 flex-1 border-b border-border lg:border-b-0 lg:border-r lg:border-border">
-          <div className="grid grid-cols-[1fr_auto] gap-x-3 border-b border-border/70 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-text-muted">
+          <div className="grid grid-cols-[1fr_auto] gap-x-3 border-b border-border/70 px-3 py-1 text-[9px] uppercase tracking-[0.22em] text-text-muted">
             <span>Price</span>
             <span>Size</span>
           </div>
           <div
             ref={domScrollRef}
-            className="min-h-0 overflow-auto"
+            className="min-h-0 overflow-auto bg-[#0d1018]"
             onWheel={handleDomWheel}
           >
             {!model ? (
@@ -203,8 +206,8 @@ export function DomTapePanel({
                 {model.asks.map(level => (
                   <DomRow key={`ask-${level.price}`} level={level} side="sell" />
                 ))}
-                <div className="sticky top-0 z-10 grid grid-cols-[1fr_auto] gap-x-3 border-y border-border bg-bg-primary/95 px-3 py-1.5 text-[11px] font-semibold text-text-primary backdrop-blur">
-                  <span>{formatPrice(model.midPrice)}</span>
+                <div className="sticky top-0 z-10 grid grid-cols-[1fr_auto] gap-x-3 border-y border-border bg-[#0b0d14]/95 px-3 py-1.5 text-[10px] font-semibold text-text-primary backdrop-blur">
+                  <span>MID {formatPrice(model.midPrice)}</span>
                   <span className="text-text-secondary">{formatSpread(model.spreadAbs, model.spreadPct)}</span>
                 </div>
                 {model.bids.map(level => (
@@ -215,8 +218,8 @@ export function DomTapePanel({
           </div>
         </div>
 
-        <div className="flex min-h-0 w-full flex-col lg:w-[11rem]">
-          <div className="grid grid-cols-[auto_1fr_auto] gap-x-2 border-b border-border/70 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-text-muted">
+        <div className="flex min-h-0 w-full flex-col bg-[#0a0d15] lg:w-[9.5rem]">
+          <div className="grid grid-cols-[auto_1fr_auto] gap-x-2 border-b border-border/70 px-3 py-1 text-[9px] uppercase tracking-[0.22em] text-text-muted">
             <span>Side</span>
             <span>Price</span>
             <span>Print</span>
@@ -237,14 +240,14 @@ export function DomTapePanel({
 }
 
 function DomRow({ level, side }: { level: DomLevelRow; side: 'buy' | 'sell' }) {
-  const fillWidth = `${Math.max(6, Math.round(level.depthRatio * 100))}%`;
-  const baseFill = side === 'buy' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
-  const strongFill = side === 'buy' ? 'rgba(34,197,94,0.22)' : 'rgba(239,68,68,0.22)';
+  const fillWidth = `${Math.max(4, Math.round(level.depthRatio * 100))}%`;
+  const baseFill = side === 'buy' ? 'rgba(34,197,94,0.10)' : 'rgba(239,68,68,0.10)';
+  const strongFill = side === 'buy' ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)';
 
   return (
-    <div className="relative grid grid-cols-[1fr_auto] gap-x-3 px-3 py-1.5 font-mono text-[11px]">
+    <div className="relative grid grid-cols-[1fr_auto] gap-x-3 border-b border-white/[0.03] px-3 py-1.5 font-mono text-[11px]">
       <div
-        className="absolute inset-y-0 right-0 rounded-sm"
+        className="absolute inset-y-[2px] right-1 rounded-sm"
         style={{
           width: fillWidth,
           background: level.isAnomalous ? strongFill : baseFill,
@@ -262,12 +265,16 @@ function DomRow({ level, side }: { level: DomLevelRow; side: 'buy' | 'sell' }) {
 
 function TapeTradeRow({ row, sizeMode }: { row: TapeRow; sizeMode: 'usd' | 'coin' }) {
   const fill = row.side === 'buy'
-    ? `rgba(34,197,94,${0.08 + row.intensity * 0.2})`
-    : `rgba(239,68,68,${0.08 + row.intensity * 0.2})`;
+    ? `rgba(34,197,94,${0.06 + row.intensity * 0.14})`
+    : `rgba(239,68,68,${0.06 + row.intensity * 0.14})`;
+  const fillWidth = `${Math.max(10, Math.round(row.intensity * 100))}%`;
 
   return (
-    <div className="relative grid grid-cols-[auto_1fr_auto] gap-x-2 px-3 py-1.5 font-mono text-[11px]">
-      <div className="absolute inset-0" style={{ background: fill }} />
+    <div className="relative grid grid-cols-[auto_1fr_auto] gap-x-2 border-b border-white/[0.03] px-3 py-1.5 font-mono text-[11px]">
+      <div
+        className="absolute inset-y-[2px] right-1 rounded-sm"
+        style={{ width: fillWidth, background: fill }}
+      />
       <span className={`relative z-[1] ${row.side === 'buy' ? 'text-positive' : 'text-negative'}`}>
         {row.side === 'buy' ? 'B' : 'S'}
       </span>

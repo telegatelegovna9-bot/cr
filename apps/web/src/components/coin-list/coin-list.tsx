@@ -136,7 +136,7 @@ function CoinChartModal({ symbol, exchange, marketType, onClose }: { symbol: str
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.98, opacity: 0 }}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-        className="w-full max-w-5xl h-[80vh]"
+        className="w-full max-w-[84rem] h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <ChartTerminalShell symbol={symbol} index={0} exchange={exchange} onExpand={onClose} isModal initialMarketType={marketType} />
