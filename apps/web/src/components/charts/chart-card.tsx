@@ -6,7 +6,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { ReactNode } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
-import type { Timeframe } from '@crypto-screener/shared';
+import type { Timeframe, Trade } from '@crypto-screener/shared';
 import { useMarketStore, useUIStore, useOrderbookStore, useTradeStore, useWSStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
@@ -73,6 +73,7 @@ const MAX_SCROLL_HISTORY_BATCHES = 3;
 const MAX_CHART_CANDLES = 20000;
 const LEFT_EDGE_LOAD_THRESHOLD = 30;
 const DOM_TAPE_SETTINGS_STORAGE_KEY = 'chart-dom-tape-settings-v1';
+const EMPTY_TRADES: Trade[] = [];
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 const chartHistoryCache = new Map<string, any[]>();
@@ -262,6 +263,9 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const heatmapSettings = useUIStore(state => state.heatmapSettings);
   const chartGridSize = useUIStore(state => state.chartGridSize);
   const showDomTapePanel = isModal || chartGridSize === 1;
+  const tickersList = useMarketStore(state => state.tickersList);
+  const orderbookBooks = useOrderbookStore(state => state.books);
+  const tradeMap = useTradeStore(state => state.trades);
   const updateOrderbook = useOrderbookStore(state => state.updateOrderbook);
   const ticker = useMarketStore(state => {
     for (const candidate of symbolLookupCandidates) {
@@ -270,12 +274,20 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     }
     return undefined;
   });
-  const pairedMarket = useMarketStore(state =>
-    findPairedMarket({
-      symbol: effectiveSymbol,
-      marketType,
-      hasTicker: (candidate, candidateMarketType) => Boolean(state.getTicker(candidate, exchange, candidateMarketType)),
-    }),
+  const pairedMarket = useMemo(
+    () =>
+      findPairedMarket({
+        symbol: effectiveSymbol,
+        marketType,
+        hasTicker: (candidate, candidateMarketType) =>
+          tickersList.some(
+            tickerEntry =>
+              tickerEntry.exchange === exchange &&
+              tickerEntry.marketType === candidateMarketType &&
+              tickerEntry.symbol === candidate,
+          ),
+      }),
+    [effectiveSymbol, exchange, marketType, tickersList],
   );
   const wsConnected = useWSStore(state => state.connected);
 
@@ -323,13 +335,14 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     }
     return Array.from(candidates);
   }, [activeDomMarketType, activeDomSymbol]);
-  const domOrderbook = useOrderbookStore(state => {
+  const domOrderbook = useMemo(() => {
     if (!showDomTapePanel) return undefined;
-    return findPreferredOrderbook(state.books, exchange, activeDomMarketType, activeDomSymbolCandidates);
-  });
-  const domTrades = useTradeStore(state =>
-    showDomTapePanel ? state.getTrades(activeDomSymbol, exchange, activeDomMarketType) : [],
-  );
+    return findPreferredOrderbook(orderbookBooks, exchange, activeDomMarketType, activeDomSymbolCandidates);
+  }, [activeDomMarketType, activeDomSymbolCandidates, exchange, orderbookBooks, showDomTapePanel]);
+  const domTrades = useMemo(() => {
+    if (!showDomTapePanel) return EMPTY_TRADES;
+    return tradeMap.get(`${exchange}:${activeDomMarketType}:${activeDomSymbol}`) ?? EMPTY_TRADES;
+  }, [activeDomMarketType, activeDomSymbol, exchange, showDomTapePanel, tradeMap]);
 
   useEffect(() => {
     setActiveDomMarketType(marketType);
