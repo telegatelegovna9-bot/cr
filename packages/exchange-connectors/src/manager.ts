@@ -196,10 +196,14 @@ export class ExchangeManager extends EventEmitter {
   }
 
   // Fetch order book from best exchange
-  async fetchOrderBook(symbol: string, exchange?: ExchangeId): Promise<OrderBook | null> {
+  async fetchOrderBook(
+    symbol: string,
+    exchange?: ExchangeId,
+    marketType?: 'spot' | 'futures',
+  ): Promise<OrderBook | null> {
     if (exchange) {
       const c = this.connectors.get(exchange);
-      if (c) return c.fetchOrderBook(symbol);
+      if (c) return c.fetchOrderBook(symbol, marketType);
       return null;
     }
 
@@ -208,7 +212,7 @@ export class ExchangeManager extends EventEmitter {
       const c = this.connectors.get(id);
       if (c?.isConnected()) {
         try {
-          return await c.fetchOrderBook(symbol);
+          return await c.fetchOrderBook(symbol, marketType);
         } catch { /* try next */ }
       }
     }

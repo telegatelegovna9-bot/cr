@@ -396,7 +396,11 @@ export class OKXConnector extends BaseExchangeConnector {
     })).sort((a, b) => a.time - b.time);
   }
 
-  async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
+  async fetchOrderBook(
+    symbol: string,
+    _marketType?: 'spot' | 'futures',
+    limit = 50,
+  ): Promise<OrderBook> {
     const instId = this.toOKXInstId(symbol);
     const sz = limit <= 5 ? '5' : limit <= 400 ? String(limit) : '400';
     const data = await this.fetch<{ data: [{ bids: string[][]; asks: string[][] }] }>(

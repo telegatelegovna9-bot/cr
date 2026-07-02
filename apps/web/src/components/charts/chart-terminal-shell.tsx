@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Timeframe, Trade } from '@crypto-screener/shared';
 import { useMarketStore, useOrderbookStore, useTradeStore } from '@/stores';
@@ -78,6 +78,7 @@ export function ChartTerminalShell({
   );
   const [activeDomMarketType, setActiveDomMarketType] = useState<'spot' | 'futures'>(marketType);
   const [domTapeSettings, setDomTapeSettings] = useState<DomTapeSettings>(loadDomTapeSettings);
+  const lastFetchedOrderbookKeyRef = useRef<string | null>(null);
 
   const effectiveSymbol = useMemo(() => {
     if (marketType === 'futures' && !symbol.includes(':')) return `${symbol}:USDT`;
@@ -114,6 +115,8 @@ export function ChartTerminalShell({
     () => availableDomMarkets.find(entry => entry.marketType === activeDomMarketType) ?? availableDomMarkets[0],
     [activeDomMarketType, availableDomMarkets],
   );
+  const activeDomSymbol = activeDomMarket?.symbol ?? null;
+  const activeDomResolvedMarketType = activeDomMarket?.marketType ?? null;
 
   const activeDomSymbolCandidates = useMemo(() => {
     const activeDomSymbol = activeDomMarket?.symbol ?? effectiveSymbol;
@@ -153,15 +156,19 @@ export function ChartTerminalShell({
   }, [domTapeSettings]);
 
   useEffect(() => {
-    if (!isViewActive || !activeDomMarket) return;
+    if (!isViewActive || !activeDomSymbol || !activeDomResolvedMarketType) return;
+
+    const fetchKey = `${exchange}:${activeDomResolvedMarketType}:${activeDomSymbol}`;
+    if (lastFetchedOrderbookKeyRef.current === fetchKey) return;
+    lastFetchedOrderbookKeyRef.current = fetchKey;
 
     const controller = new AbortController();
     const searchParams = new URLSearchParams({
       exchange,
-      marketType: activeDomMarket.marketType,
+      marketType: activeDomResolvedMarketType,
     });
 
-    fetch(`${API_BASE}/api/market/orderbook/${encodeURIComponent(activeDomMarket.symbol)}?${searchParams.toString()}`, {
+    fetch(`${API_BASE}/api/market/orderbook/${encodeURIComponent(activeDomSymbol)}?${searchParams.toString()}`, {
       signal: controller.signal,
     })
       .then(resp => resp.ok ? resp.json() : null)
@@ -172,19 +179,19 @@ export function ChartTerminalShell({
       .catch(() => {});
 
     return () => controller.abort();
-  }, [activeDomMarket, exchange, isViewActive, updateOrderbook]);
+  }, [activeDomResolvedMarketType, activeDomSymbol, exchange, isViewActive, updateOrderbook]);
 
   useEffect(() => {
-    if (!isViewActive || !activeDomMarket) return;
+    if (!isViewActive || !activeDomSymbol || !activeDomResolvedMarketType) return;
 
-    subscribe(exchange, activeDomMarket.marketType, activeDomMarket.symbol, undefined, 'orderbook');
-    subscribe(exchange, activeDomMarket.marketType, activeDomMarket.symbol, undefined, 'trade');
+    subscribe(exchange, activeDomResolvedMarketType, activeDomSymbol, undefined, 'orderbook');
+    subscribe(exchange, activeDomResolvedMarketType, activeDomSymbol, undefined, 'trade');
 
     return () => {
-      unsubscribe(exchange, activeDomMarket.marketType, activeDomMarket.symbol, undefined, 'orderbook');
-      unsubscribe(exchange, activeDomMarket.marketType, activeDomMarket.symbol, undefined, 'trade');
+      unsubscribe(exchange, activeDomResolvedMarketType, activeDomSymbol, undefined, 'orderbook');
+      unsubscribe(exchange, activeDomResolvedMarketType, activeDomSymbol, undefined, 'trade');
     };
-  }, [activeDomMarket, exchange, isViewActive, subscribe, unsubscribe]);
+  }, [activeDomResolvedMarketType, activeDomSymbol, exchange, isViewActive, subscribe, unsubscribe]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 lg:flex-row">

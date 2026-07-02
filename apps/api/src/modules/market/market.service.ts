@@ -333,17 +333,28 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getOrderBook(symbol: string, exchange?: ExchangeId, marketType: 'spot' | 'futures' = 'spot'): Promise<OrderBook | null> {
+    let cached: OrderBook | undefined;
     if (exchange) {
       const key = `ob:${exchange}:${marketType}:${symbol}`;
-      const cached = this.orderbookCache.get(key);
+      cached = this.orderbookCache.get(key);
       if (cached) return cached;
     }
-    const fetched = await this.exchangeManager.fetchOrderBook(symbol, exchange);
-    if (!fetched) return null;
-    if (!fetched.marketType) {
-      fetched.marketType = marketType;
+
+    try {
+      const fetched = await this.exchangeManager.fetchOrderBook(symbol, exchange, marketType);
+      if (!fetched) return cached ?? null;
+      if (!fetched.marketType) {
+        fetched.marketType = marketType;
+      }
+      return fetched;
+    } catch (err) {
+      this.logger.warn(
+        `Failed to fetch orderbook for ${exchange ?? 'auto'} ${marketType} ${symbol}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return cached ?? null;
     }
-    return fetched;
   }
 
   getLatestOrderBook(symbol: string, exchange?: ExchangeId, marketType: 'spot' | 'futures' = 'spot'): OrderBook | null {

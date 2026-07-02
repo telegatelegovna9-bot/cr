@@ -616,7 +616,11 @@ export class MexcConnector extends BaseExchangeConnector {
     })).sort((a, b) => a.time - b.time);
   }
 
-  async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
+  async fetchOrderBook(
+    symbol: string,
+    _marketType?: 'spot' | 'futures',
+    limit = 50,
+  ): Promise<OrderBook> {
     const isFutures = this.isFuturesSymbol(symbol);
     const local = isFutures ? this.toMexcFuturesSymbol(symbol) : this.toMexcSpotSymbol(symbol);
     const data = await this.fetchRaw<any>(

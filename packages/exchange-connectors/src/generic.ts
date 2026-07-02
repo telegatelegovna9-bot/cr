@@ -639,7 +639,11 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
     return this.endpoints.parseCandles(data, this.id, symbol, timeframe);
   }
 
-  async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
+  async fetchOrderBook(
+    symbol: string,
+    _marketType?: 'spot' | 'futures',
+    limit = 50,
+  ): Promise<OrderBook> {
     const local = this.toLocalSymbol(symbol);
 
     if (this.id === 'hyperliquid') {

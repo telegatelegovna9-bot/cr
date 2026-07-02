@@ -490,7 +490,11 @@ export class BitgetConnector extends BaseExchangeConnector {
     })).sort((a, b) => a.time - b.time);
   }
 
-  async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
+  async fetchOrderBook(
+    symbol: string,
+    _marketType?: 'spot' | 'futures',
+    limit = 50,
+  ): Promise<OrderBook> {
     const local = this.toBitgetSpotSymbol(symbol);
     const data = await this.fetchRaw<{ data: { bids: [string, string][]; asks: [string, string][] } }>(`${BITGET_REST}/api/v2/spot/market/orderbook?symbol=${local}&limit=${limit}`);
     return {

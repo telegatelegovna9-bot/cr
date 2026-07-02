@@ -460,13 +460,22 @@ export class BinanceConnector extends BaseExchangeConnector {
     }));
   }
 
-  async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
-    const snapshot = await this.fetchOrderBookSnapshot(symbol, limit);
-    return this.snapshotToOrderBook(symbol, this.isFuturesSymbol(symbol) ? 'futures' : 'spot', snapshot);
+  async fetchOrderBook(
+    symbol: string,
+    marketType?: 'spot' | 'futures',
+    limit = 50,
+  ): Promise<OrderBook> {
+    const resolvedMarketType = marketType ?? (this.isFuturesSymbol(symbol) ? 'futures' : 'spot');
+    const snapshot = await this.fetchOrderBookSnapshot(symbol, limit, resolvedMarketType);
+    return this.snapshotToOrderBook(symbol, resolvedMarketType, snapshot);
   }
 
-  private async fetchOrderBookSnapshot(symbol: string, limit = LOCAL_BOOK_SNAPSHOT_LIMIT): Promise<OrderBookSnapshot> {
-    const isFutures = this.isFuturesSymbol(symbol);
+  private async fetchOrderBookSnapshot(
+    symbol: string,
+    limit = LOCAL_BOOK_SNAPSHOT_LIMIT,
+    marketType?: 'spot' | 'futures',
+  ): Promise<OrderBookSnapshot> {
+    const isFutures = marketType ? marketType === 'futures' : this.isFuturesSymbol(symbol);
     const local = this.toBinanceSymbol(symbol);
     const url = isFutures
       ? `${BINANCE_FUTURES_REST_URL}/fapi/v1/depth?symbol=${local}&limit=${limit}`
