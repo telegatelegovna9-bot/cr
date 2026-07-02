@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useUIStore, useMarketStore } from '@/stores';
 import { ChartCard } from './chart-card';
+import { ChartTerminalShell } from './chart-terminal-shell';
 import { shouldStartFreshHistorySession } from './chart-history';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -235,7 +236,7 @@ export function ChartGrid({ isViewActive = true }: { isViewActive?: boolean }) {
               className="w-full max-w-6xl h-[calc(100vh-7.5rem)] min-h-[560px] max-h-[920px]"
               onClick={(e) => e.stopPropagation()}
             >
-              <ChartCard
+              <ChartTerminalShell
                 key={`${historySessionToken}:${expandedSymbol}`}
                 symbol={expandedSymbol}
                 index={0}

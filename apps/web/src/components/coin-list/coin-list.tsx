@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useMarketStore, useUIStore } from '@/stores';
 import { ChartCard } from '@/components/charts/chart-card';
+import { ChartTerminalShell } from '@/components/charts/chart-terminal-shell';
 import type { ExchangeId } from '@crypto-screener/shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -138,7 +139,7 @@ function CoinChartModal({ symbol, exchange, marketType, onClose }: { symbol: str
         className="w-full max-w-5xl h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <ChartCard symbol={symbol} index={0} exchange={exchange} onExpand={onClose} isModal initialMarketType={marketType} />
+        <ChartTerminalShell symbol={symbol} index={0} exchange={exchange} onExpand={onClose} isModal initialMarketType={marketType} />
       </motion.div>
     </motion.div>
   );

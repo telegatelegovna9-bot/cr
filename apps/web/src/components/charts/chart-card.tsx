@@ -6,8 +6,8 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { ReactNode } from 'react';
 import { createChart, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
 import type { IChartApi, ISeriesApi, CandlestickData, HistogramData, Time } from 'lightweight-charts';
-import type { Timeframe, Trade } from '@crypto-screener/shared';
-import { useMarketStore, useUIStore, useOrderbookStore, useTradeStore, useWSStore } from '@/stores';
+import type { Timeframe } from '@crypto-screener/shared';
+import { useMarketStore, useUIStore, useOrderbookStore, useWSStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import {
   CHART_PRICE_SCALE_MIN_WIDTH,
@@ -25,14 +25,8 @@ import { HeatmapControls } from './heatmap-controls';
 import { HeatmapSummary, type HeatmapSummaryHandle } from './heatmap-summary';
 import { DrawingToolbar } from './drawing-toolbar';
 import { DrawingOverlay } from './drawing-overlay';
-import { DomTapePanel } from './dom-tape-panel';
 import { toRangeMetricCandles } from './drawing-overlay-helpers';
 import { isChartRealtimeActive } from './chart-activity';
-import {
-  DEFAULT_DOM_TAPE_SETTINGS,
-  findPairedMarket,
-  type DomTapeSettings,
-} from '@/lib/dom-tape';
 import {
   detectGap,
   detectMissingCandleRange,
@@ -58,6 +52,7 @@ interface ChartCardProps {
   initialTimeframe?: string;
   initialMarketType?: 'spot' | 'futures';
   onTimeframeChange?: (timeframe: Timeframe) => void;
+  onMarketTypeChange?: (marketType: 'spot' | 'futures') => void;
   onDataLoaded?: (symbol: string, data: any[], timeframe: string) => void;
   showHeaderPrice?: boolean;
   headerActions?: ReactNode;
@@ -72,8 +67,6 @@ const SCROLL_HISTORY_BATCH_LIMIT = 300;
 const MAX_SCROLL_HISTORY_BATCHES = 3;
 const MAX_CHART_CANDLES = 20000;
 const LEFT_EDGE_LOAD_THRESHOLD = 30;
-const DOM_TAPE_SETTINGS_STORAGE_KEY = 'chart-dom-tape-settings-v1';
-const EMPTY_TRADES: Trade[] = [];
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
 type TF = typeof TIMEFRAMES[number];
 const chartHistoryCache = new Map<string, any[]>();
@@ -90,24 +83,6 @@ function getRawCandleTime(candle: any): number | null {
   if (!candle) return null;
   const time = candle.time ?? candle.timestamp;
   return typeof time === 'number' && Number.isFinite(time) ? time : null;
-}
-
-function loadDomTapeSettings(): DomTapeSettings {
-  if (typeof window === 'undefined') return DEFAULT_DOM_TAPE_SETTINGS;
-
-  try {
-    const raw = window.localStorage.getItem(DOM_TAPE_SETTINGS_STORAGE_KEY);
-    if (!raw) return DEFAULT_DOM_TAPE_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<DomTapeSettings>;
-    return {
-      compressionPct: typeof parsed.compressionPct === 'number' ? Math.max(0.0025, parsed.compressionPct) : DEFAULT_DOM_TAPE_SETTINGS.compressionPct,
-      autoCenter: typeof parsed.autoCenter === 'boolean' ? parsed.autoCenter : DEFAULT_DOM_TAPE_SETTINGS.autoCenter,
-      tapeSizeMode: parsed.tapeSizeMode === 'coin' ? 'coin' : DEFAULT_DOM_TAPE_SETTINGS.tapeSizeMode,
-      minTapeSizeUsd: typeof parsed.minTapeSizeUsd === 'number' ? Math.max(0, parsed.minTapeSizeUsd) : DEFAULT_DOM_TAPE_SETTINGS.minTapeSizeUsd,
-    };
-  } catch {
-    return DEFAULT_DOM_TAPE_SETTINGS;
-  }
 }
 
 async function fetchChartHistorySlice(params: {
@@ -192,7 +167,7 @@ function getTimeframeDurationMs(timeframe: TF): number {
   }
 }
 
-export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded, showHeaderPrice = true, headerActions, isViewActive = true, historySessionToken = 0 }: ChartCardProps) {
+export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onMarketTypeChange, onDataLoaded, showHeaderPrice = true, headerActions, isViewActive = true, historySessionToken = 0 }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -262,10 +237,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const showHeatmap = useUIStore(state => state.showHeatmap);
   const heatmapSettings = useUIStore(state => state.heatmapSettings);
   const chartGridSize = useUIStore(state => state.chartGridSize);
-  const showDomTapePanel = isModal || chartGridSize === 1;
-  const tickersList = useMarketStore(state => state.tickersList);
-  const orderbookBooks = useOrderbookStore(state => state.books);
-  const tradeMap = useTradeStore(state => state.trades);
   const updateOrderbook = useOrderbookStore(state => state.updateOrderbook);
   const ticker = useMarketStore(state => {
     for (const candidate of symbolLookupCandidates) {
@@ -274,21 +245,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     }
     return undefined;
   });
-  const pairedMarket = useMemo(
-    () =>
-      findPairedMarket({
-        symbol: effectiveSymbol,
-        marketType,
-        hasTicker: (candidate, candidateMarketType) =>
-          tickersList.some(
-            tickerEntry =>
-              tickerEntry.exchange === exchange &&
-              tickerEntry.marketType === candidateMarketType &&
-              tickerEntry.symbol === candidate,
-          ),
-      }),
-    [effectiveSymbol, exchange, marketType, tickersList],
-  );
   const wsConnected = useWSStore(state => state.connected);
 
   // Refs that always hold the latest values so async closures don't go stale
@@ -304,8 +260,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [priceChange, setPriceChange] = useState<number | null>(null);
   const [lastBarTime, setLastBarTime] = useState<number | null>(null);
-  const [domTapeSettings, setDomTapeSettings] = useState<DomTapeSettings>(loadDomTapeSettings);
-  const [activeDomMarketType, setActiveDomMarketType] = useState<'spot' | 'futures'>(marketType);
   const { subscribe, unsubscribe } = useWebSocket();
   const heatmapEngineRef = useRef<LiquidityEngine | null>(null);
   const heatmapCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -315,49 +269,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   const wasViewActiveRef = useRef(isViewActive);
   const wasWsConnectedRef = useRef(wsConnected);
   const chartPriceFormatRef = useRef(getChartPriceFormat(ticker?.lastPrice ?? currentPrice ?? undefined));
-  const availableDomMarkets = useMemo(() => {
-    const primary = { marketType, symbol: effectiveSymbol };
-    if (!pairedMarket) return [primary];
-    return [primary, pairedMarket];
-  }, [effectiveSymbol, marketType, pairedMarket]);
-  const activeDomMarket = useMemo(
-    () => availableDomMarkets.find(entry => entry.marketType === activeDomMarketType) ?? availableDomMarkets[0],
-    [activeDomMarketType, availableDomMarkets],
-  );
-  const activeDomSymbol = activeDomMarket?.symbol ?? effectiveSymbol;
-  const activeDomSymbolCandidates = useMemo(() => {
-    const candidates = new Set<string>([activeDomSymbol]);
-    if (activeDomMarketType === 'futures') {
-      if (activeDomSymbol.endsWith(':USDT')) candidates.add(activeDomSymbol.replace(':USDT', ''));
-      if (!activeDomSymbol.includes(':')) candidates.add(`${activeDomSymbol}:USDT`);
-    } else if (activeDomSymbol.endsWith(':USDT')) {
-      candidates.add(activeDomSymbol.replace(':USDT', ''));
-    }
-    return Array.from(candidates);
-  }, [activeDomMarketType, activeDomSymbol]);
-  const domOrderbook = useMemo(() => {
-    if (!showDomTapePanel) return undefined;
-    return findPreferredOrderbook(orderbookBooks, exchange, activeDomMarketType, activeDomSymbolCandidates);
-  }, [activeDomMarketType, activeDomSymbolCandidates, exchange, orderbookBooks, showDomTapePanel]);
-  const domTrades = useMemo(() => {
-    if (!showDomTapePanel) return EMPTY_TRADES;
-    return tradeMap.get(`${exchange}:${activeDomMarketType}:${activeDomSymbol}`) ?? EMPTY_TRADES;
-  }, [activeDomMarketType, activeDomSymbol, exchange, showDomTapePanel, tradeMap]);
-
-  useEffect(() => {
-    setActiveDomMarketType(marketType);
-  }, [exchange, effectiveSymbol, marketType]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(DOM_TAPE_SETTINGS_STORAGE_KEY, JSON.stringify(domTapeSettings));
-  }, [domTapeSettings]);
-
-  useEffect(() => {
-    if (!availableDomMarkets.some(entry => entry.marketType === activeDomMarketType)) {
-      setActiveDomMarketType(availableDomMarkets[0]?.marketType ?? marketType);
-    }
-  }, [activeDomMarketType, availableDomMarkets, marketType]);
 
   const updateChartPriceFormat = useCallback((price?: number) => {
     const nextFormat = mergeChartPriceFormat(chartPriceFormatRef.current, price);
@@ -662,48 +573,28 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
   const showMarketToggle = isModal || chartGridSize === 1;
   const isRealtimeActive = isChartRealtimeActive({ paused, isViewActive });
-  const orderbookTargets = useMemo(() => {
-    const targets = new Map<string, { symbol: string; marketType: 'spot' | 'futures' }>();
-    if (showHeatmap) {
-      targets.set(`${marketType}:${effectiveSymbol}`, { symbol: effectiveSymbol, marketType });
-    }
-    if (showDomTapePanel) {
-      for (const entry of availableDomMarkets) {
-        targets.set(`${entry.marketType}:${entry.symbol}`, entry);
-      }
-    }
-    return Array.from(targets.values());
-  }, [availableDomMarkets, effectiveSymbol, marketType, showDomTapePanel, showHeatmap]);
-  const tradeTargets = useMemo(
-    () => (showDomTapePanel ? [...availableDomMarkets] : []),
-    [availableDomMarkets, showDomTapePanel],
-  );
 
   useEffect(() => {
-    if (!isRealtimeActive || orderbookTargets.length === 0) return;
+    if (!showHeatmap || !isRealtimeActive) return;
 
     const controller = new AbortController();
-    void Promise.all(
-      orderbookTargets.map(target => {
-        const searchParams = new URLSearchParams({
-          exchange,
-          marketType: target.marketType,
-        });
+    const searchParams = new URLSearchParams({
+      exchange,
+      marketType,
+    });
 
-        return fetch(`${API_BASE}/api/market/orderbook/${encodeURIComponent(target.symbol)}?${searchParams.toString()}`, {
-          signal: controller.signal,
-        })
-          .then(resp => resp.ok ? resp.json() : null)
-          .then(payload => {
-            if (!payload?.data) return;
-            updateOrderbook(payload.data);
-          })
-          .catch(() => {});
-      }),
-    );
+    fetch(`${API_BASE}/api/market/orderbook/${encodeURIComponent(effectiveSymbol)}?${searchParams.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(resp => resp.ok ? resp.json() : null)
+      .then(payload => {
+        if (!payload?.data) return;
+        updateOrderbook(payload.data);
+      })
+      .catch(() => {});
 
     return () => controller.abort();
-  }, [exchange, isRealtimeActive, orderbookTargets, updateOrderbook]);
+  }, [effectiveSymbol, exchange, isRealtimeActive, marketType, showHeatmap, updateOrderbook]);
 
   // ─── Shared WebSocket Subscription ──────────────────────────
   useEffect(() => {
@@ -718,24 +609,17 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
     subscribe(exchange, marketType, wsSymbol, timeframe);
 
-    for (const target of orderbookTargets) {
-      subscribe(exchange, target.marketType, target.symbol, undefined, 'orderbook');
-    }
-
-    for (const target of tradeTargets) {
-      subscribe(exchange, target.marketType, target.symbol, undefined, 'trade');
+    if (showHeatmap) {
+      subscribe(exchange, marketType, wsSymbol, undefined, 'orderbook');
     }
 
     return () => {
       unsubscribe(exchange, marketType, wsSymbol, timeframe);
-      for (const target of orderbookTargets) {
-        unsubscribe(exchange, target.marketType, target.symbol, undefined, 'orderbook');
-      }
-      for (const target of tradeTargets) {
-        unsubscribe(exchange, target.marketType, target.symbol, undefined, 'trade');
+      if (showHeatmap) {
+        unsubscribe(exchange, marketType, wsSymbol, undefined, 'orderbook');
       }
     };
-  }, [symbol, exchange, timeframe, marketType, isRealtimeActive, orderbookTargets, tradeTargets, subscribe, unsubscribe]);
+  }, [symbol, exchange, timeframe, marketType, isRealtimeActive, showHeatmap, subscribe, unsubscribe]);
 
   // ─── Handle Incoming Candle Updates from Global Store ───────
   useEffect(() => {
@@ -1332,7 +1216,10 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
             {(['spot', 'futures'] as const).map(mt => (
               <button
                 key={mt}
-                onClick={() => setMarketType(mt)}
+                onClick={() => {
+                  setMarketType(mt);
+                  onMarketTypeChange?.(mt);
+                }}
                 className={`px-2 py-0.5 text-[10px] rounded font-medium capitalize transition-colors cursor-pointer
                   ${marketType === mt
                     ? 'bg-accent/15 text-accent-light'
@@ -1367,7 +1254,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
         </div>
       </div>
 
-      <div className={`flex-1 relative min-h-0 ${showDomTapePanel ? 'flex flex-col lg:flex-row' : ''}`}>
+      <div className="flex-1 relative min-h-0">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/50 z-10">
             <Loader2 className="w-6 h-6 text-accent animate-spin" />
@@ -1380,7 +1267,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
           </div>
         )}
         {/* Heatmap canvas — always mounted, hidden when off, never re-created */}
-        <div className="relative min-h-[22rem] flex-1 lg:min-h-0">
         <canvas
           ref={heatmapCanvasRef}
           className="absolute inset-0 pointer-events-none"
@@ -1412,21 +1298,6 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
 
         {/* Heatmap controls overlay */}
         {showHeatmap && <HeatmapControls />}
-        </div>
-        {showDomTapePanel && activeDomMarket ? (
-          <div className="min-h-[20rem] w-full shrink-0 lg:min-h-0 lg:w-[24rem] xl:w-[26rem]">
-            <DomTapePanel
-              marketLabel={activeDomMarket.marketType}
-              orderbook={domOrderbook}
-              trades={domTrades}
-              settings={domTapeSettings}
-              onSettingsChange={patch => setDomTapeSettings(current => ({ ...current, ...patch }))}
-              availableMarkets={availableDomMarkets.map(entry => entry.marketType)}
-              activeMarket={activeDomMarket.marketType}
-              onActiveMarketChange={setActiveDomMarketType}
-            />
-          </div>
-        ) : null}
       </div>
     </motion.div>
   );
