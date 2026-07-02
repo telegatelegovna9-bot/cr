@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Timeframe } from '@crypto-screener/shared';
+import type { Timeframe, Trade } from '@crypto-screener/shared';
 import { useMarketStore, useOrderbookStore, useTradeStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { findPreferredOrderbook } from '@/lib/orderbook-identity';
 import {
   DEFAULT_DOM_TAPE_SETTINGS,
-  findPairedMarket,
   type DomTapeSettings,
 } from '@/lib/dom-tape';
 import { ChartCard } from './chart-card';
@@ -33,7 +32,7 @@ interface ChartTerminalShellProps {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 const DOM_TAPE_SETTINGS_STORAGE_KEY = 'chart-dom-tape-settings-v1';
-const EMPTY_TRADES: any[] = [];
+const EMPTY_TRADES: Trade[] = [];
 
 function loadDomTapeSettings(): DomTapeSettings {
   if (typeof window === 'undefined') return DEFAULT_DOM_TAPE_SETTINGS;
@@ -71,9 +70,6 @@ export function ChartTerminalShell({
 }: ChartTerminalShellProps) {
   const selectedExchange = useMarketStore(state => state.selectedExchange);
   const exchange = exchangeProp || selectedExchange;
-  const tickersList = useMarketStore(state => state.tickersList);
-  const orderbookBooks = useOrderbookStore(state => state.books);
-  const tradeMap = useTradeStore(state => state.trades);
   const updateOrderbook = useOrderbookStore(state => state.updateOrderbook);
   const { subscribe, unsubscribe } = useWebSocket();
 
@@ -88,22 +84,25 @@ export function ChartTerminalShell({
     if (marketType === 'spot' && symbol.includes(':USDT')) return symbol.replace(':USDT', '');
     return symbol;
   }, [marketType, symbol]);
+  const pairedMarketCandidate = useMemo(() => {
+    if (marketType === 'futures') {
+      return {
+        marketType: 'spot' as const,
+        symbol: effectiveSymbol.replace(/:USDT$/, ''),
+      };
+    }
 
-  const pairedMarket = useMemo(
-    () =>
-      findPairedMarket({
-        symbol: effectiveSymbol,
-        marketType,
-        hasTicker: (candidate, candidateMarketType) =>
-          tickersList.some(
-            tickerEntry =>
-              tickerEntry.exchange === exchange &&
-              tickerEntry.marketType === candidateMarketType &&
-              tickerEntry.symbol === candidate,
-          ),
-      }),
-    [effectiveSymbol, exchange, marketType, tickersList],
+    return {
+      marketType: 'futures' as const,
+      symbol: effectiveSymbol.includes(':USDT') ? effectiveSymbol : `${effectiveSymbol}:USDT`,
+    };
+  }, [effectiveSymbol, marketType]);
+  const pairedTicker = useMarketStore(state =>
+    state.getTicker(pairedMarketCandidate.symbol, exchange, pairedMarketCandidate.marketType),
   );
+  const pairedMarket = pairedTicker
+    ? { marketType: pairedMarketCandidate.marketType, symbol: pairedMarketCandidate.symbol }
+    : null;
 
   const availableDomMarkets = useMemo(() => {
     const primary = { marketType, symbol: effectiveSymbol };
@@ -128,15 +127,15 @@ export function ChartTerminalShell({
     return Array.from(candidates);
   }, [activeDomMarket, activeDomMarketType, effectiveSymbol]);
 
-  const domOrderbook = useMemo(() => {
+  const domOrderbook = useOrderbookStore(state => {
     if (!activeDomMarket) return undefined;
-    return findPreferredOrderbook(orderbookBooks, exchange, activeDomMarket.marketType, activeDomSymbolCandidates);
-  }, [activeDomMarket, activeDomSymbolCandidates, exchange, orderbookBooks]);
+    return findPreferredOrderbook(state.books, exchange, activeDomMarket.marketType, activeDomSymbolCandidates);
+  });
 
-  const domTrades = useMemo(() => {
+  const domTrades = useTradeStore(state => {
     if (!activeDomMarket) return EMPTY_TRADES;
-    return tradeMap.get(`${exchange}:${activeDomMarket.marketType}:${activeDomMarket.symbol}`) ?? EMPTY_TRADES;
-  }, [activeDomMarket, exchange, tradeMap]);
+    return state.trades.get(`${exchange}:${activeDomMarket.marketType}:${activeDomMarket.symbol}`) ?? EMPTY_TRADES;
+  });
 
   useEffect(() => {
     setActiveDomMarketType(marketType);
