@@ -436,12 +436,16 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  subscribeTrades(symbol: string, exchange?: ExchangeId): void {
-    this.incrementScopedRefs(this.tradeSubscriptionRefs, symbol, exchange);
+  subscribeTrades(symbol: string, marketType: 'spot' | 'futures' = 'spot', exchange?: ExchangeId): void {
+    this.incrementScopedRefs(this.tradeSubscriptionRefs, `${marketType}:${symbol}`, exchange, (id) => {
+      this.exchangeManager.subscribeTrades(symbol, [id]);
+    });
   }
 
-  unsubscribeTrades(symbol: string, exchange?: ExchangeId): void {
-    this.decrementScopedRefs(this.tradeSubscriptionRefs, symbol, exchange);
+  unsubscribeTrades(symbol: string, marketType: 'spot' | 'futures' = 'spot', exchange?: ExchangeId): void {
+    this.decrementScopedRefs(this.tradeSubscriptionRefs, `${marketType}:${symbol}`, exchange, (id) => {
+      this.exchangeManager.unsubscribeTrades(symbol, [id]);
+    });
   }
 
   private getScopedRefKey(symbol: string, exchange: ExchangeId): string {

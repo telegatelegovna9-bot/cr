@@ -62,3 +62,42 @@ test('replays active spot subscriptions when the spot websocket opens', async ()
   assert.equal(payload.method, 'SUBSCRIBE');
   assert.deepEqual(new Set(payload.params), new Set(['btcusdt@ticker', 'btcusdt@kline_1m']));
 });
+
+test('merges spot depth diffs into a local order book instead of emitting raw deltas', () => {
+  const connector = new BinanceConnector();
+  const emitted: any[] = [];
+
+  connector.on('orderbook', orderbook => emitted.push(orderbook));
+
+  (connector as any).localOrderBooks.set('spot:BTC/USDT', {
+    symbol: 'BTC/USDT',
+    marketType: 'spot',
+    bids: new Map([[100, 2], [99, 1]]),
+    asks: new Map([[101, 3], [102, 4]]),
+    lastUpdateId: 10,
+    previousStreamUpdateId: 10,
+    buffer: [],
+    synced: true,
+    syncing: false,
+  });
+
+  (connector as any).handleDepthUpdate({
+    __marketType: 'spot',
+    s: 'BTCUSDT',
+    U: 11,
+    u: 12,
+    b: [['100', '5'], ['98', '7']],
+    a: [['101', '0'], ['103', '6']],
+  });
+
+  assert.equal(emitted.length, 1);
+  assert.deepEqual(emitted[0].bids.slice(0, 3), [
+    { price: 100, quantity: 5 },
+    { price: 99, quantity: 1 },
+    { price: 98, quantity: 7 },
+  ]);
+  assert.deepEqual(emitted[0].asks.slice(0, 2), [
+    { price: 102, quantity: 4 },
+    { price: 103, quantity: 6 },
+  ]);
+});
