@@ -72,6 +72,39 @@ test('buildDomViewModel respects manual anchor price when deriving visible ladde
   );
 });
 
+test('buildDomViewModel keeps fractional tick liquidity instead of dropping rows to zero', () => {
+  const view = buildDomViewModel({
+    orderbook: {
+      exchange: 'binance',
+      marketType: 'spot',
+      symbol: 'BTC/USDT',
+      timestamp: Date.now(),
+      asks: [
+        { price: 100.1, quantity: 1 },
+        { price: 100.2, quantity: 2 },
+        { price: 100.3, quantity: 3 },
+      ],
+      bids: [
+        { price: 99.9, quantity: 1 },
+        { price: 99.8, quantity: 2 },
+        { price: 99.7, quantity: 3 },
+      ],
+    },
+    compressionPct: 0.01,
+    rowsPerSide: 3,
+  });
+
+  assert.ok(view);
+  assert.deepEqual(
+    view.asks.map(level => level.sizeCoin),
+    [3, 2, 1],
+  );
+  assert.deepEqual(
+    view.bids.map(level => level.sizeCoin),
+    [1, 2, 3],
+  );
+});
+
 test('buildTapeRows filters by usd threshold and highlights large prints', () => {
   const rows = buildTapeRows({
     trades: [

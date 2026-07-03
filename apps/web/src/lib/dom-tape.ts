@@ -244,10 +244,11 @@ function aggregateBuckets(
     const bucketPrice = side === 'ask'
       ? Math.ceil(level.price / params.step) * params.step
       : Math.floor(level.price / params.step) * params.step;
-    const current = buckets.get(bucketPrice) ?? { sizeCoin: 0, sizeUsd: 0 };
+    const normalizedBucketPrice = normalizePriceKey(bucketPrice);
+    const current = buckets.get(normalizedBucketPrice) ?? { sizeCoin: 0, sizeUsd: 0 };
     current.sizeCoin += level.quantity;
     current.sizeUsd += level.quantity * level.price;
-    buckets.set(bucketPrice, current);
+    buckets.set(normalizedBucketPrice, current);
   }
 
   return buckets;
@@ -276,7 +277,7 @@ function buildDenseSideRows(
     const price = side === 'ask'
       ? anchorPrice + params.step * (params.rowsPerSide - 1 - index)
       : anchorPrice - params.step * index;
-    const value = buckets.get(Number(price.toFixed(12))) ?? { sizeCoin: 0, sizeUsd: 0 };
+    const value = buckets.get(normalizePriceKey(price)) ?? { sizeCoin: 0, sizeUsd: 0 };
     cumulativeUsd += value.sizeUsd;
     rows.push({
       price,
@@ -320,6 +321,10 @@ function niceStep(rawStep: number): number {
   if (normalized <= 2) return 2 * magnitude;
   if (normalized <= 5) return 5 * magnitude;
   return 10 * magnitude;
+}
+
+function normalizePriceKey(price: number): number {
+  return Number(price.toFixed(12));
 }
 
 function estimateTickSize(asks: OrderBookLevel[], bids: OrderBookLevel[]): number {

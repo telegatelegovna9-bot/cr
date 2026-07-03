@@ -29,6 +29,9 @@ interface DomTapePanelProps {
 const SMALL_PRINT_BATCH_MS = 70;
 const BUBBLE_TTL_MS = 3200;
 const IMMEDIATE_PRINT_USD = 12_500;
+const DOM_ROW_HEIGHT_PX = 24;
+const DOM_MID_BAND_HEIGHT_PX = 52;
+const DOM_BUBBLE_LANE_WIDTH_PX = 92;
 
 export function DomTapePanel({
   marketLabel,
@@ -49,7 +52,7 @@ export function DomTapePanel({
   const smallTradeQueueRef = useRef<Trade[]>([]);
   const smallTradeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenTradeKeysRef = useRef<Set<string>>(new Set());
-  const rowsPerSide = compact ? 16 : 22;
+  const rowsPerSide = compact ? 18 : 28;
   const maxBubbleItems = compact ? 10 : 18;
   const deferredOrderbook = useDeferredValue(orderbook);
   const deferredTrades = useDeferredValue(trades);
@@ -221,8 +224,8 @@ export function DomTapePanel({
   const bubbleSlots = useMemo(
     () => bubbleItems.map((item, index) => ({
       item,
-      leftPx: 18 + index * (compact ? 22 : 26),
-      topPct: getBubbleTopPct(item, model),
+      leftPx: 10 + index * (compact ? 18 : 22),
+      topPx: getBubbleTopPx(item, model),
       sizePx: Math.round((compact ? 20 : 24) + item.intensity * (compact ? 16 : 24) + (item.isLargePrint ? 6 : 0)),
     })),
     [bubbleItems, compact, model],
@@ -333,7 +336,11 @@ export function DomTapePanel({
       ) : null}
 
       <div className={`relative min-h-0 flex-1 ${settingsOpen ? 'pt-[8.75rem]' : ''}`}>
-        <div className="grid grid-cols-[1fr_auto] gap-x-3 border-b border-border/70 px-3 py-1 text-[9px] uppercase tracking-[0.24em] text-text-muted">
+        <div
+          className="grid items-center gap-x-3 border-b border-border/70 px-3 py-1 text-[9px] uppercase tracking-[0.24em] text-text-muted"
+          style={{ gridTemplateColumns: `${DOM_BUBBLE_LANE_WIDTH_PX}px minmax(0, 1fr) auto` }}
+        >
+          <span className="pl-1">Tape</span>
           <span>Qty</span>
           <span className="text-right">Price</span>
         </div>
@@ -352,9 +359,15 @@ export function DomTapePanel({
                 {model.asks.map(level => (
                   <DomRow key={`ask-${level.price}`} level={level} side="sell" />
                 ))}
-                <div className="sticky top-0 z-20 border-y border-border/80 bg-[#101522]/96 px-3 py-2 backdrop-blur">
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                    <span className="text-[10px] uppercase tracking-[0.24em] text-text-muted">Tape</span>
+                <div
+                  className="sticky top-0 z-20 border-y border-border/80 bg-[#101522]/96 px-3 py-2 backdrop-blur"
+                  style={{ minHeight: `${DOM_MID_BAND_HEIGHT_PX}px` }}
+                >
+                  <div
+                    className="grid items-center gap-3"
+                    style={{ gridTemplateColumns: `${DOM_BUBBLE_LANE_WIDTH_PX}px minmax(0, 1fr) auto` }}
+                  >
+                    <span className="pl-1 text-[10px] uppercase tracking-[0.24em] text-text-muted">Flow</span>
                     <div className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-1 text-center">
                       <div className="font-mono text-[12px] font-semibold text-text-primary">
                         {formatPrice(model.midPrice)}
@@ -373,14 +386,17 @@ export function DomTapePanel({
                 ))}
 
                 <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
-                  <div className="absolute inset-y-[35%] left-[5%] right-[44%] rounded-[28px] border border-white/[0.05] bg-[linear-gradient(90deg,rgba(255,255,255,0.04),rgba(12,16,24,0.05))] shadow-[inset_0_0_40px_rgba(255,255,255,0.02)]" />
-                  {bubbleSlots.map(({ item, leftPx, topPct, sizePx }) => (
+                  <div
+                    className="absolute left-0 top-0 bottom-0 border-r border-white/[0.04]"
+                    style={{ width: `${DOM_BUBBLE_LANE_WIDTH_PX}px` }}
+                  />
+                  {bubbleSlots.map(({ item, leftPx, topPx, sizePx }) => (
                     <div
                       key={`${item.id}-${item.timestamp}`}
                       className="absolute dom-bubble-tape-item"
                       style={{
                         left: `${leftPx}px`,
-                        top: `${topPct}%`,
+                        top: `${topPx}px`,
                         animationDuration: `${item.isLargePrint ? BUBBLE_TTL_MS + 700 : BUBBLE_TTL_MS}ms`,
                       }}
                     >
@@ -408,16 +424,22 @@ function DomRow({ level, side }: { level: DomLevelRow; side: 'buy' | 'sell' }) {
   const anomalyFill = isBuy ? 'rgba(34,197,94,0.28)' : 'rgba(239,68,68,0.28)';
 
   return (
-    <div className="relative grid h-6 grid-cols-[1fr_auto] items-center gap-x-3 border-b border-white/[0.03] px-3 font-mono text-[11px]">
+    <div
+      className="relative grid h-6 items-center gap-x-3 border-b border-white/[0.03] px-3 font-mono text-[11px]"
+      style={{ gridTemplateColumns: `${DOM_BUBBLE_LANE_WIDTH_PX}px minmax(0, 1fr) auto` }}
+    >
       <div
-        className={`absolute inset-y-[2px] rounded-sm ${isBuy ? 'left-1' : 'right-1'}`}
+        className="absolute inset-y-[2px] rounded-sm"
         style={{
           width: fillWidth,
           background: level.isAnomalous ? anomalyFill : flowFill,
+          left: isBuy ? `${DOM_BUBBLE_LANE_WIDTH_PX + 4}px` : undefined,
+          right: isBuy ? undefined : '0.25rem',
         }}
       />
+      <span />
       <span className={`relative z-[1] ${level.isAnomalous ? 'font-bold text-text-primary' : 'text-text-secondary'}`}>
-        {formatCompactUsd(level.sizeUsd)}
+        {formatCompactCoin(level.sizeCoin)}
       </span>
       <span className={`relative z-[1] text-right ${isBuy ? 'text-positive' : 'text-negative'}`}>
         {formatPrice(level.price)}
@@ -464,8 +486,8 @@ function BubbleTrade({
   );
 }
 
-function getBubbleTopPct(item: BubbleTapeItem, model: ReturnType<typeof buildDomViewModel>): number {
-  if (!model) return 50;
+function getBubbleTopPx(item: BubbleTapeItem, model: ReturnType<typeof buildDomViewModel>): number {
+  if (!model) return DOM_MID_BAND_HEIGHT_PX / 2;
 
   const askTop = model.asks[0]?.price ?? model.midPrice;
   const askNear = model.asks[model.asks.length - 1]?.price ?? model.midPrice;
@@ -475,16 +497,21 @@ function getBubbleTopPct(item: BubbleTapeItem, model: ReturnType<typeof buildDom
   if (item.price >= model.midPrice && askTop > askNear) {
     const clamped = clamp(item.price, askNear, askTop);
     const ratio = (askTop - clamped) / (askTop - askNear);
-    return 10 + ratio * 35;
+    return ratio * DOM_ROW_HEIGHT_PX * Math.max(0, model.asks.length - 1) + DOM_ROW_HEIGHT_PX / 2;
   }
 
   if (item.price < model.midPrice && bidNear > bidBottom) {
     const clamped = clamp(item.price, bidBottom, bidNear);
     const ratio = (bidNear - clamped) / (bidNear - bidBottom);
-    return 55 + ratio * 30;
+    return (
+      model.asks.length * DOM_ROW_HEIGHT_PX +
+      DOM_MID_BAND_HEIGHT_PX +
+      ratio * DOM_ROW_HEIGHT_PX * Math.max(0, model.bids.length - 1) +
+      DOM_ROW_HEIGHT_PX / 2
+    );
   }
 
-  return 50;
+  return model.asks.length * DOM_ROW_HEIGHT_PX + DOM_MID_BAND_HEIGHT_PX / 2;
 }
 
 function clamp(value: number, min: number, max: number): number {
