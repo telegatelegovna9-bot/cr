@@ -215,6 +215,31 @@
     50% { opacity: 1; box-shadow: 0 0 10px currentColor; }
   }
 
+  @keyframes dom-bubble-tape-fade {
+    0% {
+      opacity: 0;
+      transform: translateY(-50%) scale(0.82);
+    }
+    10% {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+    78% {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-50%) scale(0.76);
+    }
+  }
+  .dom-bubble-tape-item {
+    animation-name: dom-bubble-tape-fade;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+    will-change: transform, opacity;
+  }
+
   /* ---- Noise texture overlay ---- */
   .noise-overlay::after {
     content: '';

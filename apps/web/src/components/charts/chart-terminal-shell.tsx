@@ -224,6 +224,7 @@ export function ChartTerminalShell({
           marketLabel={activeDomMarket?.marketType ?? marketType}
           orderbook={domOrderbook}
           trades={domTrades}
+          isActive={isViewActive}
           settings={domTapeSettings}
           onSettingsChange={patch => setDomTapeSettings(current => ({ ...current, ...patch }))}
           availableMarkets={availableDomMarkets.map(entry => entry.marketType)}

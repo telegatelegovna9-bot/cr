@@ -17,6 +17,7 @@ interface DomTapePanelProps {
   marketLabel: 'spot' | 'futures';
   orderbook: OrderBook | null | undefined;
   trades: Trade[];
+  isActive?: boolean;
   settings: DomTapeSettings;
   onSettingsChange: (patch: Partial<DomTapeSettings>) => void;
   availableMarkets?: Array<'spot' | 'futures'>;
@@ -27,13 +28,13 @@ interface DomTapePanelProps {
 
 const SMALL_PRINT_BATCH_MS = 70;
 const BUBBLE_TTL_MS = 3200;
-const PRUNE_INTERVAL_MS = 120;
 const IMMEDIATE_PRINT_USD = 12_500;
 
 export function DomTapePanel({
   marketLabel,
   orderbook,
   trades,
+  isActive = true,
   settings,
   onSettingsChange,
   availableMarkets,
@@ -86,13 +87,25 @@ export function DomTapePanel({
       smallTradeTimerRef.current = null;
     }
     setBubbleItems([]);
-  }, [activeMarket, marketLabel, orderbook?.symbol]);
+  }, [activeMarket, isActive, marketLabel, orderbook?.symbol]);
+
+  useEffect(() => {
+    if (isActive) return;
+    if (smallTradeTimerRef.current) {
+      clearTimeout(smallTradeTimerRef.current);
+      smallTradeTimerRef.current = null;
+    }
+    smallTradeQueueRef.current = [];
+    setBubbleItems([]);
+  }, [isActive]);
 
   useEffect(() => {
     setBubbleItems(current => current.filter(item => item.sizeUsd >= settings.minTapeSizeUsd));
   }, [settings.minTapeSizeUsd]);
 
   useEffect(() => {
+    if (!isActive) return;
+
     const flushSmallTrades = () => {
       const queued = smallTradeQueueRef.current;
       smallTradeQueueRef.current = [];
@@ -163,28 +176,29 @@ export function DomTapePanel({
     }
 
     return () => {};
-  }, [deferredTrades, maxBubbleItems, settings.minTapeSizeUsd]);
+  }, [deferredTrades, isActive, maxBubbleItems, settings.minTapeSizeUsd]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
+    if (!isActive || bubbleItems.length === 0) return;
+
+    const nearestExpiryMs = Math.max(
+      0,
+      Math.min(...bubbleItems.map(item => item.createdAt + BUBBLE_TTL_MS - Date.now())),
+    );
+    const timer = setTimeout(() => {
       const now = Date.now();
-      setBubbleItems(current => {
-        if (current.length === 0) return current;
-        const trimmed = trimBubbleTapeItems({
+      setBubbleItems(current =>
+        trimBubbleTapeItems({
           items: current,
           now,
           maxItems: maxBubbleItems,
           ttlMs: BUBBLE_TTL_MS,
-        });
-        if (trimmed.length === current.length && trimmed.every((item, index) => item.ageMs === current[index]?.ageMs)) {
-          return current;
-        }
-        return trimmed;
-      });
-    }, PRUNE_INTERVAL_MS);
+        }),
+      );
+    }, nearestExpiryMs + 16);
 
-    return () => clearInterval(timer);
-  }, [maxBubbleItems]);
+    return () => clearTimeout(timer);
+  }, [bubbleItems, isActive, maxBubbleItems]);
 
   useEffect(() => () => {
     if (smallTradeTimerRef.current) {
@@ -210,8 +224,6 @@ export function DomTapePanel({
       rightPx: 12 + (bubbleItems.length - 1 - index) * (compact ? 22 : 26),
       topPct: getBubbleTopPct(item, model),
       sizePx: Math.round((compact ? 20 : 24) + item.intensity * (compact ? 16 : 24) + (item.isLargePrint ? 6 : 0)),
-      opacity: Math.max(0.18, 1 - item.ageMs / BUBBLE_TTL_MS),
-      scale: Math.max(0.76, 1 - item.ageMs / (BUBBLE_TTL_MS * 3.4)),
     })),
     [bubbleItems, compact, model],
   );
@@ -363,15 +375,14 @@ export function DomTapePanel({
 
                 <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
                   <div className="absolute inset-y-[35%] left-[14%] right-[10%] rounded-[28px] border border-white/[0.05] bg-[linear-gradient(90deg,rgba(12,16,24,0.05),rgba(255,255,255,0.04),rgba(12,16,24,0.05))] shadow-[inset_0_0_40px_rgba(255,255,255,0.02)]" />
-                  {bubbleSlots.map(({ item, rightPx, topPct, sizePx, opacity, scale }) => (
+                  {bubbleSlots.map(({ item, rightPx, topPct, sizePx }) => (
                     <div
                       key={`${item.id}-${item.timestamp}`}
-                      className="absolute"
+                      className="absolute dom-bubble-tape-item"
                       style={{
                         right: `${rightPx}px`,
                         top: `${topPct}%`,
-                        transform: `translateY(-50%) scale(${scale})`,
-                        opacity,
+                        animationDuration: `${item.isLargePrint ? BUBBLE_TTL_MS + 700 : BUBBLE_TTL_MS}ms`,
                       }}
                     >
                       <BubbleTrade
