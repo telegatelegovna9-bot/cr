@@ -30,6 +30,7 @@ import type {
 import { makeInstrumentKey } from '@/lib/drawings/models';
 import { loadPersistedDrawings, savePersistedDrawings } from '@/lib/drawings/persistence';
 import { createDrawingSyncBus } from '@/lib/drawings/sync-bus';
+import { appendTradesBatch } from '@/lib/trade-batch';
 
 // ============================================================
 // Market Store
@@ -663,25 +664,27 @@ export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
 interface TradeStore {
   trades: Map<string, Trade[]>;
   updateTrade: (trade: Trade) => void;
+  updateTradesBatch: (trades: Trade[]) => void;
   getTrades: (symbol: string, exchange: string, marketType?: 'spot' | 'futures') => Trade[];
   clearTrades: (symbol: string, exchange: string, marketType?: 'spot' | 'futures') => void;
 }
 
 const MAX_TRADES_PER_MARKET = 200;
 
-function tradeMapKey(trade: { exchange: string; marketType?: 'spot' | 'futures'; symbol: string }): string {
-  return `${trade.exchange}:${trade.marketType ?? 'spot'}:${trade.symbol}`;
-}
-
 export const useTradeStore = create<TradeStore>((set, get) => ({
   trades: new Map(),
 
   updateTrade: (trade) => {
-    const key = tradeMapKey(trade);
     set(state => {
-      const next = new Map(state.trades);
-      const existing = next.get(key) ?? [];
-      next.set(key, [...existing, trade].slice(-MAX_TRADES_PER_MARKET));
+      const next = appendTradesBatch(state.trades, [trade], MAX_TRADES_PER_MARKET);
+      return { trades: next };
+    });
+  },
+
+  updateTradesBatch: (trades) => {
+    if (trades.length === 0) return;
+    set(state => {
+      const next = appendTradesBatch(state.trades, trades, MAX_TRADES_PER_MARKET);
       return { trades: next };
     });
   },

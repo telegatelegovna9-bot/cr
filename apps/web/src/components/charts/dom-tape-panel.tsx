@@ -221,7 +221,7 @@ export function DomTapePanel({
   const bubbleSlots = useMemo(
     () => bubbleItems.map((item, index) => ({
       item,
-      rightPx: 12 + (bubbleItems.length - 1 - index) * (compact ? 22 : 26),
+      leftPx: 18 + index * (compact ? 22 : 26),
       topPct: getBubbleTopPct(item, model),
       sizePx: Math.round((compact ? 20 : 24) + item.intensity * (compact ? 16 : 24) + (item.isLargePrint ? 6 : 0)),
     })),
@@ -333,10 +333,9 @@ export function DomTapePanel({
       ) : null}
 
       <div className={`relative min-h-0 flex-1 ${settingsOpen ? 'pt-[8.75rem]' : ''}`}>
-        <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 border-b border-border/70 px-3 py-1 text-[9px] uppercase tracking-[0.24em] text-text-muted">
-          <span>Flow</span>
-          <span className="text-center">Price</span>
-          <span className="text-right">Size</span>
+        <div className="grid grid-cols-[1fr_auto] gap-x-3 border-b border-border/70 px-3 py-1 text-[9px] uppercase tracking-[0.24em] text-text-muted">
+          <span>Qty</span>
+          <span className="text-right">Price</span>
         </div>
 
         <div
@@ -374,13 +373,13 @@ export function DomTapePanel({
                 ))}
 
                 <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
-                  <div className="absolute inset-y-[35%] left-[14%] right-[10%] rounded-[28px] border border-white/[0.05] bg-[linear-gradient(90deg,rgba(12,16,24,0.05),rgba(255,255,255,0.04),rgba(12,16,24,0.05))] shadow-[inset_0_0_40px_rgba(255,255,255,0.02)]" />
-                  {bubbleSlots.map(({ item, rightPx, topPct, sizePx }) => (
+                  <div className="absolute inset-y-[35%] left-[5%] right-[44%] rounded-[28px] border border-white/[0.05] bg-[linear-gradient(90deg,rgba(255,255,255,0.04),rgba(12,16,24,0.05))] shadow-[inset_0_0_40px_rgba(255,255,255,0.02)]" />
+                  {bubbleSlots.map(({ item, leftPx, topPct, sizePx }) => (
                     <div
                       key={`${item.id}-${item.timestamp}`}
                       className="absolute dom-bubble-tape-item"
                       style={{
-                        right: `${rightPx}px`,
+                        left: `${leftPx}px`,
                         top: `${topPct}%`,
                         animationDuration: `${item.isLargePrint ? BUBBLE_TTL_MS + 700 : BUBBLE_TTL_MS}ms`,
                       }}
@@ -409,7 +408,7 @@ function DomRow({ level, side }: { level: DomLevelRow; side: 'buy' | 'sell' }) {
   const anomalyFill = isBuy ? 'rgba(34,197,94,0.28)' : 'rgba(239,68,68,0.28)';
 
   return (
-    <div className="relative grid h-6 grid-cols-[3.75rem_1fr_auto] items-center gap-x-3 border-b border-white/[0.03] px-3 font-mono text-[11px]">
+    <div className="relative grid h-6 grid-cols-[1fr_auto] items-center gap-x-3 border-b border-white/[0.03] px-3 font-mono text-[11px]">
       <div
         className={`absolute inset-y-[2px] rounded-sm ${isBuy ? 'left-1' : 'right-1'}`}
         style={{
@@ -417,14 +416,11 @@ function DomRow({ level, side }: { level: DomLevelRow; side: 'buy' | 'sell' }) {
           background: level.isAnomalous ? anomalyFill : flowFill,
         }}
       />
-      <span className={`relative z-[1] ${isBuy ? 'text-positive' : 'text-negative'}`}>
-        {isBuy ? 'BID' : 'ASK'}
-      </span>
-      <span className={`relative z-[1] text-center ${isBuy ? 'text-positive' : 'text-negative'}`}>
-        {formatPrice(level.price)}
-      </span>
-      <span className={`relative z-[1] text-right ${level.isAnomalous ? 'font-bold text-text-primary' : 'text-text-secondary'}`}>
+      <span className={`relative z-[1] ${level.isAnomalous ? 'font-bold text-text-primary' : 'text-text-secondary'}`}>
         {formatCompactUsd(level.sizeUsd)}
+      </span>
+      <span className={`relative z-[1] text-right ${isBuy ? 'text-positive' : 'text-negative'}`}>
+        {formatPrice(level.price)}
       </span>
     </div>
   );

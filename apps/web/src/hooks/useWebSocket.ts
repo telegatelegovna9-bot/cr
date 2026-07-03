@@ -3,6 +3,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import type { Trade } from '@crypto-screener/shared';
 import {
   useAlertStore,
   useMarketStore,
@@ -27,6 +28,28 @@ const getWsUrl = () => {
 
 let sharedManager: ReturnType<typeof createSharedWebSocketManager> | null = null;
 let lifecycleListenersAttached = false;
+const TRADE_BATCH_WINDOW_MS = 48;
+let pendingTrades: Trade[] = [];
+let pendingTradeFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushPendingTrades() {
+  if (pendingTradeFlushTimer) {
+    clearTimeout(pendingTradeFlushTimer);
+    pendingTradeFlushTimer = null;
+  }
+  if (pendingTrades.length === 0) return;
+  const batch = pendingTrades;
+  pendingTrades = [];
+  useTradeStore.getState().updateTradesBatch(batch);
+}
+
+function queueTrade(trade: Trade) {
+  pendingTrades.push(trade);
+  if (pendingTradeFlushTimer) return;
+  pendingTradeFlushTimer = setTimeout(() => {
+    flushPendingTrades();
+  }, TRADE_BATCH_WINDOW_MS);
+}
 
 function handleSocketMessage(event: { data: string }) {
   let payload: { channel?: string; data?: any; event?: string };
@@ -56,7 +79,7 @@ function handleSocketMessage(event: { data: string }) {
         useOrderbookStore.getState().updateOrderbook(data);
         break;
       case 'trade':
-        useTradeStore.getState().updateTrade(data);
+        queueTrade(data);
         break;
       case 'alert': {
         useUIStore.getState().addAlert(data);
@@ -81,6 +104,7 @@ function getSharedManager() {
       useWSStore.getState().setError(null);
     },
     onClose: (event) => {
+      flushPendingTrades();
       console.log(`[WS] Connection closed: ${event.code ?? ''} ${event.reason ?? ''}`);
       useWSStore.getState().setConnected(false);
     },
