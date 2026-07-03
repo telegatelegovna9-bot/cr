@@ -490,27 +490,11 @@ export class BitgetConnector extends BaseExchangeConnector {
     })).sort((a, b) => a.time - b.time);
   }
 
-  async fetchOrderBook(
-    symbol: string,
-    marketType?: 'spot' | 'futures',
-    limit = 50,
-  ): Promise<OrderBook> {
-    if (marketType === 'futures' || (this.isFuturesSymbol(symbol) && marketType !== 'spot')) {
-      const local = this.toBitgetFuturesSymbol(symbol);
-      const data = await this.fetchRaw<{ data: { bids: [string, string][]; asks: [string, string][] } }>(
-        `${BITGET_REST}/api/v2/mix/market/orderbook?symbol=${local}&productType=USDT-FUTURES&limit=${limit}`
-      );
-      return {
-        symbol, exchange: 'bitget', marketType: 'futures',
-        bids: (data.data?.bids || []).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
-        asks: (data.data?.asks || []).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
-        timestamp: Date.now(),
-      };
-    }
+  async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
     const local = this.toBitgetSpotSymbol(symbol);
     const data = await this.fetchRaw<{ data: { bids: [string, string][]; asks: [string, string][] } }>(`${BITGET_REST}/api/v2/spot/market/orderbook?symbol=${local}&limit=${limit}`);
     return {
-      symbol, exchange: 'bitget', marketType: 'spot',
+      symbol, exchange: 'bitget',
       bids: (data.data?.bids || []).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       asks: (data.data?.asks || []).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       timestamp: Date.now(),

@@ -424,12 +424,8 @@ export class BybitConnector extends BaseExchangeConnector {
     })).reverse();
   }
 
-  async fetchOrderBook(
-    symbol: string,
-    marketType?: 'spot' | 'futures',
-    limit = 50,
-  ): Promise<OrderBook> {
-    const isFutures = marketType ? marketType === 'futures' : this.isFuturesSymbol(symbol);
+  async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
+    const isFutures = this.isFuturesSymbol(symbol);
     const local = this.toBybitSymbol(symbol);
     const data = await this.fetch<{ result: { b: [string, string][]; a: [string, string][] } }>(
       `/v5/market/orderbook?category=${isFutures ? 'linear' : 'spot'}&symbol=${local}&limit=${limit}`

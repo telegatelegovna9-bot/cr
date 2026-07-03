@@ -197,7 +197,7 @@ export class OKXConnector extends BaseExchangeConnector {
     const key = `orderbook:${symbol}`;
     if (this.subscriptions.has(key)) return;
     this.subscriptions.add(key);
-    this.send({ op: 'subscribe', args: [{ channel: 'books50', instId }] });
+    this.send({ op: 'subscribe', args: [{ channel: 'books5', instId }] });
   }
 
   subscribeTrades(symbol: string): void {
@@ -226,7 +226,7 @@ export class OKXConnector extends BaseExchangeConnector {
   unsubscribeOrderBook(symbol: string): void {
     const instId = this.toOKXInstId(symbol);
     this.subscriptions.delete(`orderbook:${symbol}`);
-    this.send({ op: 'unsubscribe', args: [{ channel: 'books50', instId }] });
+    this.send({ op: 'unsubscribe', args: [{ channel: 'books5', instId }] });
   }
 
   unsubscribeTrades(symbol: string): void {
@@ -284,7 +284,7 @@ export class OKXConnector extends BaseExchangeConnector {
         isClosed: d[8] === '1', // OKX v5 candles: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
       };
       this.emit('candle', candle);
-    } else if (channel === 'books5' || channel === 'books50') {
+    } else if (channel === 'books5') {
       const d = data[0];
       const bids = ((d.bids || d.b) as string[][]).map(([p, q]) => ({
         price: parseFloat(p), quantity: parseFloat(q),
@@ -396,11 +396,7 @@ export class OKXConnector extends BaseExchangeConnector {
     })).sort((a, b) => a.time - b.time);
   }
 
-  async fetchOrderBook(
-    symbol: string,
-    _marketType?: 'spot' | 'futures',
-    limit = 50,
-  ): Promise<OrderBook> {
+  async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
     const instId = this.toOKXInstId(symbol);
     const sz = limit <= 5 ? '5' : limit <= 400 ? String(limit) : '400';
     const data = await this.fetch<{ data: [{ bids: string[][]; asks: string[][] }] }>(
@@ -408,11 +404,9 @@ export class OKXConnector extends BaseExchangeConnector {
     );
 
     const book = data.data[0];
-    const isFutures = this.isFuturesSymbol(symbol);
     return {
       symbol,
       exchange: 'okx',
-      marketType: isFutures ? 'futures' : 'spot',
       bids: book.bids.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       asks: book.asks.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
       timestamp: Date.now(),

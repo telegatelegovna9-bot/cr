@@ -31,13 +31,11 @@ const EXCHANGE_HEALTH_KEY = 'exchange:health';
 export class MarketService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MarketService.name);
   private readonly MAX_CANDLE_CACHE = 20000;
-  private readonly MAX_TRADE_CACHE = 200;
   private exchangeManager!: ExchangeManager;
 
   private tickerCache = new Map<string, TickerWithMeta>();
   private candleCache = new Map<string, Candle[]>();
   private orderbookCache = new Map<string, OrderBook>();
-  private tradeCache = new Map<string, Trade[]>();
 
   private connectedExchanges = new Set<ExchangeId>();
   private subscribedSymbols = new Set<string>();
@@ -45,7 +43,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private subscribedCandles = new Map<string, { symbol: string; timeframe: Timeframe; exchange?: ExchangeId }>();
   private candleSubscriptionRefs = new Map<string, number>();
   private orderBookSubscriptionRefs = new Map<string, number>();
-  private tradeSubscriptionRefs = new Map<string, number>();
 
   private tickerThrottle = new Map<string, number>();
   private readonly THROTTLE_MS = 100;
@@ -171,11 +168,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   private handleTrade(trade: Trade) {
     const key = `${trade.exchange}:${trade.symbol}`;
     const existing = this.tickerCache.get(key);
-    const tradeKey = `trade:${trade.exchange}:${trade.marketType ?? 'spot'}:${trade.symbol}`;
-    const currentTrades = this.tradeCache.get(tradeKey) ?? [];
-    const nextTrades = [...currentTrades, trade].slice(-this.MAX_TRADE_CACHE);
-    this.tradeCache.set(tradeKey, nextTrades);
-
     const updatedTicker: TickerWithMeta = {
       ...(existing || {
         exchange: trade.exchange,
@@ -203,19 +195,11 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       this.tickerThrottle.set(key, now);
       this.gateway.broadcast('ticker', updatedTicker);
     }
-    this.gateway.broadcast('trade', trade);
     this.db.publish('trade', trade).catch(() => {});
   }
 
   private handleOrderBook(ob: OrderBook) {
-    if (!ob.marketType) ob.marketType = 'spot';
-    ob.bids = ob.bids
-      .filter(l => Number.isFinite(l.price) && Number.isFinite(l.quantity) && l.quantity > 0)
-      .sort((a, b) => b.price - a.price);
-    ob.asks = ob.asks
-      .filter(l => Number.isFinite(l.price) && Number.isFinite(l.quantity) && l.quantity > 0)
-      .sort((a, b) => a.price - b.price);
-    const key = `ob:${ob.exchange}:${ob.marketType}:${ob.symbol}`;
+    const key = `ob:${ob.exchange}:${ob.marketType ?? 'spot'}:${ob.symbol}`;
     this.orderbookCache.set(key, ob);
     this.gateway.broadcast('orderbook', ob);
   }
@@ -340,28 +324,17 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getOrderBook(symbol: string, exchange?: ExchangeId, marketType: 'spot' | 'futures' = 'spot'): Promise<OrderBook | null> {
-    let cached: OrderBook | undefined;
     if (exchange) {
       const key = `ob:${exchange}:${marketType}:${symbol}`;
-      cached = this.orderbookCache.get(key);
+      const cached = this.orderbookCache.get(key);
       if (cached) return cached;
     }
-
-    try {
-      const fetched = await this.exchangeManager.fetchOrderBook(symbol, exchange, marketType);
-      if (!fetched) return cached ?? null;
-      if (!fetched.marketType) {
-        fetched.marketType = marketType;
-      }
-      return fetched;
-    } catch (err) {
-      this.logger.warn(
-        `Failed to fetch orderbook for ${exchange ?? 'auto'} ${marketType} ${symbol}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-      return cached ?? null;
+    const fetched = await this.exchangeManager.fetchOrderBook(symbol, exchange);
+    if (!fetched) return null;
+    if (!fetched.marketType) {
+      fetched.marketType = marketType;
     }
+    return fetched;
   }
 
   getLatestOrderBook(symbol: string, exchange?: ExchangeId, marketType: 'spot' | 'futures' = 'spot'): OrderBook | null {
@@ -375,21 +348,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
       return orderbook;
     }
     return null;
-  }
-
-  getRecentTrades(symbol: string, exchange?: ExchangeId, marketType: 'spot' | 'futures' = 'spot', limit = 50): Trade[] {
-    if (exchange) {
-      return (this.tradeCache.get(`trade:${exchange}:${marketType}:${symbol}`) ?? []).slice(-limit);
-    }
-
-    for (const [key, trades] of this.tradeCache.entries()) {
-      if (!key.endsWith(`:${symbol}`)) continue;
-      const snapshotMarketType = key.split(':')[2];
-      if (snapshotMarketType !== marketType) continue;
-      return trades.slice(-limit);
-    }
-
-    return [];
   }
 
   getExchangeHealth(): Record<string, unknown> {
@@ -451,18 +409,6 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   unsubscribeOrderBook(symbol: string, marketType: 'spot' | 'futures' = 'spot', exchange?: ExchangeId): void {
     this.decrementScopedRefs(this.orderBookSubscriptionRefs, `${marketType}:${symbol}`, exchange, (id) => {
       this.exchangeManager.unsubscribeOrderBook(symbol, [id]);
-    });
-  }
-
-  subscribeTrades(symbol: string, marketType: 'spot' | 'futures' = 'spot', exchange?: ExchangeId): void {
-    this.incrementScopedRefs(this.tradeSubscriptionRefs, `${marketType}:${symbol}`, exchange, (id) => {
-      this.exchangeManager.subscribeTrades(symbol, [id]);
-    });
-  }
-
-  unsubscribeTrades(symbol: string, marketType: 'spot' | 'futures' = 'spot', exchange?: ExchangeId): void {
-    this.decrementScopedRefs(this.tradeSubscriptionRefs, `${marketType}:${symbol}`, exchange, (id) => {
-      this.exchangeManager.unsubscribeTrades(symbol, [id]);
     });
   }
 

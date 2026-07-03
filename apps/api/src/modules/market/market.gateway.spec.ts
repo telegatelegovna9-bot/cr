@@ -18,7 +18,6 @@ function createGateway(overrides?: {
   ticker?: Ticker | null;
   candle?: Candle | null;
   orderbook?: OrderBook | null;
-  trades?: any[];
 }) {
   const db = {
     createSubscriber: () => ({
@@ -34,12 +33,9 @@ function createGateway(overrides?: {
     unsubscribeCandle: () => undefined,
     subscribeOrderBook: () => undefined,
     unsubscribeOrderBook: () => undefined,
-    subscribeTrades: () => undefined,
-    unsubscribeTrades: () => undefined,
     getTickers: () => (overrides?.ticker ? [overrides.ticker] : []),
     getLatestCandle: () => overrides?.candle ?? null,
     getLatestOrderBook: () => overrides?.orderbook ?? null,
-    getRecentTrades: () => overrides?.trades ?? [],
   };
 
   return new MarketGateway(db as never, marketService as never);
@@ -173,42 +169,6 @@ async function runTest() {
       bids: [{ price: 300, quantity: 5 }],
       asks: [{ price: 301, quantity: 6 }],
       timestamp: 1710000000600,
-    },
-  });
-
-  const tradeClient = new FakeClient();
-  gateway.handleConnection(tradeClient as never);
-  (gateway as any).handleSubscription(tradeClient, {
-    action: 'subscribe',
-    exchange: 'binance',
-    marketType: 'futures',
-    symbol: 'BTC/USDT',
-    channel: 'trade',
-  });
-
-  gateway.broadcast('trade', {
-    id: '1',
-    exchange: 'binance',
-    marketType: 'futures',
-    symbol: 'BTC/USDT',
-    price: 100,
-    quantity: 1,
-    side: 'buy',
-    timestamp: 1710000000700,
-  });
-
-  assert.equal(tradeClient.sent.length, 2);
-  assert.deepEqual(JSON.parse(tradeClient.sent[1]), {
-    channel: 'trade',
-    data: {
-      id: '1',
-      exchange: 'binance',
-      marketType: 'futures',
-      symbol: 'BTC/USDT',
-      price: 100,
-      quantity: 1,
-      side: 'buy',
-      timestamp: 1710000000700,
     },
   });
 

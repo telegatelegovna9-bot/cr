@@ -2,7 +2,6 @@
 
 import { Expand, Minimize2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ChartCard } from '@/components/charts/chart-card';
-import { ChartTerminalShell } from '@/components/charts/chart-terminal-shell';
 import type { PersonalGridSlotConfig } from '@/lib/personal-grid/models';
 import type { Timeframe } from '@crypto-screener/shared';
 
@@ -50,71 +49,41 @@ export function PersonalGridSlot({
 
   return (
     <div className="relative h-full min-h-0">
-      {expanded ? (
-        <ChartTerminalShell
-          symbol={symbol}
-          exchange={exchange}
-          index={index}
-          initialTimeframe={slot.timeframe ?? undefined}
-          initialMarketType={marketType}
-          onTimeframeChange={(timeframe) => onTimeframeChange(slot.id, timeframe)}
-          showHeaderPrice={false}
-          headerActions={
-            <div className="flex items-center gap-0.5 bg-bg-primary/40 rounded-lg p-0.5 border border-border">
-              <button
-                onClick={() => onCollapse()}
-                className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
-              >
+      <ChartCard
+        symbol={symbol}
+        exchange={exchange}
+        index={index}
+        initialTimeframe={slot.timeframe ?? undefined}
+        initialMarketType={marketType}
+        onTimeframeChange={(timeframe) => onTimeframeChange(slot.id, timeframe)}
+        showHeaderPrice={false}
+        headerActions={
+          <div className="flex items-center gap-0.5 bg-bg-primary/40 rounded-lg p-0.5 border border-border">
+            <button
+              onClick={() => (expanded ? onCollapse() : onExpand(slot.id))}
+              className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
+            >
+              {expanded ? (
                 <Minimize2 className="w-3.5 h-3.5 text-text-muted" />
-              </button>
-              <button
-                onClick={() => onReplace(slot.id)}
-                className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
-              >
-                <Pencil className="w-3.5 h-3.5 text-text-muted" />
-              </button>
-              <button
-                onClick={() => onRemove(slot.id)}
-                className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-text-muted" />
-              </button>
-            </div>
-          }
-        />
-      ) : (
-        <ChartCard
-          symbol={symbol}
-          exchange={exchange}
-          index={index}
-          initialTimeframe={slot.timeframe ?? undefined}
-          initialMarketType={marketType}
-          onTimeframeChange={(timeframe) => onTimeframeChange(slot.id, timeframe)}
-          showHeaderPrice={false}
-          headerActions={
-            <div className="flex items-center gap-0.5 bg-bg-primary/40 rounded-lg p-0.5 border border-border">
-              <button
-                onClick={() => onExpand(slot.id)}
-                className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
-              >
+              ) : (
                 <Expand className="w-3.5 h-3.5 text-text-muted" />
-              </button>
-              <button
-                onClick={() => onReplace(slot.id)}
-                className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
-              >
-                <Pencil className="w-3.5 h-3.5 text-text-muted" />
-              </button>
-              <button
-                onClick={() => onRemove(slot.id)}
-                className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-text-muted" />
-              </button>
-            </div>
-          }
-        />
-      )}
+              )}
+            </button>
+            <button
+              onClick={() => onReplace(slot.id)}
+              className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+            <button
+              onClick={() => onRemove(slot.id)}
+              className="p-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+          </div>
+        }
+      />
     </div>
   );
 }

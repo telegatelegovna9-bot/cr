@@ -65,11 +65,7 @@ export abstract class BaseExchangeConnector extends EventEmitter {
   // REST methods
   abstract fetchTickers(symbols?: string[]): Promise<Ticker[]>;
   abstract fetchCandles(symbol: string, timeframe: Timeframe, limit?: number, endTime?: number): Promise<Candle[]>;
-  abstract fetchOrderBook(
-    symbol: string,
-    marketType?: 'spot' | 'futures',
-    limit?: number,
-  ): Promise<OrderBook>;
+  abstract fetchOrderBook(symbol: string, limit?: number): Promise<OrderBook>;
 
   // Common REST fetch with rate limiting
   protected async fetch<T>(endpoint: string): Promise<T> {

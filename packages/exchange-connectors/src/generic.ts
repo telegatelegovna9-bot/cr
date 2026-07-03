@@ -65,7 +65,6 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol,
         exchange: 'kucoin',
-        marketType: 'spot',
         bids: d.data.bids.slice(0, 20).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         asks: d.data.asks.slice(0, 20).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         timestamp: Date.now(),
@@ -120,7 +119,6 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol,
         exchange: 'bitget',
-        marketType: 'spot',
         bids: d.data.bids.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         asks: d.data.asks.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         timestamp: Date.now(),
@@ -175,7 +173,6 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol,
         exchange: 'gate',
-        marketType: 'spot',
         bids: d.bids.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         asks: d.asks.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         timestamp: Date.now(),
@@ -230,7 +227,6 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol,
         exchange: 'mexc',
-        marketType: 'spot',
         bids: d.bids.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         asks: d.asks.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         timestamp: Date.now(),
@@ -286,7 +282,6 @@ const EXCHANGE_ENDPOINTS: Partial<Record<ExchangeId, ExchangeEndpoints>> = {
       return {
         symbol,
         exchange: 'coinbase',
-        marketType: 'spot',
         bids: d.bids.slice(0, 50).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         asks: d.asks.slice(0, 50).map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
         timestamp: Date.now(),
@@ -644,23 +639,21 @@ export class GenericExchangeConnector extends BaseExchangeConnector {
     return this.endpoints.parseCandles(data, this.id, symbol, timeframe);
   }
 
-  async fetchOrderBook(
-    symbol: string,
-    _marketType?: 'spot' | 'futures',
-    limit = 50,
-  ): Promise<OrderBook> {
+  async fetchOrderBook(symbol: string, limit = 50): Promise<OrderBook> {
     const local = this.toLocalSymbol(symbol);
 
     if (this.id === 'hyperliquid') {
-      const data = await this.fetch<{ coin: string; levels: [string, string, string][][] }>(`${this.endpoints.orderbook}?type=l2Book&coin=${local}`);
-      const bidLevels = data.levels?.[0] || [];
-      const askLevels = data.levels?.[1] || [];
+      const data = await this.fetch<Record<string, unknown>>(`${this.endpoints.orderbook}?type=l2Book&coin=${local}`);
+      const levels = data as unknown as { levels: [string, string, string][] }[];
       return {
         symbol,
         exchange: 'hyperliquid',
-        marketType: 'spot',
-        bids: bidLevels.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
-        asks: askLevels.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
+        bids: (levels[0]?.levels || []).filter((_, i) => i % 2 === 0).map(([p, q]) => ({
+          price: parseFloat(p), quantity: parseFloat(q),
+        })),
+        asks: (levels[1]?.levels || []).filter((_, i) => i % 2 === 0).map(([p, q]) => ({
+          price: parseFloat(p), quantity: parseFloat(q),
+        })),
         timestamp: Date.now(),
       };
     }

@@ -94,8 +94,6 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
           const { exchange, symbol, timeframe, channel, marketType } = sub;
           if (channel === 'orderbook') {
             this.marketService.unsubscribeOrderBook(symbol, marketType as 'spot' | 'futures' | undefined, exchange as ExchangeId);
-          } else if (channel === 'trade') {
-            this.marketService.unsubscribeTrades(symbol, marketType as 'spot' | 'futures' | undefined, exchange as ExchangeId);
           } else if (timeframe) {
             this.marketService.unsubscribeCandle(symbol, timeframe as Timeframe, exchange as ExchangeId);
           } else {
@@ -123,8 +121,6 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Subscribe via MarketService
       if (channel === 'orderbook') {
         this.marketService.subscribeOrderBook(symbol, marketType, exchange);
-      } else if (channel === 'trade') {
-        this.marketService.subscribeTrades(symbol, marketType, exchange);
       } else if (timeframe) {
         this.marketService.subscribeCandle(symbol, timeframe, exchange);
       } else {
@@ -141,8 +137,6 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (channel === 'orderbook') {
         this.marketService.unsubscribeOrderBook(symbol, marketType, exchange);
-      } else if (channel === 'trade') {
-        this.marketService.unsubscribeTrades(symbol, marketType, exchange);
       } else if (timeframe) {
         this.marketService.unsubscribeCandle(symbol, timeframe, exchange);
       } else {
@@ -157,14 +151,6 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const orderbook = this.marketService.getLatestOrderBook(sub.symbol, sub.exchange, sub.marketType);
       if (orderbook) {
         client.send(JSON.stringify({ channel: 'orderbook', data: orderbook }));
-      }
-      return;
-    }
-
-    if (sub.channel === 'trade') {
-      const trades = this.marketService.getRecentTrades(sub.symbol, sub.exchange, sub.marketType, 60);
-      for (const trade of trades) {
-        client.send(JSON.stringify({ channel: 'trade', data: trade }));
       }
       return;
     }
@@ -239,7 +225,7 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private getSymbolKey(channel: string, sub: any): string {
-    if (channel === 'orderbook' || channel === 'trade') {
+    if (channel === 'orderbook') {
       return [sub.exchange, sub.marketType ?? 'spot', sub.symbol].join('|');
     }
     const parts = [sub.exchange, sub.symbol];
@@ -265,8 +251,6 @@ export class MarketGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (channel === 'candle') {
       keys.push(`${data.exchange}|${data.symbol}|${data.timeframe}`);
     } else if (channel === 'orderbook') {
-      keys.push(`${data.exchange}|${data.marketType ?? 'spot'}|${data.symbol}`);
-    } else if (channel === 'trade') {
       keys.push(`${data.exchange}|${data.marketType ?? 'spot'}|${data.symbol}`);
     } else {
       keys.push(`${data.exchange}|${data.symbol}`);

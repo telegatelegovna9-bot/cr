@@ -16,7 +16,7 @@ import {
   mergeChartPriceFormat,
 } from '@/lib/format';
 import { formatDisplaySymbol, formatMarketTypeLabel, getDisplayBaseSymbol } from '@/lib/display-symbol';
-import { findPreferredOrderbook, getOrderbookMapKey } from '@/lib/orderbook-identity';
+import { findPreferredOrderbook } from '@/lib/orderbook-identity';
 import { getHeatmapPriceStep, resolveHeatmapReferencePrice } from '@/lib/heatmap-price';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
@@ -52,7 +52,6 @@ interface ChartCardProps {
   initialTimeframe?: string;
   initialMarketType?: 'spot' | 'futures';
   onTimeframeChange?: (timeframe: Timeframe) => void;
-  onMarketTypeChange?: (marketType: 'spot' | 'futures') => void;
   onDataLoaded?: (symbol: string, data: any[], timeframe: string) => void;
   showHeaderPrice?: boolean;
   headerActions?: ReactNode;
@@ -167,7 +166,7 @@ function getTimeframeDurationMs(timeframe: TF): number {
   }
 }
 
-export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onMarketTypeChange, onDataLoaded, showHeaderPrice = true, headerActions, isViewActive = true, historySessionToken = 0 }: ChartCardProps) {
+export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exchangeProp, onExpand, isModal = false, paused = false, initialData, initialTimeframe, initialMarketType, onTimeframeChange, onDataLoaded, showHeaderPrice = true, headerActions, isViewActive = true, historySessionToken = 0 }: ChartCardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -354,18 +353,14 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   });
 
   // ─── Heatmap: LiquidityEngine + canvas overlay ──────────────────
-  const heatmapOrderbook = useOrderbookStore(state => {
+  const orderbook = useOrderbookStore(state => {
     if (!showHeatmap) return undefined;
-    for (const candidate of symbolLookupCandidates) {
-      const exact = state.books.get(getOrderbookMapKey(exchange, marketType, candidate));
-      if (exact) return exact;
-    }
     return findPreferredOrderbook(state.books, exchange, marketType, symbolLookupCandidates);
   });
 
   // Feed orderbook updates into engine
   useEffect(() => {
-    if (!showHeatmap || !heatmapOrderbook) return;
+    if (!showHeatmap || !orderbook) return;
 
     if (!heatmapEngineRef.current) {
       heatmapEngineRef.current = new LiquidityEngine();
@@ -374,18 +369,18 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
     const referencePrice = resolveHeatmapReferencePrice({
       tickerPrice: ticker?.lastPrice,
       candlePrice: currentPrice,
-      orderbook: heatmapOrderbook,
+      orderbook,
     });
     heatmapPriceRef.current = referencePrice;
     heatmapEngineRef.current.setPriceStep(getHeatmapPriceStep(referencePrice));
 
-      heatmapEngineRef.current.addUpdate(
-      heatmapOrderbook.bids,
-      heatmapOrderbook.asks,
+    heatmapEngineRef.current.addUpdate(
+      orderbook.bids,
+      orderbook.asks,
       referencePrice,
     );
     heatmapDirtyRef.current = true;
-  }, [currentPrice, heatmapOrderbook, showHeatmap, ticker?.lastPrice]);
+  }, [currentPrice, orderbook, showHeatmap, ticker?.lastPrice]);
 
   useEffect(() => {
     if (!showHeatmap) return;
@@ -1220,10 +1215,7 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
             {(['spot', 'futures'] as const).map(mt => (
               <button
                 key={mt}
-                onClick={() => {
-                  setMarketType(mt);
-                  onMarketTypeChange?.(mt);
-                }}
+                onClick={() => setMarketType(mt)}
                 className={`px-2 py-0.5 text-[10px] rounded font-medium capitalize transition-colors cursor-pointer
                   ${marketType === mt
                     ? 'bg-accent/15 text-accent-light'

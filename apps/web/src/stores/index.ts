@@ -1,7 +1,7 @@
 // Zustand stores for global state management
 
 import { create } from 'zustand';
-import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle, OrderBook, Trade } from '@crypto-screener/shared';
+import type { ExchangeId, Timeframe, ViewMode, Alert, AlertConfig, Ticker, Candle, OrderBook } from '@crypto-screener/shared';
 import type { HeatmapSettings } from '@/lib/liquidity-engine';
 import { DEFAULT_HEATMAP_SETTINGS } from '@/lib/liquidity-engine';
 import { getOrderbookMapKey, getOrderbookMapKeyFromSnapshot } from '@/lib/orderbook-identity';
@@ -30,7 +30,6 @@ import type {
 import { makeInstrumentKey } from '@/lib/drawings/models';
 import { loadPersistedDrawings, savePersistedDrawings } from '@/lib/drawings/persistence';
 import { createDrawingSyncBus } from '@/lib/drawings/sync-bus';
-import { appendTradesBatch } from '@/lib/trade-batch';
 
 // ============================================================
 // Market Store
@@ -634,7 +633,7 @@ interface OrderbookStore {
 
 // Throttle map: key -> last update timestamp
 const orderbookThrottle = new Map<string, number>();
-const ORDERBOOK_THROTTLE_MS = 150;
+const ORDERBOOK_THROTTLE_MS = 300;
 
 export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
   books: new Map(),
@@ -655,51 +654,6 @@ export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
   },
 
   getOrderbook: (symbol, exchange, marketType) => get().books.get(getOrderbookMapKey(exchange, marketType, symbol)),
-}));
-
-// ============================================================
-// Trade Store
-// ============================================================
-
-interface TradeStore {
-  trades: Map<string, Trade[]>;
-  updateTrade: (trade: Trade) => void;
-  updateTradesBatch: (trades: Trade[]) => void;
-  getTrades: (symbol: string, exchange: string, marketType?: 'spot' | 'futures') => Trade[];
-  clearTrades: (symbol: string, exchange: string, marketType?: 'spot' | 'futures') => void;
-}
-
-const MAX_TRADES_PER_MARKET = 200;
-
-export const useTradeStore = create<TradeStore>((set, get) => ({
-  trades: new Map(),
-
-  updateTrade: (trade) => {
-    set(state => {
-      const next = appendTradesBatch(state.trades, [trade], MAX_TRADES_PER_MARKET);
-      return { trades: next };
-    });
-  },
-
-  updateTradesBatch: (trades) => {
-    if (trades.length === 0) return;
-    set(state => {
-      const next = appendTradesBatch(state.trades, trades, MAX_TRADES_PER_MARKET);
-      return { trades: next };
-    });
-  },
-
-  getTrades: (symbol, exchange, marketType) => get().trades.get(`${exchange}:${marketType ?? 'spot'}:${symbol}`) ?? [],
-
-  clearTrades: (symbol, exchange, marketType) => {
-    const key = `${exchange}:${marketType ?? 'spot'}:${symbol}`;
-    set(state => {
-      if (!state.trades.has(key)) return state;
-      const next = new Map(state.trades);
-      next.delete(key);
-      return { trades: next };
-    });
-  },
 }));
 
 // ============================================================

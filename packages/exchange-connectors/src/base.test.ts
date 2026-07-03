@@ -14,11 +14,7 @@ class TestConnector extends BaseExchangeConnector {
   unsubscribeTrades(symbol: string): void { this.subscriptions.delete(`trades:${symbol}`); }
   async fetchTickers(_symbols?: string[]): Promise<Ticker[]> { return []; }
   async fetchCandles(_symbol: string, _timeframe: Timeframe, _limit?: number, _endTime?: number): Promise<Candle[]> { return []; }
-  async fetchOrderBook(
-    _symbol: string,
-    _marketType?: 'spot' | 'futures',
-    _limit?: number,
-  ): Promise<OrderBook> {
+  async fetchOrderBook(_symbol: string, _limit?: number): Promise<OrderBook> {
     return { exchange: 'binance', symbol: 'BTC/USDT', bids: [], asks: [], timestamp: Date.now() };
   }
   protected handleMessage(_msg: unknown): void {}
