@@ -23,8 +23,7 @@ interface DomTapePanelProps {
   compact?: boolean;
 }
 
-const ROW_HEIGHT_PX = 22;
-const SPREAD_ROW_HEIGHT_PX = 32;
+const ROW_H = 18;
 
 export function DomTapePanel({
   marketLabel,
@@ -39,128 +38,82 @@ export function DomTapePanel({
   compact: _compact = false,
 }: DomTapePanelProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const domScrollRef = useRef<HTMLDivElement>(null);
-  const midRef = useRef<HTMLDivElement>(null);
-  const deferredOrderbook = useDeferredValue(orderbook);
-  const prevPricesRef = useRef<Set<string>>(new Set());
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const deferredOb = useDeferredValue(orderbook);
 
   const model = useMemo(
-    () => deferredOrderbook
-      ? buildDomViewModel({
-          orderbook: deferredOrderbook,
-          levelsPerSide: settings.levelsPerSide,
-        })
+    () => deferredOb
+      ? buildDomViewModel({ orderbook: deferredOb, levelsPerSide: settings.levelsPerSide })
       : null,
-    [deferredOrderbook, settings.levelsPerSide],
+    [deferredOb, settings.levelsPerSide],
   );
 
-  // Track changed prices for flash effect
-  const changedPrices = useMemo(() => {
-    if (!model) return new Set<string>();
-    const current = new Set<string>();
-    for (const row of model.asks) current.add(row.price.toFixed(8));
-    for (const row of model.bids) current.add(row.price.toFixed(8));
-
-    const changed = new Set<string>();
-    for (const key of current) {
-      if (!prevPricesRef.current.has(key)) changed.add(key);
-    }
-    // Also flash if qty changed at same price
-    prevPricesRef.current = current;
-    return changed;
-  }, [model]);
-
-  // Auto-center scroll
+  // Auto-center: keep spread row in the middle of the viewport
   useEffect(() => {
-    if (!settings.autoCenter || !midRef.current) return;
-    midRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [model?.midPrice, settings.autoCenter]);
-
-  // Reset on symbol/market change
-  useEffect(() => {
-    prevPricesRef.current = new Set();
-  }, [orderbook?.symbol, activeMarket]);
+    if (!settings.autoCenter || !scrollRef.current || !model) return;
+    const el = scrollRef.current;
+    // Asks are reversed (lowest near spread), so spread row is at index = asks.length
+    const spreadOffset = model.asks.length * ROW_H;
+    const viewH = el.clientHeight;
+    el.scrollTop = Math.max(0, spreadOffset - viewH / 2 + ROW_H);
+  }, [model?.midPrice, settings.autoCenter, model?.asks.length]);
 
   return (
-    <div className="relative flex min-h-0 flex-col bg-[#0a0d14]">
+    <div className="relative flex min-h-0 flex-col" style={{ background: '#0b0e14' }}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+      <div className="flex items-center justify-between px-2 py-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <div className="flex items-center gap-2">
           {availableMarkets && availableMarkets.length > 1 && activeMarket && onActiveMarketChange ? (
-            <div className="flex items-center rounded-md border border-border/70 bg-bg-primary/60 p-0.5">
-              {availableMarkets.map(market => {
-                const active = market === activeMarket;
-                return (
-                  <button
-                    key={market}
-                    type="button"
-                    onClick={() => onActiveMarketChange(market)}
-                    className={`rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors ${
-                      active
-                        ? 'bg-accent/15 text-accent-light'
-                        : 'text-text-muted hover:text-text-secondary'
-                    }`}
-                  >
-                    {market}
-                  </button>
-                );
-              })}
+            <div className="flex items-center gap-0.5">
+              {availableMarkets.map(market => (
+                <button
+                  key={market}
+                  type="button"
+                  onClick={() => onActiveMarketChange(market)}
+                  className="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider transition-colors"
+                  style={{
+                    color: market === activeMarket ? '#e0e0e0' : '#4a4a5a',
+                    background: market === activeMarket ? 'rgba(255,255,255,0.05)' : 'transparent',
+                    borderRadius: '3px',
+                  }}
+                >
+                  {market}
+                </button>
+              ))}
             </div>
           ) : (
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
+            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: '#4a4a5a' }}>
               {marketLabel}
             </span>
           )}
-          <span className="text-[10px] text-text-muted">{settings.levelsPerSide}L</span>
         </div>
         <button
           type="button"
           onClick={() => setSettingsOpen(open => !open)}
-          className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
-            settingsOpen
-              ? 'border-accent/50 bg-accent/15 text-accent-light'
-              : 'border-border/60 bg-bg-primary/50 text-text-muted hover:text-text-secondary'
-          }`}
+          className="flex h-4 w-4 items-center justify-center"
+          style={{ color: settingsOpen ? '#888' : '#444' }}
         >
           <Settings className="h-3 w-3" />
         </button>
       </div>
 
-      {/* Settings dropdown */}
+      {/* Settings */}
       {settingsOpen && (
         <div
-          className="absolute left-2 right-2 top-9 z-20 rounded-lg border border-border/80 px-3 py-2 text-[11px] text-text-secondary shadow-2xl"
-          style={{ background: 'rgba(8, 10, 18, 0.96)', backdropFilter: 'blur(14px)' }}
+          className="absolute left-1 right-1 top-7 z-20 rounded p-2 text-[10px]"
+          style={{ background: 'rgba(12,14,20,0.97)', border: '1px solid rgba(255,255,255,0.08)', color: '#aaa' }}
         >
-          <label className="flex items-center justify-between gap-3 py-1">
+          <label className="flex items-center justify-between py-0.5">
             <span>Auto-center</span>
-            <input
-              type="checkbox"
-              checked={settings.autoCenter}
-              onChange={event => onSettingsChange({ autoCenter: event.target.checked })}
-            />
+            <input type="checkbox" checked={settings.autoCenter} onChange={e => onSettingsChange({ autoCenter: e.target.checked })} />
           </label>
-          <label className="flex items-center justify-between gap-3 py-1">
-            <span>Levels per side</span>
+          <label className="flex items-center justify-between py-0.5">
+            <span>Levels</span>
             <input
-              type="number"
-              min={5}
-              max={50}
-              step={5}
+              type="number" min={5} max={50} step={5}
               value={settings.levelsPerSide}
-              onChange={event => onSettingsChange({ levelsPerSide: Math.max(5, Math.min(50, Number(event.target.value || 20))) })}
-              className="input-premium w-16 !py-0.5 !text-[11px]"
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3 py-1">
-            <span>Min size USD</span>
-            <input
-              type="number"
-              min={0}
-              step={1000}
-              value={settings.minTapeSizeUsd}
-              onChange={event => onSettingsChange({ minTapeSizeUsd: Math.max(0, Number(event.target.value || 0)) })}
-              className="input-premium w-20 !py-0.5 !text-[11px]"
+              onChange={e => onSettingsChange({ levelsPerSide: Math.max(5, Math.min(50, Number(e.target.value || 20))) })}
+              style={{ width: 40, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#ccc', borderRadius: 3, padding: '1px 4px', fontSize: 10 }}
             />
           </label>
         </div>
@@ -168,71 +121,60 @@ export function DomTapePanel({
 
       {/* Column headers */}
       <div
-        className="grid items-center border-b border-border/50 px-2 py-1 text-[9px] uppercase tracking-[0.2em] text-text-muted"
-        style={{ gridTemplateColumns: '1fr auto 1fr' }}
+        className="grid items-center px-1.5"
+        style={{
+          gridTemplateColumns: '1fr auto 1fr',
+          height: 16,
+          borderBottom: '1px solid rgba(255,255,255,0.04)',
+          fontSize: 8,
+          textTransform: 'uppercase',
+          letterSpacing: '0.12em',
+          color: '#3a3a4a',
+        }}
       >
-        <span className="text-right pr-2">Bid Qty</span>
-        <span className="px-2 text-center">Price</span>
-        <span className="pl-2">Ask Qty</span>
+        <span className="text-right pr-1">qty</span>
+        <span className="px-1.5 text-center">price</span>
+        <span className="pl-1">qty</span>
       </div>
 
-      {/* Order book body */}
+      {/* Ladder body */}
       <div
-        ref={domScrollRef}
-        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-        style={{ background: 'linear-gradient(180deg, #0c1018 0%, #090c12 100%)' }}
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden"
+        style={{ background: '#0b0e14' }}
       >
         {!model ? (
-          <div className="px-3 py-8 text-center text-xs text-text-muted">
-            {isActive ? 'Waiting for order book...' : 'No data'}
+          <div className="px-2 py-6 text-center text-[10px]" style={{ color: '#3a3a4a' }}>
+            {isActive ? 'loading...' : 'no data'}
           </div>
         ) : (
           <div>
-            {/* Asks (reversed: lowest ask at bottom, closest to spread) */}
+            {/* Asks — reversed so lowest ask is at bottom (near spread) */}
             {[...model.asks].reverse().map(level => (
-              <PriceLadderRow
-                key={`ask-${level.price}`}
-                level={level}
-                side="ask"
-                maxDepthUsd={model.maxDepthUsd}
-                isFlashing={changedPrices.has(level.price.toFixed(8))}
-                rowHeight={ROW_HEIGHT_PX}
-              />
+              <LadderRow key={`a-${level.price}`} level={level} side="ask" maxUsd={model.maxDepthUsd} />
             ))}
 
-            {/* Spread divider */}
+            {/* Spread bar */}
             <div
-              ref={midRef}
-              className="relative z-10 flex items-center justify-between border-y border-border/60 px-2"
+              className="flex items-center justify-between px-1.5"
               style={{
-                height: `${SPREAD_ROW_HEIGHT_PX}px`,
-                background: 'linear-gradient(90deg, rgba(16,21,34,0.95) 0%, rgba(20,27,42,0.98) 50%, rgba(16,21,34,0.95) 100%)',
+                height: 20,
+                background: 'rgba(255,255,255,0.02)',
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
               }}
             >
-              <div className="flex items-center gap-2 text-[10px]">
-                <span className="text-text-muted">Spread</span>
-                <span className="font-mono text-text-secondary">
-                  {formatPrice(model.spreadAbs)}
-                </span>
-                <span className="text-text-muted">
-                  {model.spreadPct.toFixed(3)}%
-                </span>
-              </div>
-              <span className="font-mono text-[12px] font-semibold text-text-primary">
+              <span style={{ fontSize: 9, color: '#555' }}>
+                {formatPrice(model.spreadAbs)} <span style={{ color: '#444' }}>{model.spreadPct.toFixed(3)}%</span>
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#ddd', fontFamily: 'monospace' }}>
                 {formatPrice(model.midPrice)}
               </span>
             </div>
 
-            {/* Bids (highest bid at top, closest to spread) */}
+            {/* Bids — highest bid at top (near spread) */}
             {model.bids.map(level => (
-              <PriceLadderRow
-                key={`bid-${level.price}`}
-                level={level}
-                side="bid"
-                maxDepthUsd={model.maxDepthUsd}
-                isFlashing={changedPrices.has(level.price.toFixed(8))}
-                rowHeight={ROW_HEIGHT_PX}
-              />
+              <LadderRow key={`b-${level.price}`} level={level} side="bid" maxUsd={model.maxDepthUsd} />
             ))}
           </div>
         )}
@@ -241,111 +183,95 @@ export function DomTapePanel({
   );
 }
 
-function PriceLadderRow({
+function LadderRow({
   level,
   side,
-  maxDepthUsd,
-  isFlashing,
-  rowHeight,
+  maxUsd,
 }: {
   level: DomLevelRow;
   side: 'ask' | 'bid';
-  maxDepthUsd: number;
-  isFlashing: boolean;
-  rowHeight: number;
+  maxUsd: number;
 }) {
   const isAsk = side === 'ask';
-  const barPct = maxDepthUsd > 0 ? Math.max(2, (level.sizeUsd / maxDepthUsd) * 100) : 0;
+  const barPct = maxUsd > 0 ? Math.min(100, (level.sizeUsd / maxUsd) * 100) : 0;
   const isLarge = level.isAnomalous;
 
+  // Very subtle depth bar
+  const barAlpha = isLarge ? 0.18 : 0.07;
   const barColor = isAsk
-    ? isLarge ? 'rgba(239,68,68,0.35)' : 'rgba(239,68,68,0.18)'
-    : isLarge ? 'rgba(34,197,94,0.35)' : 'rgba(34,197,94,0.18)';
+    ? `rgba(220,50,50,${barAlpha})`
+    : `rgba(50,200,80,${barAlpha})`;
 
-  const flashColor = isAsk
-    ? 'rgba(239,68,68,0.12)'
-    : 'rgba(34,197,94,0.12)';
+  const qtyColor = isAsk
+    ? (isLarge ? '#e05050' : '#7a4040')
+    : (isLarge ? '#50c870' : '#3a6a4a');
+
+  const priceColor = isAsk ? '#c04040' : '#40a060';
 
   return (
     <div
-      className={`relative grid items-center px-2 font-mono text-[11px] transition-colors ${
-        isFlashing ? 'dom-flash' : ''
-      }`}
+      className="relative grid items-center"
       style={{
-        height: `${rowHeight}px`,
+        height: ROW_H,
         gridTemplateColumns: '1fr auto 1fr',
-        animation: isFlashing ? undefined : undefined,
+        borderBottom: '1px solid rgba(255,255,255,0.015)',
       }}
     >
-      {/* Flash background */}
-      {isFlashing && (
+      {/* Depth bar — anchored to the qty side */}
+      {barPct > 1 && (
         <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: flashColor }}
+          className="absolute top-0 bottom-0 pointer-events-none"
+          style={{
+            width: `${barPct}%`,
+            background: barColor,
+            ...(isAsk ? { right: 0 } : { left: 0 }),
+          }}
         />
       )}
 
-      {/* Depth bar */}
-      <div
-        className="absolute top-[2px] bottom-[2px] pointer-events-none"
-        style={{
-          width: `${barPct}%`,
-          background: barColor,
-          borderRadius: '2px',
-          ...(isAsk
-            ? { right: '2px' }
-            : { left: '2px' }
-          ),
-        }}
-      />
-
-      {/* Bid qty column (left) */}
+      {/* Bid qty (left) */}
       {!isAsk ? (
-        <div className="relative z-[1] flex items-center justify-end pr-2">
-          <span className={`tabular-nums ${isLarge ? 'font-bold text-positive' : 'text-positive/80'}`}>
-            {formatCompactCoin(level.sizeCoin)}
+        <div className="relative z-[1] flex items-center justify-end pr-1.5" style={{ fontFamily: 'monospace', fontSize: 10 }}>
+          <span style={{ color: qtyColor, fontWeight: isLarge ? 700 : 400 }}>
+            {fmtCoin(level.sizeCoin)}
           </span>
-          <span className="ml-1.5 text-[9px] text-text-muted tabular-nums">
-            {formatCompactUsd(level.sizeUsd)}
+          <span style={{ color: '#333', fontSize: 8, marginLeft: 3 }}>
+            {fmtUsd(level.sizeUsd)}
           </span>
         </div>
-      ) : (
-        <div />
-      )}
+      ) : <div />}
 
-      {/* Price column (center) */}
-      <div className="relative z-[1] px-2 text-center">
-        <span className={`tabular-nums ${isAsk ? 'text-negative' : 'text-positive'} ${isLarge ? 'font-bold' : ''}`}>
+      {/* Price (center) */}
+      <div className="relative z-[1] px-1.5 text-center" style={{ fontFamily: 'monospace', fontSize: 10 }}>
+        <span style={{ color: priceColor, fontWeight: isLarge ? 700 : 400 }}>
           {formatPrice(level.price)}
         </span>
       </div>
 
-      {/* Ask qty column (right) */}
+      {/* Ask qty (right) */}
       {isAsk ? (
-        <div className="relative z-[1] flex items-center pl-2">
-          <span className={`tabular-nums ${isLarge ? 'font-bold text-negative' : 'text-negative/80'}`}>
-            {formatCompactCoin(level.sizeCoin)}
+        <div className="relative z-[1] flex items-center pl-1.5" style={{ fontFamily: 'monospace', fontSize: 10 }}>
+          <span style={{ color: qtyColor, fontWeight: isLarge ? 700 : 400 }}>
+            {fmtCoin(level.sizeCoin)}
           </span>
-          <span className="ml-1.5 text-[9px] text-text-muted tabular-nums">
-            {formatCompactUsd(level.sizeUsd)}
+          <span style={{ color: '#333', fontSize: 8, marginLeft: 3 }}>
+            {fmtUsd(level.sizeUsd)}
           </span>
         </div>
-      ) : (
-        <div />
-      )}
+      ) : <div />}
     </div>
   );
 }
 
-function formatCompactUsd(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return value.toFixed(0);
+function fmtUsd(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+  return v.toFixed(0);
 }
 
-function formatCompactCoin(value: number): string {
-  if (value >= 1000) return value.toFixed(0);
-  if (value >= 1) return value.toFixed(3);
-  if (value >= 0.01) return value.toFixed(4);
-  return value.toFixed(6);
+function fmtCoin(v: number): string {
+  if (v >= 1000) return v.toFixed(0);
+  if (v >= 1) return v.toFixed(3);
+  if (v >= 0.01) return v.toFixed(4);
+  return v.toFixed(6);
 }
