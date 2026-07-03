@@ -30,7 +30,7 @@ const SMALL_PRINT_BATCH_MS = 70;
 const BUBBLE_TTL_MS = 3200;
 const IMMEDIATE_PRINT_USD = 12_500;
 const DOM_ROW_HEIGHT_PX = 24;
-const DOM_MID_BAND_HEIGHT_PX = 52;
+const DOM_MID_BAND_HEIGHT_PX = 28;
 const DOM_BUBBLE_LANE_WIDTH_PX = 92;
 
 export function DomTapePanel({
@@ -47,6 +47,7 @@ export function DomTapePanel({
 }: DomTapePanelProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualAnchorPrice, setManualAnchorPrice] = useState<number | null>(null);
+  const [autoAnchorPrice, setAutoAnchorPrice] = useState<number | null>(null);
   const [bubbleItems, setBubbleItems] = useState<BubbleTapeItem[]>([]);
   const domScrollRef = useRef<HTMLDivElement>(null);
   const smallTradeQueueRef = useRef<Trade[]>([]);
@@ -68,11 +69,11 @@ export function DomTapePanel({
       ? buildDomViewModel({
           orderbook: deferredOrderbook,
           compressionPct: settings.compressionPct,
-          anchorPrice: settings.autoCenter ? undefined : manualAnchorPrice,
+          anchorPrice: settings.autoCenter ? autoAnchorPrice : manualAnchorPrice,
           rowsPerSide,
         })
       : null,
-    [deferredOrderbook, manualAnchorPrice, rowsPerSide, settings.autoCenter, settings.compressionPct],
+    [autoAnchorPrice, deferredOrderbook, manualAnchorPrice, rowsPerSide, settings.autoCenter, settings.compressionPct],
   );
 
   useEffect(() => {
@@ -80,7 +81,25 @@ export function DomTapePanel({
     const node = domScrollRef.current;
     if (!node) return;
     node.scrollTop = Math.max(0, (node.scrollHeight - node.clientHeight) / 2);
-  }, [model, settings.autoCenter]);
+  }, [autoAnchorPrice, settings.autoCenter]);
+
+  useEffect(() => {
+    if (!deferredOrderbook) return;
+    if (!settings.autoCenter) {
+      setAutoAnchorPrice(null);
+      return;
+    }
+
+    const nextMid = getOrderbookMidPrice(deferredOrderbook);
+    if (nextMid <= 0) return;
+
+    setAutoAnchorPrice(current => {
+      if (current == null) return nextMid;
+      const threshold = Math.max(current * settings.compressionPct * 0.55, model?.step ?? 0);
+      if (Math.abs(nextMid - current) >= threshold) return nextMid;
+      return current;
+    });
+  }, [deferredOrderbook, model?.step, settings.autoCenter, settings.compressionPct]);
 
   useEffect(() => {
     seenTradeKeysRef.current = new Set();
@@ -89,6 +108,7 @@ export function DomTapePanel({
       clearTimeout(smallTradeTimerRef.current);
       smallTradeTimerRef.current = null;
     }
+    setAutoAnchorPrice(null);
     setBubbleItems([]);
   }, [activeMarket, isActive, marketLabel, orderbook?.symbol]);
 
@@ -360,15 +380,15 @@ export function DomTapePanel({
                   <DomRow key={`ask-${level.price}`} level={level} side="sell" />
                 ))}
                 <div
-                  className="sticky top-0 z-20 border-y border-border/80 bg-[#101522]/96 px-3 py-2 backdrop-blur"
+                  className="relative z-20 border-y border-border/80 bg-[#101522]/96 px-3 py-1.5"
                   style={{ minHeight: `${DOM_MID_BAND_HEIGHT_PX}px` }}
                 >
                   <div
                     className="grid items-center gap-3"
                     style={{ gridTemplateColumns: `${DOM_BUBBLE_LANE_WIDTH_PX}px minmax(0, 1fr) auto` }}
                   >
-                    <span className="pl-1 text-[10px] uppercase tracking-[0.24em] text-text-muted">Flow</span>
-                    <div className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-1 text-center">
+                    <span className="pl-1 text-[10px] uppercase tracking-[0.24em] text-text-muted">Tape</span>
+                    <div className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-left">
                       <div className="font-mono text-[12px] font-semibold text-text-primary">
                         {formatPrice(model.midPrice)}
                       </div>
@@ -376,7 +396,7 @@ export function DomTapePanel({
                         {formatSpread(model.spreadAbs, model.spreadPct)}
                       </div>
                     </div>
-                    <span className="text-right text-[10px] uppercase tracking-[0.24em] text-text-muted">
+                    <span className="text-right text-[10px] tracking-[0.1em] text-text-muted">
                       {bubbleItems.length} live
                     </span>
                   </div>
@@ -512,6 +532,15 @@ function getBubbleTopPx(item: BubbleTapeItem, model: ReturnType<typeof buildDomV
   }
 
   return model.asks.length * DOM_ROW_HEIGHT_PX + DOM_MID_BAND_HEIGHT_PX / 2;
+}
+
+function getOrderbookMidPrice(orderbook: OrderBook): number {
+  const bestBid = orderbook.bids[0]?.price ?? 0;
+  const bestAsk = orderbook.asks[0]?.price ?? 0;
+  if (bestBid > 0 && bestAsk > 0) return (bestBid + bestAsk) / 2;
+  if (bestAsk > 0) return bestAsk;
+  if (bestBid > 0) return bestBid;
+  return 0;
 }
 
 function clamp(value: number, min: number, max: number): number {
