@@ -64,7 +64,7 @@ test('buildDomViewModel respects manual anchor price when deriving visible ladde
   assert.ok(view);
   assert.deepEqual(
     view.asks.map(level => level.price),
-    [104, 103],
+    [105, 104],
   );
   assert.deepEqual(
     view.bids.map(level => level.price),
@@ -91,17 +91,17 @@ test('buildDomViewModel keeps fractional tick liquidity instead of dropping rows
       ],
     },
     compressionPct: 0.01,
-    rowsPerSide: 3,
+    rowsPerSide: 4,
   });
 
   assert.ok(view);
   assert.deepEqual(
     view.asks.map(level => level.sizeCoin),
-    [3, 2, 1],
+    [3, 2, 1, 0],
   );
   assert.deepEqual(
     view.bids.map(level => level.sizeCoin),
-    [1, 2, 3],
+    [0, 1, 2, 3],
   );
 });
 

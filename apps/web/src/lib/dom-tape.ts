@@ -105,14 +105,12 @@ export function buildDomViewModel(params: {
   const asks = buildDenseSideRows('ask', askBuckets, {
     step,
     rowsPerSide,
-    bestPrice: bestAsk > 0 ? bestAsk : centerPrice,
-    anchorPrice: params.anchorPrice,
+    centerPrice,
   });
   const bids = buildDenseSideRows('bid', bidBuckets, {
     step,
     rowsPerSide,
-    bestPrice: bestBid > 0 ? bestBid : centerPrice,
-    anchorPrice: params.anchorPrice,
+    centerPrice,
   });
 
   const maxSideUsd = Math.max(
@@ -260,17 +258,13 @@ function buildDenseSideRows(
   params: {
     step: number;
     rowsPerSide: number;
-    bestPrice: number;
-    anchorPrice?: number | null;
+    centerPrice: number;
   },
 ): Array<Pick<DomLevelRow, 'price' | 'sizeUsd' | 'sizeCoin' | 'cumulativeUsd'>> {
   const rows: Array<Pick<DomLevelRow, 'price' | 'sizeUsd' | 'sizeCoin' | 'cumulativeUsd'>> = [];
-  const basePrice = params.anchorPrice && params.anchorPrice > 0
-    ? params.anchorPrice
-    : params.bestPrice;
-  const anchorPrice = side === 'ask'
-    ? Math.ceil(basePrice / params.step) * params.step
-    : Math.floor(basePrice / params.step) * params.step;
+  const bidAnchorPrice = Math.floor(params.centerPrice / params.step) * params.step;
+  const askAnchorPrice = bidAnchorPrice + params.step;
+  const anchorPrice = side === 'ask' ? askAnchorPrice : bidAnchorPrice;
 
   let cumulativeUsd = 0;
   for (let index = 0; index < params.rowsPerSide; index += 1) {

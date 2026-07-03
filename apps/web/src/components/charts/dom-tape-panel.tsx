@@ -380,7 +380,7 @@ export function DomTapePanel({
                   <DomRow key={`ask-${level.price}`} level={level} side="sell" />
                 ))}
                 <div
-                  className="relative z-20 border-y border-border/80 bg-[#101522]/96 px-3 py-1.5"
+                  className="relative z-20 border-y border-border/80 bg-[#101522]/92 px-3 py-0.5"
                   style={{ minHeight: `${DOM_MID_BAND_HEIGHT_PX}px` }}
                 >
                   <div
@@ -388,16 +388,11 @@ export function DomTapePanel({
                     style={{ gridTemplateColumns: `${DOM_BUBBLE_LANE_WIDTH_PX}px minmax(0, 1fr) auto` }}
                   >
                     <span className="pl-1 text-[10px] uppercase tracking-[0.24em] text-text-muted">Tape</span>
-                    <div className="rounded-md border border-white/10 bg-white/[0.03] px-2.5 py-1 text-left">
-                      <div className="font-mono text-[12px] font-semibold text-text-primary">
-                        {formatPrice(model.midPrice)}
-                      </div>
-                      <div className="text-[10px] text-text-secondary">
-                        {formatSpread(model.spreadAbs, model.spreadPct)}
-                      </div>
+                    <div className="font-mono text-[11px] text-text-secondary">
+                      {formatSpread(model.spreadAbs, model.spreadPct)}
                     </div>
-                    <span className="text-right text-[10px] tracking-[0.1em] text-text-muted">
-                      {bubbleItems.length} live
+                    <span className="text-right font-mono text-[12px] font-semibold text-text-primary">
+                      {formatPrice(model.midPrice)}
                     </span>
                   </div>
                 </div>
