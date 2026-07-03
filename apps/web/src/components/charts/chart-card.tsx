@@ -16,7 +16,7 @@ import {
   mergeChartPriceFormat,
 } from '@/lib/format';
 import { formatDisplaySymbol, formatMarketTypeLabel, getDisplayBaseSymbol } from '@/lib/display-symbol';
-import { findPreferredOrderbook } from '@/lib/orderbook-identity';
+import { findPreferredOrderbook, getOrderbookMapKey } from '@/lib/orderbook-identity';
 import { getHeatmapPriceStep, resolveHeatmapReferencePrice } from '@/lib/heatmap-price';
 import { motion } from 'framer-motion';
 import { Maximize2, X, Loader2 } from 'lucide-react';
@@ -356,6 +356,10 @@ export const ChartCard = memo(function ChartCard({ symbol, index, exchange: exch
   // ─── Heatmap: LiquidityEngine + canvas overlay ──────────────────
   const heatmapOrderbook = useOrderbookStore(state => {
     if (!showHeatmap) return undefined;
+    for (const candidate of symbolLookupCandidates) {
+      const exact = state.books.get(getOrderbookMapKey(exchange, marketType, candidate));
+      if (exact) return exact;
+    }
     return findPreferredOrderbook(state.books, exchange, marketType, symbolLookupCandidates);
   });
 

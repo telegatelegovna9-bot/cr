@@ -44,6 +44,20 @@ export interface TapeRow {
   isLargePrint: boolean;
 }
 
+export interface BubbleTapeItem {
+  id: string;
+  tradeId: string;
+  price: number;
+  side: 'buy' | 'sell';
+  sizeUsd: number;
+  sizeCoin: number;
+  timestamp: number;
+  createdAt: number;
+  ageMs: number;
+  intensity: number;
+  isLargePrint: boolean;
+}
+
 const DEFAULT_ROWS_PER_SIDE = 18;
 const ANOMALY_THRESHOLD = 2.25;
 
@@ -92,11 +106,13 @@ export function buildDomViewModel(params: {
     step,
     rowsPerSide,
     bestPrice: bestAsk > 0 ? bestAsk : centerPrice,
+    anchorPrice: params.anchorPrice,
   });
   const bids = buildDenseSideRows('bid', bidBuckets, {
     step,
     rowsPerSide,
     bestPrice: bestBid > 0 ? bestBid : centerPrice,
+    anchorPrice: params.anchorPrice,
   });
 
   const maxSideUsd = Math.max(
@@ -124,24 +140,73 @@ export function buildTapeRows(params: {
   trades: Trade[];
   minSizeUsd?: number;
 }): TapeRow[] {
-  const sorted = [...params.trades].sort((a, b) => b.timestamp - a.timestamp);
-  const filtered = sorted.filter(trade => trade.price * trade.quantity >= (params.minSizeUsd ?? 0));
-  const maxUsd = Math.max(1, ...filtered.map(trade => trade.price * trade.quantity));
+  const minSizeUsd = params.minSizeUsd ?? 0;
+  const filtered: Array<Trade & { __sizeUsd: number }> = [];
+  let maxUsd = 1;
+
+  for (let index = params.trades.length - 1; index >= 0; index -= 1) {
+    const trade = params.trades[index];
+    const sizeUsd = trade.price * trade.quantity;
+    if (sizeUsd < minSizeUsd) continue;
+    if (sizeUsd > maxUsd) maxUsd = sizeUsd;
+    filtered.push({ ...trade, __sizeUsd: sizeUsd });
+  }
 
   return filtered.map(trade => {
-    const sizeUsd = trade.price * trade.quantity;
-    const intensity = sizeUsd / maxUsd;
+    const intensity = trade.__sizeUsd / maxUsd;
     return {
       id: trade.id,
       price: trade.price,
       side: trade.side,
-      sizeUsd,
+      sizeUsd: trade.__sizeUsd,
       sizeCoin: trade.quantity,
       timestamp: trade.timestamp,
       intensity,
       isLargePrint: intensity >= 0.55,
     };
   });
+}
+
+export function buildBubbleTapeItems(params: {
+  trades: Trade[];
+  minLargePrintUsd: number;
+  now: number;
+}): BubbleTapeItem[] {
+  let maxUsd = 1;
+  const measured = params.trades.map(trade => {
+    const sizeUsd = trade.price * trade.quantity;
+    if (sizeUsd > maxUsd) maxUsd = sizeUsd;
+    return { trade, sizeUsd };
+  });
+
+  return measured.map(({ trade, sizeUsd }) => ({
+    id: trade.id,
+    tradeId: trade.id,
+    price: trade.price,
+    side: trade.side,
+    sizeUsd,
+    sizeCoin: trade.quantity,
+    timestamp: trade.timestamp,
+    createdAt: params.now,
+    ageMs: 0,
+    intensity: sizeUsd / maxUsd,
+    isLargePrint: sizeUsd >= params.minLargePrintUsd,
+  }));
+}
+
+export function trimBubbleTapeItems(params: {
+  items: BubbleTapeItem[];
+  now: number;
+  maxItems: number;
+  ttlMs: number;
+}): BubbleTapeItem[] {
+  return params.items
+    .map(item => ({
+      ...item,
+      ageMs: Math.max(0, params.now - item.createdAt),
+    }))
+    .filter(item => item.ageMs <= params.ttlMs)
+    .slice(-params.maxItems);
 }
 
 export function findPairedMarket(params: {
@@ -195,12 +260,16 @@ function buildDenseSideRows(
     step: number;
     rowsPerSide: number;
     bestPrice: number;
+    anchorPrice?: number | null;
   },
 ): Array<Pick<DomLevelRow, 'price' | 'sizeUsd' | 'sizeCoin' | 'cumulativeUsd'>> {
   const rows: Array<Pick<DomLevelRow, 'price' | 'sizeUsd' | 'sizeCoin' | 'cumulativeUsd'>> = [];
+  const basePrice = params.anchorPrice && params.anchorPrice > 0
+    ? params.anchorPrice
+    : params.bestPrice;
   const anchorPrice = side === 'ask'
-    ? Math.ceil(params.bestPrice / params.step) * params.step
-    : Math.floor(params.bestPrice / params.step) * params.step;
+    ? Math.ceil(basePrice / params.step) * params.step
+    : Math.floor(basePrice / params.step) * params.step;
 
   let cumulativeUsd = 0;
   for (let index = 0; index < params.rowsPerSide; index += 1) {

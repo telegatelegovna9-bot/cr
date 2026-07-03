@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import type { Timeframe, Trade } from '@crypto-screener/shared';
 import { useMarketStore, useOrderbookStore, useTradeStore } from '@/stores';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { findPreferredOrderbook } from '@/lib/orderbook-identity';
+import { findPreferredOrderbook, getOrderbookMapKey } from '@/lib/orderbook-identity';
 import {
   DEFAULT_DOM_TAPE_SETTINGS,
   type DomTapeSettings,
@@ -132,6 +132,10 @@ export function ChartTerminalShell({
 
   const domOrderbook = useOrderbookStore(state => {
     if (!activeDomMarket) return undefined;
+    for (const candidate of activeDomSymbolCandidates) {
+      const exact = state.books.get(getOrderbookMapKey(exchange, activeDomMarket.marketType, candidate));
+      if (exact) return exact;
+    }
     return findPreferredOrderbook(state.books, exchange, activeDomMarket.marketType, activeDomSymbolCandidates);
   });
 
