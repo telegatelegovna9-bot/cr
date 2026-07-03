@@ -634,7 +634,7 @@ interface OrderbookStore {
 
 // Throttle map: key -> last update timestamp
 const orderbookThrottle = new Map<string, number>();
-const ORDERBOOK_THROTTLE_MS = 300;
+const ORDERBOOK_THROTTLE_MS = 150;
 
 export const useOrderbookStore = create<OrderbookStore>((set, get) => ({
   books: new Map(),

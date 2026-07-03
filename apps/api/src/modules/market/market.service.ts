@@ -208,7 +208,14 @@ export class MarketService implements OnModuleInit, OnModuleDestroy {
   }
 
   private handleOrderBook(ob: OrderBook) {
-    const key = `ob:${ob.exchange}:${ob.marketType ?? 'spot'}:${ob.symbol}`;
+    if (!ob.marketType) ob.marketType = 'spot';
+    ob.bids = ob.bids
+      .filter(l => Number.isFinite(l.price) && Number.isFinite(l.quantity) && l.quantity > 0)
+      .sort((a, b) => b.price - a.price);
+    ob.asks = ob.asks
+      .filter(l => Number.isFinite(l.price) && Number.isFinite(l.quantity) && l.quantity > 0)
+      .sort((a, b) => a.price - b.price);
+    const key = `ob:${ob.exchange}:${ob.marketType}:${ob.symbol}`;
     this.orderbookCache.set(key, ob);
     this.gateway.broadcast('orderbook', ob);
   }

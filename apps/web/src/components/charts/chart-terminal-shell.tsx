@@ -42,9 +42,8 @@ function loadDomTapeSettings(): DomTapeSettings {
     if (!raw) return DEFAULT_DOM_TAPE_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<DomTapeSettings>;
     return {
-      compressionPct: typeof parsed.compressionPct === 'number' ? Math.max(0.0025, parsed.compressionPct) : DEFAULT_DOM_TAPE_SETTINGS.compressionPct,
       autoCenter: typeof parsed.autoCenter === 'boolean' ? parsed.autoCenter : DEFAULT_DOM_TAPE_SETTINGS.autoCenter,
-      tapeSizeMode: parsed.tapeSizeMode === 'coin' ? 'coin' : DEFAULT_DOM_TAPE_SETTINGS.tapeSizeMode,
+      levelsPerSide: typeof parsed.levelsPerSide === 'number' ? Math.max(5, Math.min(50, parsed.levelsPerSide)) : DEFAULT_DOM_TAPE_SETTINGS.levelsPerSide,
       minTapeSizeUsd: typeof parsed.minTapeSizeUsd === 'number' ? Math.max(0, parsed.minTapeSizeUsd) : DEFAULT_DOM_TAPE_SETTINGS.minTapeSizeUsd,
     };
   } catch {

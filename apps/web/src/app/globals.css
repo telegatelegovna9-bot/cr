@@ -215,6 +215,15 @@
     50% { opacity: 1; box-shadow: 0 0 10px currentColor; }
   }
 
+  /* ---- DOM Order Book Flash ---- */
+  @keyframes dom-flash {
+    0% { background-color: rgba(99, 102, 241, 0.12); }
+    100% { background-color: transparent; }
+  }
+  .dom-flash {
+    animation: dom-flash 0.4s ease-out;
+  }
+
   @keyframes dom-bubble-tape-fade {
     0% {
       opacity: 0;
